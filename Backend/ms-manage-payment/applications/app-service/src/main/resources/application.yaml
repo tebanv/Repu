@@ -1,0 +1,72 @@
+spring:
+  application:
+    name: "ms-manage-payment"
+    #name: ms-manage-payment
+
+  webflux:
+    #base-path: "/ms-manage-payment"
+    base-path: /ms-manage-payment
+
+  r2dbc:
+    #url: "r2dbc:postgresql://89.117.73.146:5434/lucy"
+    #username: "lucy"
+    #password: "adminlucy"
+    url: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+
+  sql:
+    init:
+      mode: "never"
+  profiles:
+    #active: "local"
+    active: ${SPRING_PROFILES_ACTIVE}
+
+adapters:
+  r2dbc:
+    #host: "89.117.73.146"
+    #port: 5434
+    #database: "lucy"
+    #schema: "lucy"
+    #username: "lucy"
+    #password: "lucyadmin"
+    host: ${DB_HOST}
+    port: ${DB_PORT}
+    database: ${DB_NAME}
+    schema: ${DB_SCHEMA}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+
+  wompi:
+    #base-url: "https://sandbox.wompi.co/v1"
+    #public-key: "pub_test_PItnC5w2vdRZGS4YSN2dnSU1OLb1ex7h"
+    #private-key: "prv_test_7z03lTmDqWiEDV0YImcFdl2U9se4YLNV"
+    #integrity-secret: "test_integrity_0nE94WAa42rP8VwpJjAulCpyUYOtW4Ec"
+    #event-secret: "test_events_WboasTkrVibjULo5aoM24Lplsx7slJWc"
+    base-url: ${WOMPI_BASE_URL}
+    public-key: ${WOMPI_PUBLIC_KEY}
+    private-key: ${WOMPI_PRIVATE_KEY}
+    integrity-secret: ${WOMPI_INTEGRITY_SECRET}
+    event-secret: ${WOMPI_EVENT_SECRET}
+
+server:
+  #port: 8084
+  port: ${SERVER_PORT:8084}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,prometheus"
+        #include: health,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    circuitbreakers:
+      enabled: true
+
+cors:
+  #allowed-origins: http://localhost:3000,http://localhost:4200,http://localhost:8080,http://localhost:5173
+  allowed-origins: ${CORS_ALLOWED_ORIGINS}

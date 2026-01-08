@@ -1,0 +1,1372 @@
+openapi: 3.0.3
+info:
+  title: Multi-Tenant E-Commerce & On-Demand Services API
+  description: |
+    Enterprise API for a Multi-Tenant E-Commerce platform connecting Customers, Distributors, and Drivers.
+    Key features: Dynamic Catalog (JSONB), Real-time Tracking, and Payment Integrations.
+  version: 1.0.0
+  contact:
+    name: Backend Architecture Team
+    email: arch@platform.com
+
+servers:
+  - url: https://api.dev.platform.com/v1
+    description: Development Server
+  - url: https://api.prod.platform.com/v1
+    description: Production Server
+
+tags:
+  
+  - name: Auth
+    description: Authentication and Authorization (JWT)
+  - name: Users
+    description: User profile and role management
+  - name: Companies
+    description: Tenant/Company management (Distributors)
+  - name: Products
+    description: Product management with dynamic attributes
+  - name: Categories
+    description: Category management
+  - name: Cart
+    description: Shopping cart persistence
+  - name: Orders
+    description: Order lifecycle and processing
+  - name: Payments
+    description: Payment gateway integrations and webhooks
+  - name: Tracking
+    description: Real-time logistics and geolocation
+  - name: Dashboard
+    description: Analytics and KPIs for Analysts/Admins
+  - name: System Config
+    description: Global system parameters (Currency, Taxes, Business Rules).
+  - name: Support / PQRS
+    description: Ticket management (Complaints, Requests, Support).
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ===========================
+  # AUTHENTICATION
+  # ===========================
+  /auth/register:
+    post:
+      tags:
+        - Auth
+      summary: Register a new user
+      description: Public endpoint to create a new user with a specific role.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Login to obtain JWT
+      description: Returns a Bearer Token for subsequent requests.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthToken'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ===========================
+  # USERS MANAGEMENT
+  # ===========================
+  /users/profile:
+    get:
+      tags:
+        - Users
+      summary: Get My Profile
+      description: |
+        Retrieves the profile of the currently logged-in user (based on JWT).
+        **Role:** ANY (Authenticated).
+      responses:
+        '200':
+          description: User profile details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+
+    patch:
+      tags:
+        - Users
+      summary: Update My Profile
+      description: |
+        Update personal information.
+        **Role:** ANY (Authenticated).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileUpdate'
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+
+  /users/{userId}/status:
+    patch:
+      tags:
+        - Users
+      summary: Change User Status (Ban/Unban)
+      description: |
+        **Role:** ADMIN.
+        Activate or Deactivate a user. Deactivated users cannot log in.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusUpdateRequest'
+      responses:
+        '200':
+          description: Status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '404':
+          description: User not found
+
+  # ===========================
+  # COMPANIES (TENANTS)
+  # ===========================
+  /companies:
+    get:
+      tags:
+        - Companies
+      summary: List all companies
+      description: Public list of stores/companies. Filterable by location.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+        - name: lat
+          in: query
+          schema: { type: number }
+        - name: lng
+          in: query
+          schema: { type: number }
+      responses:
+        '200':
+          description: List of companies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PagedCompanyList'
+    post:
+      tags:
+        - Companies
+      summary: Create a new Company
+      description: |
+        **Role required:** DISTRIBUTOR. 
+        Creates a new tenant profile.
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyInput'
+      responses:
+        '201':
+          description: Company created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+
+  /companies/{companyId}/status:
+    patch:
+      tags:
+        - Companies
+      summary: Change Company Status
+      description: |
+        **Role:** ADMIN.
+        If deactivated, the company and its products will not appear in search results.
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusUpdateRequest'
+      responses:
+        '200':
+          description: Company status updated
+
+  # ===========================
+  # CATALOG: CATEGORIES
+  # ===========================
+  /catalog/categories:
+    get:
+      tags:
+        - Categories
+      summary: List Categories
+      description: Get category tree or flat list.
+      security: []
+      responses:
+        '200':
+          description: List of categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+
+    post:
+      tags:
+        - Categories
+      summary: Create Category
+      description: "**Role:** ADMIN / ANALYST."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryInput'
+      responses:
+        '201':
+          description: Category Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+  /catalog/categories/{categoryId}/status:
+    patch:
+      tags:
+        - Categories
+      summary: Change Category Status
+      description: |
+        **Role:** ADMIN / ANALYST.
+        Hiding a category might hide all products within it depending on business logic.
+      parameters:
+        - name: categoryId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusUpdateRequest'
+      responses:
+        '200':
+          description: Category status updated
+
+  # ===========================
+  # CATALOG (PRODUCTS)
+  # ===========================
+  /catalog/products:
+    get:
+      tags:
+        - Products
+      summary: Search products
+      description: |
+        Advanced search. Supports filtering by dynamic JSON attributes (e.g., voltage, rim size).
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+        - name: companyId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: categoryId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: attributes
+          in: query
+          description: 'URL encoded JSON object for dynamic filtering ({"rim": 15})'
+          schema: { type: string }
+      responses:
+        '200':
+          description: Product list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PagedProductList'
+    post:
+      tags:
+        - Products
+      summary: Add a product
+      description: |
+        **Role required:** DISTRIBUTOR.
+        Adds a product with dynamic technical specs (JSONB).
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductInput'
+      responses:
+        '201':
+          description: Product created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+  /catalog/products/{productId}/status:
+    patch:
+      tags:
+        - Products
+      summary: Change Product Status
+      description: |
+        **Role:** DISTRIBUTOR (Own products only) or ADMIN.
+        Deactivated products are not visible to buyers but remain in history.
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusUpdateRequest'
+      responses:
+        '200':
+          description: Product status updated
+
+  # ===========================
+  # CART
+  # ===========================
+  /cart:
+    get:
+      tags:
+        - Cart
+      summary: Get current user cart
+      description: '**Role required:** BUYER.'
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      responses:
+        '200':
+          description: Current cart details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+
+  /cart/items:
+    post:
+      tags:
+        - Cart
+      summary: Add item to cart
+      description: '**Role required:** BUYER.'
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CartItemInput'
+      responses:
+        '200':
+          description: Item added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+
+  /cart/items/{itemId}:
+    delete:
+      tags:
+        - Cart
+      summary: Remove item from cart
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+        - name: itemId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Item removed
+
+  # ===========================
+  # ORDERS
+  # ===========================
+  /orders:
+    post:
+      tags:
+        - Orders
+      summary: Checkout (Create Order)
+      description: |
+        **Role required:** BUYER.
+        Converts the current active cart into a pending order.
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckoutRequest'
+      responses:
+        '201':
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+
+    get:
+      tags:
+        - Orders
+      summary: List Orders
+      description: '**Role:** BUYER (own orders), DISTRIBUTOR (company orders).'
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      responses:
+        '200':
+          description: List of orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+
+  /orders/{orderId}/status:
+    patch:
+      tags:
+        - Orders
+      summary: Update Order Status
+      description: |
+        **Role:** DISTRIBUTOR (Accept/Dispatch), DRIVER (Pickup/Deliver).
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [CONFIRMED, PREPARING, ON_ROUTE, DELIVERED, CANCELLED]
+      responses:
+        '200':
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+
+  # ===========================
+  # PAYMENTS & INTEGRATIONS
+  # ===========================
+  /payments/init:
+    post:
+      tags:
+        - Payments
+      summary: 1. Initialize Payment (Pre-Sign)
+      description: |
+        **Step 1 of Payment Flow:** The Frontend sends the `orderId` and selected gateway (e.g., WOMPI).
+        The Backend creates a 'PENDING' transaction record and generates the **Integrity Signature** required by the Gateway.
+        The Frontend uses this response to open the Wompi Widget.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentInitRequest'
+      responses:
+        '201':
+          description: Transaction initialized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentInitResponse'
+
+  /payments/webhook/{gateway}:
+    post:
+      tags:
+        - Payments
+      summary: 2. Payment Gateway Webhook
+      description: |
+        **Step 2 of Payment Flow:**
+        Public endpoint called **asynchronously** by Wompi/MercadoPago server to confirm payment status.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+        - name: gateway
+          in: path
+          required: true
+          schema: { type: string, enum: [wompi, mercadopago] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Webhook received
+
+  # ===========================
+  # TRACKING (LOGISTICS)
+  # ===========================
+  /tracking/update:
+    post:
+      tags:
+        - Tracking
+      summary: Driver Location Update
+      description: |
+        **Role:** DRIVER.
+        High-frequency endpoint to update coordinates.
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LocationUpdate'
+      responses:
+        '200':
+          description: Location updated
+
+  /tracking/order/{orderId}:
+    get:
+      tags:
+        - Tracking
+      summary: Get Order Live Location
+      description: |
+        **Role:** BUYER / ANALYST.
+        Returns the current location of the driver assigned to the order.
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Current location
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LocationSnapshot'
+
+  # ===========================
+  # DASHBOARD (ANALYTICS)
+  # ===========================
+  /dashboard/kpis:
+    get:
+      tags:
+        - Dashboard
+      summary: System KPIs
+      description: '**Role:** ANALYST / ADMIN. Returns aggregated stats.'
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+        - name: dateFrom
+          in: query
+          schema: { type: string, format: date }
+        - name: dateTo
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: KPI Data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KpiReport'
+  
+  # ===========================
+  # SYSTEM PARAMETERS
+  # ===========================
+  /system/parameters:
+    get:
+      tags:
+        - System Config
+      summary: List all Parameters
+      description: |
+        **Role:** ADMIN.
+        Returns the full list of system configurations.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of parameters
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SystemParam'
+
+    post:
+      tags:
+        - System Config
+      summary: Create Parameter
+      description: |
+        **Role:** ADMIN.
+        Create a new configuration key-value pair.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SystemParamInput'
+      responses:
+        '201':
+          description: Parameter created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemParam'
+
+  /system/parameters/key/{key}:
+    get:
+      tags:
+        - System Config
+      summary: Get Param by Key
+      description: |
+        **Role:** ANY (Authenticated).
+        Fetch a specific config by its unique code (e.g. 'TAX_RATE', 'CURRENCY').
+        Useful for frontend/backend to load specific rules.
+      parameters:
+        - name: key
+          in: path
+          required: true
+          description: The unique string code (e.g., GLOBAL_IVA)
+          schema: { type: string }
+      responses:
+        '200':
+          description: Parameter details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemParam'
+        '404':
+          description: Parameter key not found
+
+  /system/parameters/{id}:
+    patch:
+      tags:
+        - System Config
+      summary: Update Parameter Value
+      description: |
+        **Role:** ADMIN.
+        Update the JSON value or description of an existing parameter.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SystemParamInput'
+      responses:
+        '200':
+          description: Parameter updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemParam'
+
+  /system/parameters/{id}/status:
+    patch:
+      tags:
+        - System Config
+      summary: Activate/Deactivate Parameter
+      description: |
+        **Role:** ADMIN. Soft delete a configuration.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusUpdateRequest'
+      responses:
+        '200':
+          description: Status updated
+  # ===========================
+  # SUPPORT & PQRS (QUEJAS)
+  # ===========================
+  /support/tickets:
+    post:
+      tags:
+        - Support / PQRS
+      summary: Create Support Ticket
+      description: |
+        **Role:** ANY (Authenticated).
+        Create a new complaint, request, or support ticket. 
+        Optionally linked to an Order ID.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupportTicketInput'
+      responses:
+        '201':
+          description: Ticket created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportTicket'
+
+    get:
+      tags:
+        - Support / PQRS
+      summary: List Tickets (Paginated)
+      description: |
+        **Role:** - **ADMIN/ANALYST:** View ALL tickets. Can filter by status.
+        - **USER:** View ONLY their own tickets.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [OPEN, IN_PROGRESS, RESOLVED, REJECTED]
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [COMPLAINT, CLAIM, SUGGESTION, TECHNICAL_SUPPORT]
+      responses:
+        '200':
+          description: List of tickets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedTicketList'
+
+  /support/tickets/{ticketId}/resolution:
+    patch:
+      tags:
+        - Support / PQRS
+      summary: Resolve/Answer Ticket
+      description: |
+        **Role:** ADMIN / ANALYST.
+        Close the ticket adding a resolution note/response.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TicketResolution'
+      responses:
+        '200':
+          description: Ticket updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportTicket'
+
+# ===========================
+# COMPONENTS
+# ===========================
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "Enter JWT Bearer token **_only_**"
+  parameters:
+    RequestIdHeader:
+      name: X-Request-ID
+      in: header
+      description: Unique tracing ID for the request.
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PageParam:
+      name: page
+      in: query
+      description: Page number (0-indexed)
+      schema: { type: integer, default: 0 }
+    SizeParam:
+      name: size
+      in: query
+      description: Records per page
+      schema: { type: integer, default: 20 }
+
+  responses:
+    BadRequest:
+      description: Invalid input provided
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Missing or invalid authentication token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    # --- METADATA ---
+    PageMetadata:
+      type: object
+      properties:
+        totalElements: { type: integer }
+        totalPages: { type: integer }
+        number: { type: integer }
+        size: { type: integer }
+
+    # --- ERROR ---
+    Error:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 400
+        message:
+          type: string
+          example: "Invalid Input"
+        details:
+          type: string
+
+    # --- AUTH ---
+    RegisterRequest:
+      type: object
+      required: [email, password, role, firstName, lastName]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        role:
+          type: string
+          enum: [BUYER, DISTRIBUTOR, DRIVER, ANALYST]
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    AuthToken:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+          example: "Bearer"
+        expiresIn:
+          type: integer
+
+    # --- USERS  --- 
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [BUYER, DISTRIBUTOR, DRIVER, ANALYST, ADMIN]
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+        profileAttributes:
+          type: object
+          description: Dynamic JSON attributes (e.g. Driver license, Avatar URL)
+        createdAt:
+          type: string
+          format: date-time
+
+    UserProfileUpdate:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+        profileAttributes:
+          type: object
+          description: Partial update of dynamic attributes
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        role:
+          type: string
+
+    # --- CATEGORIES ---
+    CategoryInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        parentId: { type: string, format: uuid, nullable: true }
+        description: { type: string }
+        iconUrl: { type: string }
+
+    Category:
+      allOf:
+        - $ref: '#/components/schemas/CategoryInput'
+        - type: object
+          properties:
+            id: { type: string, format: uuid }
+            subCategories:
+              type: array
+              items:
+                $ref: '#/components/schemas/Category'
+                
+    # --- COMPANIES ---
+    CompanyInput:
+      type: object
+      required: [name, taxId]
+      properties:
+        name:
+          type: string
+        taxId:
+          type: string
+        description:
+          type: string
+        operationalConfig:
+          type: object
+          description: JSON object for schedules, colors, etc.
+        address:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+
+    PagedCompanyList:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Company'
+        page:
+          $ref: '#/components/schemas/PageMetadata'
+
+    Company:
+      allOf:
+        - $ref: '#/components/schemas/CompanyInput'
+        - type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            logoUrl:
+              type: string
+
+    # --- CATALOG ---
+    ProductInput:
+      type: object
+      required: [companyId, name, price, technicalSpecs]
+      properties:
+        companyId:
+          type: string
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        sku:
+          type: string
+        price:
+          type: number
+        inventory:
+          type: integer
+        technicalSpecs:
+          type: object
+          description: Dynamic attributes (e.g. voltage, rim size).
+          example: { "voltage": "12V", "amperage": 600, "brand": "Bosch" }
+        imageUrls:
+          type: array
+          items:
+            type: string
+
+    PagedProductList:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+        page:
+          $ref: '#/components/schemas/PageMetadata'
+
+    Product:
+      allOf:
+        - $ref: '#/components/schemas/ProductInput'
+        - type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            createdAt:
+              type: string
+              format: date-time
+
+    # --- CART ---
+    CartItemInput:
+      type: object
+      required: [productId, quantity]
+      properties:
+        productId:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+          minimum: 1
+        selectedOptions:
+          type: object
+          description: Specific configuration selected by user
+
+    Cart:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              productId:
+                type: string
+                format: uuid
+              quantity:
+                type: integer
+              productName:
+                type: string
+              unitPrice:
+                type: number
+              total:
+                type: number
+
+    # --- ORDERS ---
+    CheckoutRequest:
+      type: object
+      properties:
+        deliveryAddress:
+          type: object
+          description: Full address object
+        paymentMethod:
+          type: string
+          enum: [WOMPI, MERCADOPAGO]
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        readableId:
+          type: string
+          example: "ORD-10234"
+        status:
+          type: string
+          enum: [PENDING_PAYMENT, PAID, CONFIRMED, ON_ROUTE, DELIVERED]
+        total:
+          type: number
+        items:
+          type: array
+          items:
+            type: object # Simplified item view
+        createdAt:
+          type: string
+          format: date-time
+
+    # --- PAYMENTS ---
+    PaymentInitRequest:
+      type: object
+      required: [orderId, gateway]
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        gateway:
+          type: string
+          enum: [WOMPI, MERCADOPAGO]
+          example: WOMPI
+
+    PaymentInitResponse:
+      type: object
+      description: Data needed by Frontend to render the Payment Widget
+      properties:
+        transactionReference:
+          type: string
+          description: Unique ref generated by Backend (e.g., ORD-100-REF-XYZ)
+        amountInCents:
+          type: integer
+          example: 5000000
+        currency:
+          type: string
+          default: COP
+        integritySignature:
+          type: string
+          description: SHA256 Hash required by Wompi for security
+        publicKey:
+          type: string
+          description: Store public key (optional, can be in env)
+
+    # --- TRACKING ---
+    LocationUpdate:
+      type: object
+      required: [orderId, latitude, longitude]
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        latitude:
+          type: number
+        longitude:
+          type: number
+        batteryLevel:
+          type: integer
+
+    LocationSnapshot:
+      type: object
+      properties:
+        latitude:
+          type: number
+        longitude:
+          type: number
+        lastUpdated:
+          type: string
+          format: date-time
+        driverId:
+          type: string
+          format: uuid
+    
+    # --- DASHBOARD ---
+    KpiReport:
+      type: object
+      properties:
+        totalSales:
+          type: number
+        totalOrders:
+          type: integer
+        activeDrivers:
+          type: integer
+        topSellingProducts:
+          type: array
+          items:
+            type: object
+    # --- COMMON STATUS SCHEMA ---
+    StatusUpdateRequest:
+      type: object
+      description: Body to activate/deactivate any entity (Soft Delete).
+      required: [active]
+      properties:
+        active:
+          type: boolean
+          description: true = Active/Visible, false = Inactive/Archived (Soft Deleted).
+          example: false
+
+    # --- SYSTEM CONFIG ---
+    SystemParamInput:
+      type: object
+      required: [key, value]
+      properties:
+        key:
+          type: string
+          description: Unique code (e.g. 'MAX_DELIVERY_DISTANCE_KM')
+          example: "GLOBAL_TAX_RATE"
+        value:
+          type: object
+          description: Dynamic JSON value (can be a string, number, object, or array).
+          example: { "rate": 0.19, "country": "CO" }
+        description:
+          type: string
+          example: "VAT Tax rate for Colombia"
+
+    SystemParam:
+      allOf:
+        - $ref: '#/components/schemas/SystemParamInput'
+        - type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            active:
+              type: boolean
+            updatedAt:
+              type: string
+              format: date-time
+              
+    # --- SUPPORT / PQRS ---
+    SupportTicketInput:
+      type: object
+      required: [type, subject, description]
+      properties:
+        type:
+          type: string
+          enum: [COMPLAINT, CLAIM, SUGGESTION, TECHNICAL_SUPPORT]
+          description: "COMPLAINT=Queja, CLAIM=Reclamo, SUGGESTION=Sugerencia"
+        relatedOrderId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Optional link to a specific order
+        subject:
+          type: string
+          example: "Order arrived damaged"
+        description:
+          type: string
+          example: "The box was wet and the product is broken."
+        evidenceUrls:
+          type: array
+          items:
+            type: string
+          description: List of photo URLs uploaded as proof.
+
+    TicketResolution:
+      type: object
+      required: [status, adminResponse]
+      properties:
+        status:
+          type: string
+          enum: [IN_PROGRESS, RESOLVED, REJECTED]
+        adminResponse:
+          type: string
+          description: The formal answer from the company to the user.
+          example: "We have issued a refund. Sorry for the inconvenience."
+
+    SupportTicket:
+      allOf:
+        - $ref: '#/components/schemas/SupportTicketInput'
+        - type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            userId:
+              type: string
+              format: uuid
+            status:
+              type: string
+              enum: [OPEN, IN_PROGRESS, RESOLVED, REJECTED]
+            adminResponse:
+              type: string
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+
+    PagedTicketList:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportTicket'
+        page:
+          $ref: '#/components/schemas/PageMetadata'

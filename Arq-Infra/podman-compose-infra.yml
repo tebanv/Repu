@@ -1,0 +1,47 @@
+version: '3.8'
+
+# Definición de los servicios de la aplicación
+services:
+  # Servicio de Base de Datos PostgreSQL
+  postgres_repu:
+    container_name: postgres_repu
+    image: docker.io/postgres:18.1-trixie
+    restart: always
+    environment:
+      # Credenciales y nombre de la base de datos
+      POSTGRES_DB: repu
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: adm1n123@
+      # CORRECCIÓN: Define el subdirectorio donde PostgreSQL almacenará los datos.
+      # Esto cumple con los requisitos de imágenes 18+.
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      # Mapeo de puertos: host:container
+      - "5435:5432"
+    networks:
+      - internal-net
+    volumes:
+      # CORRECCIÓN: El volumen ahora apunta a la ruta raíz de PostgreSQL.
+      - repu_postgres_data:/var/lib/postgresql
+      
+      # Scripts de inicialización y esquema:
+      # 1. Ejecuta init.sql (crea el esquema 'marketplace', asigna propiedad)
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      # 2. Ejecuta schema.sql (crea todas las tablas dentro de 'marketplace')
+      #- ./Repo-DB.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      # Formato de cadena simple (string) para compatibilidad con podman-compose
+      test: pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# Definición de volúmenes persistentes
+volumes:
+  repu_postgres_data:
+    driver: local
+
+networks:
+  internal-net: # Red privada para DBs y Backend
+    driver: bridge
+    name: repu_internal
