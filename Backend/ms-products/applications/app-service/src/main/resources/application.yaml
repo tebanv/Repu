@@ -1,17 +1,16 @@
 server:
-  port: 8081
+  port: 8084
 spring:
   application:
-    name: "ms-auth"
+    name: "ms-products"
   webflux:
-    base-path: "/ms-auth"
+    base-path: "/ms-products"
   devtools:
     add-properties: false
     restart:
       enabled: false
   profiles:
     active: "local"
-
 management:
   endpoints:
     web:
@@ -21,9 +20,6 @@ management:
     health:
       probes:
         enabled: true
-cors:
-  allowed-origins: "http://localhost:4200,http://localhost:8080,http://localhost:*"
-
 adapters:
   r2dbc:
     host: localhost
@@ -32,14 +28,14 @@ adapters:
     schema: repu
     username: admin
     password: "adm1n123@"
+cors:
+  #allowed-origins: "http://localhost:4200,http://localhost:8080"
+  allowed-origins: "*"
 security:
   jwt:
     # Esta es una llave de ejemplo en Base64 (32 bytes / 256 bits).
     secret: "5367566B59703373367639792F423F4528482B4D6251655468576D5A71347437"
-    expiration-minutes: 10600
 logging:
   level:
     org.springframework.security: INFO
     org.springframework.web.reactive.function.server: INFO
-
-
