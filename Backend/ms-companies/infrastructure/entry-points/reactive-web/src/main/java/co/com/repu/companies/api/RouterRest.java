@@ -15,9 +15,9 @@ public class RouterRest {
 
     @Bean
     public RouterFunction<ServerResponse> routerFunction(Handler handler) {
-        return route(GET("/companies"), handler::getAllCompanies)
-                .andRoute(POST("/companies"), handler::createCompany)
-                .andRoute(PATCH("/companies/{companyId}/status"), handler::updateStatus)
-                .andRoute(PATCH("/companies/{companyId}"), handler::updateCompanyDetails);
+        return route(GET("/api/companies"), handler::getAllCompanies)
+                .andRoute(POST("/api/companies"), handler::createCompany)
+                .andRoute(PATCH("/api/companies/{companyId}/status"), handler::updateStatus)
+                .andRoute(PATCH("/api/companies/{companyId}"), handler::updateCompanyDetails);
     }
 }

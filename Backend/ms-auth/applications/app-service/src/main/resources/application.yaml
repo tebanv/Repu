@@ -1,5 +1,5 @@
 server:
-  port: 8087
+  port: 8081
 spring:
   application:
     name: "ms-auth"
@@ -26,16 +26,17 @@ cors:
 
 adapters:
   r2dbc:
-    host: 89.117.73.146
-    port: 5434
-    database: lucy
-    schema: lucy
-    username: lucy
-    password: lucyadmin
+    host: localhost
+    port: 5435
+    database: repu
+    schema: repu
+    username: admin
+    password: "adm1n123@"
 security:
   jwt:
     # Esta es una llave de ejemplo en Base64 (32 bytes / 256 bits).
     secret: "5367566B59703373367639792F423F4528482B4D6251655468576D5A71347437"
+    expiration-minutes: 60
 logging:
   level:
     org.springframework.security: INFO

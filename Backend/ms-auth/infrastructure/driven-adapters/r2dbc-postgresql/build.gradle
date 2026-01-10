@@ -5,5 +5,9 @@ dependencies {
     implementation 'org.postgresql:r2dbc-postgresql'
     implementation 'org.reactivecommons.utils:object-mapper-api:0.1.0'
     testImplementation 'org.reactivecommons.utils:object-mapper:0.1.0'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+
+    implementation 'com.github.f4b6a3:uuid-creator:6.0.0'
+
 }
 

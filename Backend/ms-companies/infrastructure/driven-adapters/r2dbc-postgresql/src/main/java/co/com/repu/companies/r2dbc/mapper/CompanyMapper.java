@@ -15,7 +15,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CompanyMapper {
 
-    private final ObjectMapper objectMapper; // Spring Boot ya inyecta Jackson por defecto
+    private final ObjectMapper objectMapper;
 
     public Company toDomain(CompanyEntity entity) {
         if (entity == null) return null;
@@ -64,7 +64,6 @@ public class CompanyMapper {
     private Object convertJsonToObject(Json json) {
         if (json == null) return null;
         try {
-            // json.asString() obtiene el string crudo de la BD
             return objectMapper.readValue(json.asString(), Map.class);
         } catch (JsonProcessingException e) {
             return null;
@@ -72,10 +71,10 @@ public class CompanyMapper {
     }
 
     private Json convertObjectToJson(Object object) {
-        if (object == null) return Json.of("{}"); // JSON vacío por defecto
+        if (object == null) return Json.of("{}");
         try {
             String jsonString = objectMapper.writeValueAsString(object);
-            return Json.of(jsonString); // <--- Aquí ocurre la magia para Postgres
+            return Json.of(jsonString);
         } catch (JsonProcessingException e) {
             return Json.of("{}");
         }
