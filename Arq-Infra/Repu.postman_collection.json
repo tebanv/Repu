@@ -1,0 +1,733 @@
+{
+	"info": {
+		"_postman_id": "c5859061-8a62-4fcb-be33-66fe6e71296e",
+		"name": "Repu",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "4825126"
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Login",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-Request-ID",
+								"value": "{{$randomUUID}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"email\": \"user@example.com\",\r\n  \"password\": \"Pass1234*\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{endpoint-local81}}/ms-auth/api/auth/login",
+							"host": [
+								"{{endpoint-local81}}"
+							],
+							"path": [
+								"ms-auth",
+								"api",
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Registrar Usuario",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-Request-ID",
+								"value": "{{$randomUUID}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"email\": \"user@example.com\",\r\n  \"password\": \"Pass1234*\",   \r\n  \"role\": \"BUYER\",\r\n  \"name\": \"Esteban\",\r\n  \"lastName\": \"Velez\",\r\n  \"numberMobile\": \"3100000000\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{endpoint-local81}}/ms-auth/api/auth/register",
+							"host": [
+								"{{endpoint-local81}}"
+							],
+							"path": [
+								"ms-auth",
+								"api",
+								"auth",
+								"register"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Users",
+			"item": [
+				{
+					"name": "Perfil Usuario",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiQlVZRVIiLCJuYW1lIjoiRXN0ZWJhbiIsImxhc3RuYW1lIjoiVmVsZXoiLCJzdWIiOiJ1c2VyQGV4YW1wbGUuY29tIiwiaWF0IjoxNzY4MDI3NDA4LCJleHAiOjE3NjgwMzEwMDh9.aiIsz9AQ68v3y0-BZNTfVQ5IKW7M9wrGRX4MIZZYBjw",
+								"type": "text"
+							},
+							{
+								"key": "X-Request-ID",
+								"value": "{{$randomUUID}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{endpoint-local82}}/ms-users/api/users/profile",
+							"host": [
+								"{{endpoint-local82}}"
+							],
+							"path": [
+								"ms-users",
+								"api",
+								"users",
+								"profile"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Editar Perfil Usuario",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiQlVZRVIiLCJuYW1lIjoiRXN0ZWJhbiIsImxhc3RuYW1lIjoiVmVsZXoiLCJzdWIiOiJ1c2VyQGV4YW1wbGUuY29tIiwiaWF0IjoxNzY4MDI3NDA4LCJleHAiOjE3NjgwMzEwMDh9.aiIsz9AQ68v3y0-BZNTfVQ5IKW7M9wrGRX4MIZZYBjw",
+								"type": "text"
+							},
+							{
+								"key": "X-Request-ID",
+								"value": "{{$randomUUID}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"name\": \"Esteb\",\r\n  \"lastName\": \"Vele\",\r\n  \"numberMobile\": \"31500000000\",\r\n  \"attributesUser\": {}\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{endpoint-local82}}/ms-users/api/users/profile",
+							"host": [
+								"{{endpoint-local82}}"
+							],
+							"path": [
+								"ms-users",
+								"api",
+								"users",
+								"profile"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Editar Estado Usuario",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiQlVZRVIiLCJuYW1lIjoiRXN0ZWJhbiIsImxhc3RuYW1lIjoiVmVsZXoiLCJzdWIiOiJ1c2VyQGV4YW1wbGUuY29tIiwiaWF0IjoxNzY4MDI3NDA4LCJleHAiOjE3NjgwMzEwMDh9.aiIsz9AQ68v3y0-BZNTfVQ5IKW7M9wrGRX4MIZZYBjw",
+								"type": "text"
+							},
+							{
+								"key": "X-Request-ID",
+								"value": "{{$randomUUID}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"active\": true\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{endpoint-local82}}/ms-users/api/users/019ba622-b814-7664-a642-b17e636becd8/status",
+							"host": [
+								"{{endpoint-local82}}"
+							],
+							"path": [
+								"ms-users",
+								"api",
+								"users",
+								"019ba622-b814-7664-a642-b17e636becd8",
+								"status"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Companies",
+			"item": [
+				{
+					"name": "Listar Empresas",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Request-ID",
+								"value": "{{$randomUUID}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{endpoint-local83}}/ms-companies/companies?lat=6.2000&lng=-75.5812",
+							"host": [
+								"{{endpoint-local83}}"
+							],
+							"path": [
+								"ms-companies",
+								"companies"
+							],
+							"query": [
+								{
+									"key": "lat",
+									"value": "6.2000"
+								},
+								{
+									"key": "lng",
+									"value": "-75.5812"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Crear Empresas",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-Request-ID",
+								"value": "{{$randomUUID}}",
+								"type": "text"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiQlVZRVIiLCJuYW1lIjoiRXN0ZWJhbiIsImxhc3RuYW1lIjoiVmVsZXoiLCJzdWIiOiJ1c2VyQGV4YW1wbGUuY29tIiwiaWF0IjoxNzY4MDE4OTM1LCJleHAiOjE3NjgwMjI1MzV9.taMWwqdg-Sq1ZI4zh580zR1J5U8oYBFGIUA570fqJdc",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"userIdOwner\": \"21faaf46-8c39-4b65-8463-06b97a38697b\",\r\n    \"name\": \"Hamburguesas VillaHermosa 2\",\r\n    \"taxId\": \"9000898981\",\r\n    \"description\": \"Las mejores hamburguesas a la parrilla desde 2025.\",\r\n    \"logoUrl\": \"https://repu-storage.s3.amazonaws.com/logos/villahermosa.png\",\r\n    \"address\": \"Cra 42 # 60 - 12, Medellín\",\r\n    \"latitude\": 6.2442,\r\n    \"longitude\": -75.5812,\r\n    \"operationalConfig\": {\r\n        \"schedule\": {\r\n            \"monday\": {\r\n                \"open\": \"11:00\",\r\n                \"close\": \"22:00\"\r\n            },\r\n            \"friday\": {\r\n                \"open\": \"11:00\",\r\n                \"close\": \"23:59\"\r\n            },\r\n            \"sunday\": {\r\n                \"open\": \"12:00\",\r\n                \"close\": \"21:00\"\r\n            }\r\n        },\r\n        \"preparationTime\": 25,\r\n        \"delivery\": {\r\n            \"provider\": \"INTERNAL\",\r\n            \"maxRadiusKm\": 5.0,\r\n            \"minOrderValue\": 15000\r\n        },\r\n        \"branding\": {\r\n            \"primaryColor\": \"#FF0000\",\r\n            \"bannerUrl\": \"https://repu-storage.s3.amazonaws.com/banners/villahermosa_banner.jpg\"\r\n        },\r\n        \"features\": {\r\n            \"allowsPreOrder\": true,\r\n            \"hasCurbsidePickup\": false\r\n        }\r\n    }\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{endpoint-local83}}/ms-companies/api/companies",
+							"host": [
+								"{{endpoint-local83}}"
+							],
+							"path": [
+								"ms-companies",
+								"api",
+								"companies"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Actualizar Estado Empresa",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "X-Request-ID",
+								"value": "{{$randomUUID}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"active\": false\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{endpoint-local83}}/ms-companies/api/companies/019ba58d-40e8-7027-8cc1-1d41a403aa0f/status",
+							"host": [
+								"{{endpoint-local83}}"
+							],
+							"path": [
+								"ms-companies",
+								"api",
+								"companies",
+								"019ba58d-40e8-7027-8cc1-1d41a403aa0f",
+								"status"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Actualizar Empresa",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "X-Request-ID",
+								"value": "{{$randomUUID}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"logoUrl\": \"https://nuevo-logo.com/villahermosa.png\",\r\n    \"address\": \"Calle hermosa 123, Nueva Sede\",\r\n    \"latitude\": 6.2400,\r\n    \"longitude\": -75.5400\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{endpoint-local83}}/ms-companies/api/companies/019ba58d-40e8-7027-8cc1-1d41a403aa0f",
+							"host": [
+								"{{endpoint-local83}}"
+							],
+							"path": [
+								"ms-companies",
+								"api",
+								"companies",
+								"019ba58d-40e8-7027-8cc1-1d41a403aa0f"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Categories",
+			"item": [
+				{
+					"name": "Listar Categorias",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Request-ID",
+								"value": "{{$randomUUID}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{endpoint-local85}}/ms-categories/api/catalog/categories",
+							"host": [
+								"{{endpoint-local85}}"
+							],
+							"path": [
+								"ms-categories",
+								"api",
+								"catalog",
+								"categories"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Crear Categoria",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-Request-ID",
+								"value": "{{$randomUUID}}",
+								"type": "text"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiQlVZRVIiLCJuYW1lIjoiRXN0ZWIiLCJsYXN0bmFtZSI6IlZlbGUiLCJzdWIiOiJ1c2VyQGV4YW1wbGUuY29tIiwiaWF0IjoxNzY4MDY3ODAwLCJleHAiOjE3Njg3MDM4MDB9.3OTcydo8VqKtDwVckfwTu_hnjp_P0l-9cH7xUetxP8w",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"name\": \"Test\",\r\n  \"parentId\": \"e4a298c9-ee30-41a4-974f-3a72d334b3a5\",\r\n  \"description\": \"Categoria de prueba\",\r\n  \"iconUrl\": \"https://example.com\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{endpoint-local85}}/ms-categories/api/catalog/categories",
+							"host": [
+								"{{endpoint-local85}}"
+							],
+							"path": [
+								"ms-categories",
+								"api",
+								"catalog",
+								"categories"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Actualizar Categoria",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "X-Request-ID",
+								"value": "{{$randomUUID}}",
+								"type": "text"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiQlVZRVIiLCJuYW1lIjoiRXN0ZWIiLCJsYXN0bmFtZSI6IlZlbGUiLCJzdWIiOiJ1c2VyQGV4YW1wbGUuY29tIiwiaWF0IjoxNzY4MDY3ODAwLCJleHAiOjE3Njg3MDM4MDB9.3OTcydo8VqKtDwVckfwTu_hnjp_P0l-9cH7xUetxP8w",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"name\": \"Test 2\",\r\n  \"parentId\": \"e4a298c9-ee30-41a4-974f-3a72d334b3a5\",\r\n  \"description\": \"Categoria de prueba 2\",\r\n  \"iconUrl\": \"https://example.com/1\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{endpoint-local85}}/ms-categories/api/catalog/categories/019baa0d-bc73-74a2-9b98-6c20dfb01e73",
+							"host": [
+								"{{endpoint-local85}}"
+							],
+							"path": [
+								"ms-categories",
+								"api",
+								"catalog",
+								"categories",
+								"019baa0d-bc73-74a2-9b98-6c20dfb01e73"
+							],
+							"query": [
+								{
+									"key": "categoryId",
+									"value": "019baa0d-bc73-74a2-9b98-6c20dfb01e73",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Actualizar Estado Categoria",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "X-Request-ID",
+								"value": "{{$randomUUID}}",
+								"type": "text"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiQlVZRVIiLCJuYW1lIjoiRXN0ZWIiLCJsYXN0bmFtZSI6IlZlbGUiLCJzdWIiOiJ1c2VyQGV4YW1wbGUuY29tIiwiaWF0IjoxNzY4MDY3ODAwLCJleHAiOjE3Njg3MDM4MDB9.3OTcydo8VqKtDwVckfwTu_hnjp_P0l-9cH7xUetxP8w",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"active\": false\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{endpoint-local85}}/ms-categories/api/catalog/categories/019baa0d-bc73-74a2-9b98-6c20dfb01e73/status",
+							"host": [
+								"{{endpoint-local85}}"
+							],
+							"path": [
+								"ms-categories",
+								"api",
+								"catalog",
+								"categories",
+								"019baa0d-bc73-74a2-9b98-6c20dfb01e73",
+								"status"
+							],
+							"query": [
+								{
+									"key": "categoryId",
+									"value": "019baa0d-bc73-74a2-9b98-6c20dfb01e73",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Products",
+			"item": [
+				{
+					"name": "Listar Productos",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Request-ID",
+								"value": "{{$randomUUID}}",
+								"type": "text"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiQlVZRVIiLCJuYW1lIjoiRXN0ZWJhbiIsImxhc3RuYW1lIjoiVmVsZXoiLCJzdWIiOiJ1c2VyQGV4YW1wbGUuY29tIiwiaWF0IjoxNzY4MDI3NDA4LCJleHAiOjE3NjgwMzEwMDh9.aiIsz9AQ68v3y0-BZNTfVQ5IKW7M9wrGRX4MIZZYBjw",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{endpoint-local84}}/ms-products/api/catalog/products?companyId=019ba535-e091-7c5d-8197-0d15c0cf4e41",
+							"host": [
+								"{{endpoint-local84}}"
+							],
+							"path": [
+								"ms-products",
+								"api",
+								"catalog",
+								"products"
+							],
+							"query": [
+								{
+									"key": "companyId",
+									"value": "019ba535-e091-7c5d-8197-0d15c0cf4e41"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Crear Productos",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-Request-ID",
+								"value": "{{$randomUUID}}",
+								"type": "text"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiQlVZRVIiLCJuYW1lIjoiRXN0ZWIiLCJsYXN0bmFtZSI6IlZlbGUiLCJzdWIiOiJ1c2VyQGV4YW1wbGUuY29tIiwiaWF0IjoxNzY4MDY3ODAwLCJleHAiOjE3Njg3MDM4MDB9.3OTcydo8VqKtDwVckfwTu_hnjp_P0l-9cH7xUetxP8w",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"companyId\": \"019ba535-e091-7c5d-8197-0d15c0cf4e41\",\r\n  \"categoryId\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\r\n  \"name\": \"Hamburguesa Gourmet\",\r\n  \"description\": \"Hamburguesa Basica con combo\",\r\n  \"sku\": \"123\",\r\n  \"price\": 20.000,\r\n  \"stock\": 0,\r\n  \"attributes\": {\r\n    \"queso\": \"Si\",\r\n    \"carne\": \"res 120gr\",\r\n    \"cebolla caramelizada\": \"si\",\r\n    \"papitas\": \"Si\",\r\n    \"gaseosa\": \"Si\"\r\n  },\r\n  \"images\": [\r\n    \"3\", \"4\"\r\n  ]\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{endpoint-local84}}/ms-products/api/catalog/products",
+							"host": [
+								"{{endpoint-local84}}"
+							],
+							"path": [
+								"ms-products",
+								"api",
+								"catalog",
+								"products"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Actualizar Estado Productos",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "X-Request-ID",
+								"value": "{{$randomUUID}}",
+								"type": "text"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiQlVZRVIiLCJuYW1lIjoiRXN0ZWIiLCJsYXN0bmFtZSI6IlZlbGUiLCJzdWIiOiJ1c2VyQGV4YW1wbGUuY29tIiwiaWF0IjoxNzY4MDY3ODAwLCJleHAiOjE3Njg3MDM4MDB9.3OTcydo8VqKtDwVckfwTu_hnjp_P0l-9cH7xUetxP8w",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"active\": false\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{endpoint-local84}}/ms-products/api/catalog/products/019ba937-5dbd-76b8-aeb2-344482043998/status",
+							"host": [
+								"{{endpoint-local84}}"
+							],
+							"path": [
+								"ms-products",
+								"api",
+								"catalog",
+								"products",
+								"019ba937-5dbd-76b8-aeb2-344482043998",
+								"status"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Cart",
+			"item": []
+		},
+		{
+			"name": "Orders",
+			"item": []
+		},
+		{
+			"name": "Payments",
+			"item": []
+		},
+		{
+			"name": "Tracking",
+			"item": []
+		},
+		{
+			"name": "Dashboard",
+			"item": []
+		},
+		{
+			"name": "System",
+			"item": []
+		},
+		{
+			"name": "Support",
+			"item": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"requests": {},
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"requests": {},
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "endpoint-local81",
+			"value": ""
+		},
+		{
+			"key": "endpoint-local82",
+			"value": ""
+		},
+		{
+			"key": "endpoint-local83",
+			"value": ""
+		},
+		{
+			"key": "endpoint-local84",
+			"value": ""
+		},
+		{
+			"key": "endpoint-local85",
+			"value": ""
+		},
+		{
+			"key": "endpoint-local86",
+			"value": ""
+		},
+		{
+			"key": "endpoint-local87",
+			"value": ""
+		},
+		{
+			"key": "endpoint-local88",
+			"value": ""
+		},
+		{
+			"key": "endpoint-local89",
+			"value": ""
+		}
+	]
+}
