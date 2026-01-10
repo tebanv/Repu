@@ -2,6 +2,7 @@ package co.com.repu.companies.model.company;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 
 @Data
@@ -10,7 +11,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class Company {
     private String id;               // UUID
-    private String userIdOwner;      // Dueño de la empresa
+    private UUID userIdOwner;      // Dueño de la empresa
     private String name;             // Razón Social
     private String taxId;            // NIT
     private String logoUrl;

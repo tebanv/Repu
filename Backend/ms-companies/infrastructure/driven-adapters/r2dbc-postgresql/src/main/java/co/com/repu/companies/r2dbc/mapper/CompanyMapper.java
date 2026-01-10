@@ -4,10 +4,12 @@ import co.com.repu.companies.model.company.Company;
 import co.com.repu.companies.r2dbc.entity.CompanyEntity;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.r2dbc.postgresql.codec.Json;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -19,7 +21,7 @@ public class CompanyMapper {
         if (entity == null) return null;
 
         return Company.builder()
-                .id(entity.getId())
+                .id(entity.getId() != null ? entity.getId().toString() : null)
                 .userIdOwner(entity.getUserIdOwner())
                 .name(entity.getName())
                 .taxId(entity.getTaxId())
@@ -32,7 +34,7 @@ public class CompanyMapper {
                 .active(entity.getActive())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
-                .operationalConfig(convertJsonStringToObject(entity.getOperationalConfig()))
+                .operationalConfig(convertJsonToObject(entity.getOperationalConfig()))
                 .build();
     }
 
@@ -40,7 +42,7 @@ public class CompanyMapper {
         if (domain == null) return null;
 
         return CompanyEntity.builder()
-                .id(domain.getId())
+                .id(domain.getId() != null ? UUID.fromString(domain.getId()) : null)
                 .userIdOwner(domain.getUserIdOwner())
                 .name(domain.getName())
                 .taxId(domain.getTaxId())
@@ -53,29 +55,29 @@ public class CompanyMapper {
                 .active(domain.getActive())
                 .createdAt(domain.getCreatedAt())
                 .updatedAt(domain.getUpdatedAt())
-                .operationalConfig(convertObjectToJsonString(domain.getOperationalConfig()))
+                .operationalConfig(convertObjectToJson(domain.getOperationalConfig()))
                 .build();
     }
 
     // --- Helpers para JSONB ---
 
-    private Object convertJsonStringToObject(String json) {
-        if (json == null || json.isEmpty()) return null;
+    private Object convertJsonToObject(Json json) {
+        if (json == null) return null;
         try {
-            // Convertimos a Map para flexibilidad en el dominio
-            return objectMapper.readValue(json, Map.class);
+            // json.asString() obtiene el string crudo de la BD
+            return objectMapper.readValue(json.asString(), Map.class);
         } catch (JsonProcessingException e) {
-            // Loguear error pero no romper el flujo, o lanzar excepción custom
             return null;
         }
     }
 
-    private String convertObjectToJsonString(Object object) {
-        if (object == null) return null;
+    private Json convertObjectToJson(Object object) {
+        if (object == null) return Json.of("{}"); // JSON vacío por defecto
         try {
-            return objectMapper.writeValueAsString(object);
+            String jsonString = objectMapper.writeValueAsString(object);
+            return Json.of(jsonString); // <--- Aquí ocurre la magia para Postgres
         } catch (JsonProcessingException e) {
-            return null;
+            return Json.of("{}");
         }
     }
 }

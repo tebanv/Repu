@@ -17,6 +17,7 @@ public class RouterRest {
     public RouterFunction<ServerResponse> routerFunction(Handler handler) {
         return route(GET("/companies"), handler::getAllCompanies)
                 .andRoute(POST("/companies"), handler::createCompany)
-                .andRoute(PATCH("/companies/{companyId}/status"), handler::updateStatus);
+                .andRoute(PATCH("/companies/{companyId}/status"), handler::updateStatus)
+                .andRoute(PATCH("/companies/{companyId}"), handler::updateCompanyDetails);
     }
 }

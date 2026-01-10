@@ -5,7 +5,7 @@ services:
   # Servicio de Base de Datos PostgreSQL
   postgres_repu:
     container_name: postgres_repu
-    image: docker.io/postgres:18.1-trixie
+    image: docker.io/postgres:16-alpine
     restart: always
     environment:
       # Credenciales y nombre de la base de datos
@@ -22,16 +22,16 @@ services:
       - internal-net
     volumes:
       # CORRECCIÓN: El volumen ahora apunta a la ruta raíz de PostgreSQL.
-      - repu_postgres_data:/var/lib/postgresql
+      - repu_postgres_data:/var/lib/postgresql/data:Z
       
       # Scripts de inicialización y esquema:
       # 1. Ejecuta init.sql (crea el esquema 'marketplace', asigna propiedad)
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:Z
       # 2. Ejecuta schema.sql (crea todas las tablas dentro de 'marketplace')
       #- ./Repo-DB.sql:/docker-entrypoint-initdb.d/schema.sql
     healthcheck:
       # Formato de cadena simple (string) para compatibilidad con podman-compose
-      test: pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB
+      test: ["CMD-SHELL", "pg_isready -U admin -d repu"]
       interval: 10s
       timeout: 5s
       retries: 5

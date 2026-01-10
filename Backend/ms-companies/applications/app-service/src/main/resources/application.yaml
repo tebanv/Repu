@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: 8083
 spring:
   application:
     name: "ms-companies"
@@ -11,6 +11,18 @@ spring:
       enabled: false
   profiles:
     active: "local"
+  r2dbc:
+    # Si corres la App desde IntelliJ/Terminal usa localhost y el puerto externo (5435)
+    # Si la App corre DENTRO de otro contenedor, usa el nombre del servicio: postgres_repu y puerto 5432
+    url: r2dbc:postgresql://localhost:5435/repu
+    username: admin
+    password: "adm1n123@"
+    pool:
+      initial-size: 10
+      max-size: 20
+      max-idle-time: 30m
+    properties:
+      schema: repu
 management:
   endpoints:
     web:
@@ -21,7 +33,8 @@ management:
       probes:
         enabled: true
 cors:
-  allowed-origins: "http://localhost:4200,http://localhost:8080"
+  #allowed-origins: "http://localhost:4200,http://localhost:8080"
+  allowed-origins: "*"
 
 adapters:
   r2dbc:

@@ -12,6 +12,6 @@
 CREATE SCHEMA IF NOT EXISTS repu;
 
 -- 4. Establecer el esquema 'marketplace' como el predeterminado para el usuario
-ALTER ROLE adm1n SET search_path TO repu, public;
+ALTER ROLE admin SET search_path TO repu, public;
 
 -- Nota: Las tablas definidas en 'schema.sql' se cargarán en este esquema.

@@ -5,22 +5,26 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Transient;
+import io.r2dbc.postgresql.codec.Json;
+import org.springframework.data.domain.Persistable;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 @Table("empresas")
-public class CompanyEntity {
+public class CompanyEntity implements Persistable<UUID> {
     @Id
     @Column("id_empresa")
-    private String id;
+    private UUID id;
 
     @Column("id_usuario_propietario")
-    private String userIdOwner;
+    private UUID userIdOwner;
 
     @Column("razon_social")
     private String name;
@@ -37,7 +41,7 @@ public class CompanyEntity {
     // Postgres JSONB requiere configuración especial de R2DBC o convertir a String/Map
     // Por simplicidad inicial, R2DBC a veces lo maneja como String si no hay converter
     @Column("configuracion_operativa")
-    private String operationalConfig;
+    private Json operationalConfig;
 
     @Column("direccion_fisica")
     private String address;
@@ -59,4 +63,15 @@ public class CompanyEntity {
 
     @Column("fecha_actualizacion")
     private LocalDateTime updatedAt;
+
+    // --- Lógica de Persistable ---
+
+    @Transient // Este campo no va a la BD, es solo para lógica interna de Spring
+    @Builder.Default
+    private boolean isNew = false;
+
+    @Override
+    public boolean isNew() {
+        return this.isNew || id == null; // Si marcamos isNew=true, forzamos INSERT
+    }
 }
