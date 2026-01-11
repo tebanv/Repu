@@ -32,7 +32,7 @@ public class CategoryMapper {
 
         return CategoryEntity.builder()
                 .id(domain.getId() != null ? UUID.fromString(domain.getId()) : null)
-                .parentId(UUID.fromString(domain.getParentId()))
+                .parentId(domain.getId() != null ? UUID.fromString(domain.getParentId()) : null)
                 .name(domain.getName())
                 .description(domain.getDescription())
                 .iconUrl(domain.getIconUrl())

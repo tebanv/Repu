@@ -26,8 +26,8 @@ adapters:
     port: 5435
     database: repu
     schema: repu
-    username: admin
-    password: "adm1n123@"
+    username: postgres
+    password: "postgres"
 cors:
   #allowed-origins: "http://localhost:4200,http://localhost:8080"
   allowed-origins: "*"

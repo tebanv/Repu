@@ -15,8 +15,8 @@ spring:
     # Si corres la App desde IntelliJ/Terminal usa localhost y el puerto externo (5435)
     # Si la App corre DENTRO de otro contenedor, usa el nombre del servicio: postgres_repu y puerto 5432
     url: r2dbc:postgresql://localhost:5435/repu
-    username: admin
-    password: "adm1n123@"
+    username: postgres
+    password: "postgres"
     pool:
       initial-size: 10
       max-size: 20
