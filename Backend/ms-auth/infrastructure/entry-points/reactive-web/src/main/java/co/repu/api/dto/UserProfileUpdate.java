@@ -12,31 +12,13 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder(toBuilder = true)
-public class RegisterRequest {
+public class UserProfileUpdate {
     @JsonAlias({"name", "firstName"})
     private String firstName;
     @JsonAlias({"lastName"})
     private String lastName;
-    @JsonAlias({"email"})
-    private String email;
-    @JsonAlias({"password"})
-    private String password;
     @JsonAlias({"phone", "numberMobile"})
     private String phone;
-    @JsonAlias({"role"})
-    private String role;
     @JsonAlias({"profileAttributes", "attributesUser"})
     private Map<String, Object> profileAttributes;
-
-    public String getName() {
-        return this.firstName;
-    }
-
-    public String getNumberMobile() {
-        return this.phone;
-    }
-
-    public Map<String, Object> getAttributesUser() {
-        return this.profileAttributes;
-    }
 }

@@ -2,17 +2,23 @@ package co.repu.api.config;
 
 import co.repu.api.Handler;
 import co.repu.api.RouterRest;
+import co.repu.api.config.SecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import co.repu.usecase.auth.AuthUseCase;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
-@ContextConfiguration(classes = {RouterRest.class, Handler.class})
+@ContextConfiguration(classes = {RouterRest.class, Handler.class, SecurityConfig.class})
 @WebFluxTest
 @Import({CorsConfig.class, SecurityHeadersConfig.class})
 class ConfigTest {
+
+    @MockBean
+    private AuthUseCase authUseCase;
 
     @Autowired
     private WebTestClient webTestClient;
@@ -22,7 +28,7 @@ class ConfigTest {
         webTestClient.get()
                 .uri("/api/usecase/path")
                 .exchange()
-                .expectStatus().isOk()
+                .expectStatus().isNotFound()
                 .expectHeader().valueEquals("Content-Security-Policy",
                         "default-src 'self'; frame-ancestors 'self'; form-action 'self'")
                 .expectHeader().valueEquals("Strict-Transport-Security", "max-age=31536000;")

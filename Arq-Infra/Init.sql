@@ -12,6 +12,12 @@
 CREATE SCHEMA IF NOT EXISTS repu;
 
 -- 4. Establecer el esquema 'marketplace' como el predeterminado para el usuario
-ALTER ROLE admin SET search_path TO repu, public;
+ALTER ROLE repu SET search_path TO repu, public;
+
+-- 5. Validar que el esquema predeterminado se haya establecido correctamente
+SHOW search_path;
 
 -- Nota: Las tablas definidas en 'schema.sql' se cargarán en este esquema.
+
+-- 6. Crear la extensión PostGIS si no existe
+CREATE EXTENSION IF NOT EXISTS postgis;

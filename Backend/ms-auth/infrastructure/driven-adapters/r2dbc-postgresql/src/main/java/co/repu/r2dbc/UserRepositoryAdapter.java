@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Repository
 @RequiredArgsConstructor
@@ -22,27 +23,30 @@ public class UserRepositoryAdapter implements UsersRepository {
 
     @Override
     public Mono<User> findByEmail(String email) {
-
         return userReactiveRepository.findByEmail(email)
                 .map(mapper::toDomain);
     }
+
+    @Override
+    public Mono<User> findById(UUID id) {
+        return userReactiveRepository.findById(id)
+                .map(mapper::toDomain);
+    }
+
     @Override
     public Mono<User> save(User user) {
         UserEntity entity = mapper.toEntity(user);
 
         if (entity.getId() == null) {
-            // Generación UUID v7 (Ordenado por tiempo)
             entity.setId(UuidCreator.getTimeOrderedEpoch());
             entity.setCreatedAt(LocalDateTime.now());
-            entity.setNew(true); // Forzar INSERT
+            entity.setNew(true);
         } else {
-            entity.setNew(false); // UPDATE
+            entity.setNew(false);
         }
         entity.setUpdatedAt(LocalDateTime.now());
 
         return userReactiveRepository.save(entity)
                 .map(mapper::toDomain);
     }
-
-
 }

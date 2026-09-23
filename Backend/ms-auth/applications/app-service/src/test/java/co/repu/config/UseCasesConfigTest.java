@@ -6,6 +6,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import co.repu.model.system.gateways.SystemParameterRepository;
+import co.repu.model.users.gateways.SecurityGateway;
+import co.repu.model.users.gateways.SessionSecurityGateway;
+import co.repu.model.users.gateways.UserSessionRepository;
+import co.repu.model.users.gateways.UsersRepository;
 
 class UseCasesConfigTest {
 
@@ -33,6 +38,31 @@ class UseCasesConfigTest {
         @Bean
         public MyUseCase myUseCase() {
             return new MyUseCase();
+        }
+
+        @Bean
+        public UsersRepository usersRepository() {
+            return org.mockito.Mockito.mock(UsersRepository.class);
+        }
+
+        @Bean
+        public SecurityGateway securityGateway() {
+            return org.mockito.Mockito.mock(SecurityGateway.class);
+        }
+
+        @Bean
+        public UserSessionRepository userSessionRepository() {
+            return org.mockito.Mockito.mock(UserSessionRepository.class);
+        }
+
+        @Bean
+        public SystemParameterRepository systemParameterRepository() {
+            return org.mockito.Mockito.mock(SystemParameterRepository.class);
+        }
+
+        @Bean
+        public SessionSecurityGateway sessionSecurityGateway() {
+            return org.mockito.Mockito.mock(SessionSecurityGateway.class);
         }
     }
 

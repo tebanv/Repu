@@ -5,7 +5,7 @@ Estamos construyendo una plataforma "Multi-Tenant" de E-commerce y Servicios baj
 El sistema conecta:
 1. **Compradores** (B2C).
 2. **Empresas/Tiendas** (Proveedores de stock/servicios).
-3. **Domiciliarios** (Logística tipo Uber).
+3. **Domiciliarios** (Logística tipo Rappi).
 4. **Analistas** (Inteligencia de negocios).
 5. **Administradores** (Dueños de la plataforma).
 

@@ -1,0 +1,2134 @@
+openapi: 3.0.3
+info:
+  title: REPU Platform - Multi-Tenant E-Commerce & Logistics Engine API
+  description: |
+    Contrato de API empresarial para REPU. Plataforma desacoplada Multi-Tenant que sincroniza Compradores,
+    Comercios, Domiciliarios, Analistas y Administradores bajo arquitectura transaccional PostGIS,
+    control de concurrencia optimista, máquina de estados ortogonal e idempotencia financiera.
+  version: 2.0.0
+  contact:
+    name: REPU Software Architecture Guild
+    email: architecture@repu.com
+
+servers:
+  - url: https://api.dev.repu.com/v1
+    description: Servidor de Desarrollo
+  - url: https://api.prod.repu.com/v1
+    description: Servidor de Producción
+
+security:
+  - cookieAuth: []
+  - bearerAuth: []
+
+tags:
+  - name: Auth & Sessions
+    description: Autenticación híbrida mediante Cookies HttpOnly de sesión y tokens rotativos.
+  - name: Users & IAM
+    description: Gestión de usuarios, roles del sistema y libreta de direcciones espaciales.
+  - name: Companies (Tenants)
+    description: Gestión de comercios independientes y su configuración operativa.
+  - name: Catalog
+    description: Jerarquía de categorías y productos con atributos dinámicos (JSONB).
+  - name: Cart
+    description: Carrito de compras aislado estrictamente por tenant/empresa.
+  - name: Orders
+    description: Máquina de estados de pedidos, concurrencia optimista y eventos en vivo (SSE).
+  - name: Payments & Invoicing
+    description: Sesiones de pago seguras, firmas criptográficas, idempotencia y webhooks.
+  - name: Driver & Logistics
+    description: Flujo de recogida con verificación física (PIN), entregas y telemetría por lotes.
+  - name: Tracking
+    description: Geolocalización en caliente y snapshots de proximidad para clientes.
+  - name: Reviews & Reputation
+    description: Sistema de reputación verificado por compra para empresas, productos y repartidores.
+  - name: Support & Disputes
+    description: Módulo de PQR, garantías de producto por línea, devoluciones e hilo de evidencias.
+  - name: System Config & KPIs
+    description: Parámetros del sistema y métricas agregadas en tiempo real.
+
+paths:
+  # ====================================================================================
+  # AUTH & SESSIONS
+  # ====================================================================================
+  /auth/register:
+    post:
+      tags: [Auth & Sessions]
+      summary: Registro público de usuarios
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Usuario registrado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/login:
+    post:
+      tags: [Auth & Sessions]
+      summary: Inicio de sesión (Emite Cookie HttpOnly y Token)
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login exitoso. Devuelve cabecera Set-Cookie con token opaco de sesión.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: __Host-repu_session=9f8c1b82-d4b9-4f81-96e2-2a781b0a91e5; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=604800
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSessionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      tags: [Auth & Sessions]
+      summary: Cierre de sesión actual
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      responses:
+        '204':
+          description: Sesión invalidada en BD/Redis y Cookie expirada.
+
+  /auth/logout-all:
+    post:
+      tags: [Auth & Sessions]
+      summary: Revocación total de sesiones del usuario
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      responses:
+        '204':
+          description: Todas las sesiones activas han sido revocadas.
+
+  /auth/sessions:
+    get:
+      tags: [Auth & Sessions]
+      summary: Consultar sesiones activas del usuario autenticado
+      responses:
+        '200':
+          description: Lista de dispositivos y sesiones vigentes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserSession'
+
+  # ====================================================================================
+  # USERS & ADDRESSES
+  # ====================================================================================
+  /users/profile:
+    get:
+      tags: [Users & IAM]
+      summary: Perfil del usuario en sesión
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+    patch:
+      tags: [Users & IAM]
+      summary: Actualizar información de perfil
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileUpdate'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+
+  /users/addresses:
+    get:
+      tags: [Users & IAM]
+      summary: Listar direcciones guardadas del comprador
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserAddress'
+    post:
+      tags: [Users & IAM]
+      summary: Registrar nueva dirección con coordenadas PostGIS
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserAddressInput'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAddress'
+
+  /users/addresses/{addressId}:
+    patch:
+      tags: [Users & IAM]
+      summary: Modificar dirección existente
+      parameters:
+        - name: addressId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserAddressInput'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAddress'
+    delete:
+      tags: [Users & IAM]
+      summary: Desactivar dirección (Soft Delete)
+      parameters:
+        - name: addressId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Dirección eliminada
+
+  # ====================================================================================
+  # COMPANIES (TENANTS)
+  # ====================================================================================
+  /companies:
+    get:
+      tags: [Companies (Tenants)]
+      summary: Directorio público de comercios cercanos
+      security: []
+      parameters:
+        - name: lat
+          in: query
+          description: Latitud del usuario para cálculo de radio
+          schema: { type: number, format: double, example: 6.2084 }
+        - name: lng
+          in: query
+          description: Longitud del usuario para cálculo de radio
+          schema: { type: number, format: double, example: -75.5658 }
+        - name: radiusKm
+          in: query
+          schema: { type: number, default: 10, example: 5 }
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedCompanyList'
+    post:
+      tags: [Companies (Tenants)]
+      summary: Registrar nuevo comercio / tenant
+      description: 'Rol requerido: DISTRIBUIDOR o ADMIN'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyInput'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+
+  /companies/{companyId}:
+    get:
+      tags: [Companies (Tenants)]
+      summary: Obtener detalle público del comercio
+      security: []
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+    patch:
+      tags: [Companies (Tenants)]
+      summary: Actualizar datos operativos del comercio
+      description: 'Rol requerido: DISTRIBUIDOR propietario o ADMIN'
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyUpdate'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+
+  # Operaciones de Comercio sobre Órdenes (Máquina de Estados de Tienda)
+  /companies/{companyId}/orders/{orderId}/accept:
+    post:
+      tags: [Companies (Tenants)]
+      summary: Aceptar orden para preparación física
+      description: 'Transiciona estado_comercio a EN_PREPARACION si el pago está PAGADO.'
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+
+  /companies/{companyId}/orders/{orderId}/reject:
+    post:
+      tags: [Companies (Tenants)]
+      summary: Rechazar pedido por falta de inventario o cierre operativo
+      description: 'Transiciona estado_comercio a RECHAZADO y dispara cancelación/reembolso automático.'
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  example: 'Sin existencias físicas del SKU seleccionado'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+
+  /companies/{companyId}/orders/{orderId}/ready:
+    post:
+      tags: [Companies (Tenants)]
+      summary: Notificar pedido empacado y listo para recogida
+      description: 'Transiciona estado_comercio a LISTO_PARA_RECOGIDA y genera PIN de despacho.'
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+
+  # ====================================================================================
+  # CATALOG
+  # ====================================================================================
+  /catalog/categories:
+    get:
+      tags: [Catalog]
+      summary: Listar árbol taxonómico de categorías
+      security: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+    post:
+      tags: [Catalog]
+      summary: Crear categoría en el catálogo
+      description: 'Rol requerido: ADMIN / ANALISTA'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryInput'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+
+  /catalog/products:
+    get:
+      tags: [Catalog]
+      summary: Búsqueda avanzada de catálogo multi-tenant
+      security: []
+      parameters:
+        - name: companyId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+        - name: categoryId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+        - name: query
+          in: query
+          description: Búsqueda léxica o semántica
+          schema: { type: string, example: "bateria 12v mac" }
+        - name: attributesFilter
+          in: query
+          description: Filtro JSONB codificado en URL (ej. {"voltaje":"12V","rin":16})
+          schema: { type: string }
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedProductList'
+    post:
+      tags: [Catalog]
+      summary: Crear producto asociado a un tenant
+      description: 'Rol requerido: DISTRIBUIDOR propietario'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductInput'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+
+  /catalog/products/{productId}:
+    get:
+      tags: [Catalog]
+      summary: Detalle completo de producto
+      security: []
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+    patch:
+      tags: [Catalog]
+      summary: Actualizar precios, stock y especificaciones técnicas
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductUpdate'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+
+  # ====================================================================================
+  # CART (MULTI-TENANT ISOLATED)
+  # ====================================================================================
+  /cart:
+    get:
+      tags: [Cart]
+      summary: Obtener el carrito activo del comprador para un comercio específico
+      parameters:
+        - name: companyId
+          in: query
+          required: true
+          description: UUID del comercio actual para garantizar aislamiento Multi-Tenant
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+
+  /cart/items:
+    post:
+      tags: [Cart]
+      summary: Añadir producto al carrito
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CartItemInput'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+
+  /cart/items/{itemId}:
+    delete:
+      tags: [Cart]
+      summary: Remover producto del carrito
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+
+  # ====================================================================================
+  # ORDERS & LIFECYCLE
+  # ====================================================================================
+  /orders:
+    get:
+      tags: [Orders]
+      summary: Listado paginado de órdenes
+      description: 'COMPRADOR: sus pedidos. DISTRIBUIDOR: pedidos de su tienda.'
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [CREADA, CONFIRMADA, EN_PROCESO, EN_CAMINO, COMPLETADA, CANCELADA] }
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedOrderList'
+
+  /orders/active:
+    get:
+      tags: [Orders]
+      summary: Consultar órdenes en curso del usuario
+      description: Retorna pedidos en progreso (excluye COMPLETADA y CANCELADA) de forma optimizada.
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+
+  /orders/checkout:
+    post:
+      tags: [Orders]
+      summary: Convertir el carrito en una orden formal
+      description: Valida stock disponible, efectúa reserva temporal de inventario e inicializa la orden en estado CREADA.
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckoutRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+
+  /orders/{orderId}:
+    get:
+      tags: [Orders]
+      summary: Detalle consolidado de la orden con sus 4 dimensiones de estado
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+
+  /orders/{orderId}/cancel:
+    post:
+      tags: [Orders]
+      summary: Cancelación de orden
+      description: Valida si la orden puede cancelarse (previa a preparación) y libera inventario reservado.
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  example: 'El usuario desistió de la compra antes del despacho'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+
+  /orders/{orderId}/live-stream:
+    get:
+      tags: [Orders]
+      summary: Canal SSE en tiempo real de la orden
+      description: Flujo continuo Server-Sent Events (SSE) para recibir cambios de estado y ubicación del repartidor sin polling.
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Conexión persistente abierta
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                example: |
+                  event: ORDER_STATUS_UPDATED
+                  data: {"orderStatus":"EN_CAMINO","deliveryStatus":"EN_RUTA","timestamp":"2026-09-22T17:56:00Z"}
+
+  # ====================================================================================
+  # PAYMENTS & INVOICING
+  # ====================================================================================
+  /payments/checkout-session:
+    post:
+      tags: [Payments & Invoicing]
+      summary: Inicializar intento de pago con firma de integridad
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentCheckoutSessionRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentCheckoutSessionResponse'
+
+  /payments/webhook/{gateway}:
+    post:
+      tags: [Payments & Invoicing]
+      summary: Webhook asíncrono para confirmación de transacciones
+      security: []
+      parameters:
+        - name: gateway
+          in: path
+          required: true
+          schema: { type: string, enum: [wompi, mercadopago] }
+        - name: X-Event-Checksum
+          in: header
+          required: true
+          description: Hash HMAC-SHA256 para validación criptográfica de origen del evento.
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Notificación procesada de forma idempotente
+
+  /payments/orders/{orderId}/status:
+    get:
+      tags: [Payments & Invoicing]
+      summary: Consultar estado transaccional del pago de una orden
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentStatusResponse'
+
+  # ====================================================================================
+  # DRIVER & LOGISTICS
+  # ====================================================================================
+  /driver/assignments:
+    get:
+      tags: [Driver & Logistics]
+      summary: Órdenes asignadas al domiciliario autenticado
+      description: 'Rol requerido: DOMICILIARIO'
+      parameters:
+        - name: activeOnly
+          in: query
+          schema: { type: boolean, default: true }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DriverAssignment'
+
+  /driver/shipments/{shipmentId}/pickup:
+    post:
+      tags: [Driver & Logistics]
+      summary: Confirmación física de recogida en bodega o tienda
+      description: Requiere PIN provisto por el comercio y valida geocerca PostGIS (máximo a 100m del punto de origen).
+      parameters:
+        - name: shipmentId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DriverPickupRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverAssignment'
+
+  /driver/shipments/{shipmentId}/deliver:
+    post:
+      tags: [Driver & Logistics]
+      summary: Confirmar entrega final al comprador
+      description: Requiere código OTP entregado por el comprador y/o evidencia fotográfica.
+      parameters:
+        - name: shipmentId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DriverDeliveryRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverAssignment'
+
+  /driver/telemetry:
+    post:
+      tags: [Driver & Logistics]
+      summary: Envío de coordenadas GPS de alta frecuencia
+      description: Endpoint optimizado para absorción asíncrona en memoria rápida (Redis) e ingestión particionada.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelemetryBatchInput'
+      responses:
+        '202':
+          description: Coordenadas puestas en cola de telemetría exitosamente
+
+  # ====================================================================================
+  # TRACKING
+  # ====================================================================================
+  /tracking/order/{orderId}:
+    get:
+      tags: [Tracking]
+      summary: Snapshot de posición y tiempo estimado de llegada (ETA)
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LocationSnapshot'
+
+  # ====================================================================================
+  # REVIEWS & REPUTATION
+  # ====================================================================================
+  /orders/{orderId}/reviews:
+    post:
+      tags: [Reviews & Reputation]
+      summary: Calificar pedido finalizado (Comercio, Productos y Repartidor)
+      description: Solo permitido si la orden se encuentra en estado COMPLETADA y no ha expirado la ventana de 15 días.
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderReviewSubmission'
+      responses:
+        '201':
+          description: Calificaciones almacenadas y promedios recalculados asíncronamente
+
+  /catalog/products/{productId}/reviews:
+    get:
+      tags: [Reviews & Reputation]
+      summary: Listado público de reseñas de un producto
+      security: []
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedReviewList'
+
+  /companies/{companyId}/reviews/{reviewId}/reply:
+    post:
+      tags: [Reviews & Reputation]
+      summary: Respuesta oficial del comercio a una reseña
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: reviewId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reply]
+              properties:
+                reply:
+                  type: string
+                  example: "Estimado cliente, lamentamos el inconveniente. Tomamos nota de su apreciación."
+      responses:
+        '200':
+          description: Respuesta registrada
+
+  # ====================================================================================
+  # SUPPORT & DISPUTES (PQRS / GARANTÍAS)
+  # ====================================================================================
+  /support/disputes:
+    get:
+      tags: [Support & Disputes]
+      summary: Listar tickets de disputas o garantías
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [ABIERTO, EN_INVESTIGACION, ESPERANDO_EVIDENCIA, APROBADO, RECHAZADO, CERRADO] }
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedDisputeList'
+    post:
+      tags: [Support & Disputes]
+      summary: Abrir solicitud de PQR, garantía por ítem o devolución
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DisputeTicketInput'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DisputeTicket'
+
+  /support/disputes/{ticketId}:
+    get:
+      tags: [Support & Disputes]
+      summary: Consultar detalle de disputa con SLA
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DisputeTicket'
+
+  /support/disputes/{ticketId}/messages:
+    get:
+      tags: [Support & Disputes]
+      summary: Historial de mensajes y evidencias del ticket
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TicketMessage'
+    post:
+      tags: [Support & Disputes]
+      summary: Responder al hilo de disputa adjuntando evidencias S3
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TicketMessageInput'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketMessage'
+
+  /support/disputes/{ticketId}/resolve:
+    post:
+      tags: [Support & Disputes]
+      summary: Dictamen y cierre de reclamo (Resolución vinculante)
+      description: 'Rol requerido: ADMIN / ANALISTA'
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TicketResolutionInput'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DisputeTicket'
+
+  # ====================================================================================
+  # SYSTEM CONFIG & KPIS
+  # ====================================================================================
+  /dashboard/kpis:
+    get:
+      tags: [System Config & KPIs]
+      summary: Métricas gerenciales y operativas en tiempo real
+      description: 'Rol requerido: ANALISTA / ADMIN'
+      parameters:
+        - name: dateFrom
+          in: query
+          schema: { type: string, format: date, example: "2026-09-01" }
+        - name: dateTo
+          in: query
+          schema: { type: string, format: date, example: "2026-09-22" }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KpiReport'
+
+  /system/parameters:
+    get:
+      tags: [System Config & KPIs]
+      summary: Listar parámetros globales de plataforma
+      description: 'Rol requerido: ADMIN'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SystemParam'
+    post:
+      tags: [System Config & KPIs]
+      summary: Crear nuevo parámetro de configuración
+      description: 'Rol requerido: ADMIN'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SystemParamInput'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemParam'
+
+  /system/parameters/key/{key}:
+    get:
+      tags: [System Config & KPIs]
+      summary: Obtener parámetro por clave única
+      security: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema: { type: string, example: "MAX_DELIVERY_RADIUS_KM" }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemParam'
+
+# ======================================================================================
+# COMPONENTS & SCHEMAS
+# ======================================================================================
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: __Host-repu_session
+      description: Cookie de sesión HttpOnly con token opaco seguro.
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Alternativa para clientes móviles nativos.
+
+  parameters:
+    RequestIdHeader:
+      name: X-Request-ID
+      in: header
+      required: true
+      description: UUID único para trazabilidad distribuida e idempotencia.
+      schema:
+        type: string
+        format: uuid
+        example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+    PageParam:
+      name: page
+      in: query
+      schema: { type: integer, default: 0, example: 0 }
+    SizeParam:
+      name: size
+      in: query
+      schema: { type: integer, default: 20, example: 20 }
+
+  responses:
+    BadRequest:
+      description: Entrada inválida o violaciones de reglas de negocio
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Credenciales inválidas o sesión expirada
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    # --- MODELOS BASE Y ERRORES ---
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: "INVALID_STATE_TRANSITION"
+        message:
+          type: string
+          example: "No es posible pasar a EN_PREPARACION sin confirmación de pago previo."
+        details:
+          type: object
+          example: { "currentPaymentStatus": "PENDIENTE" }
+
+    PageMetadata:
+      type: object
+      properties:
+        totalElements: { type: integer, example: 124 }
+        totalPages: { type: integer, example: 7 }
+        number: { type: integer, example: 0 }
+        size: { type: integer, example: 20 }
+
+    PointCoordinates:
+      type: object
+      required: [latitude, longitude]
+      properties:
+        latitude:
+          type: number
+          format: double
+          example: 6.244203
+        longitude:
+          type: number
+          format: double
+          example: -75.581211
+
+    # --- IAM Y SESIONES ---
+    RegisterRequest:
+      type: object
+      required: [email, password, role, firstName, lastName]
+      properties:
+        email:
+          type: string
+          format: email
+          example: "juan.comprador@repu.com"
+        password:
+          type: string
+          format: password
+          example: "P@ssw0rd2026!"
+        role:
+          type: string
+          enum: [COMPRADOR, DISTRIBUIDOR, DOMICILIARIO, ANALISTA, ADMIN]
+          example: "COMPRADOR"
+        firstName:
+          type: string
+          example: "Juan"
+        lastName:
+          type: string
+          example: "Pérez"
+        phone:
+          type: string
+          example: "+573001234567"
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: "juan.comprador@repu.com"
+        password:
+          type: string
+          format: password
+          example: "P@ssw0rd2026!"
+
+    AuthSessionResponse:
+      type: object
+      properties:
+        authenticated:
+          type: boolean
+          example: true
+        userId:
+          type: string
+          format: uuid
+          example: "e3b0c442-98fc-1c14-9afb-4c7bca001234"
+        role:
+          type: string
+          example: "COMPRADOR"
+        activeCompanyId:
+          type: string
+          format: uuid
+          nullable: true
+          example: null
+        accessToken:
+          type: string
+          description: Token opcional entregado para almacenamiento seguro en Apps móviles
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        expiresInSeconds:
+          type: integer
+          example: 604800
+
+    UserSession:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+          example: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+        deviceInfo:
+          type: string
+          example: "Chrome on macOS Catalina"
+        ipAddress:
+          type: string
+          example: "181.134.12.98"
+        lastAccess:
+          type: string
+          format: date-time
+          example: "2026-09-22T17:30:00Z"
+        expiresAt:
+          type: string
+          format: date-time
+          example: "2026-09-29T17:30:00Z"
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "e3b0c442-98fc-1c14-9afb-4c7bca001234"
+        email:
+          type: string
+          example: "juan.comprador@repu.com"
+        role:
+          type: string
+          example: "COMPRADOR"
+        firstName:
+          type: string
+          example: "Juan"
+        lastName:
+          type: string
+          example: "Pérez"
+        phone:
+          type: string
+          example: "+573001234567"
+        profileAttributes:
+          type: object
+          example: { "driverLicense": "A2-102938", "vehiclePlate": "ABC12D" }
+
+    UserProfileUpdate:
+      type: object
+      properties:
+        firstName: { type: string, example: "Juan David" }
+        lastName: { type: string, example: "Pérez Gómez" }
+        phone: { type: string, example: "+573109876543" }
+        profileAttributes: { type: object }
+
+    UserAddressInput:
+      type: object
+      required: [name, fullAddress, city, location]
+      properties:
+        name:
+          type: string
+          example: "Apartamento Poblado"
+        fullAddress:
+          type: string
+          example: "Carrera 43A # 7-50, Apto 1201"
+        city:
+          type: string
+          example: "Medellín"
+        postalCode:
+          type: string
+          example: "050021"
+        isPrimary:
+          type: boolean
+          example: true
+        deliveryNotes:
+          type: string
+          example: "Dejar en portería con vigilancia"
+        location:
+          $ref: '#/components/schemas/PointCoordinates'
+
+    UserAddress:
+      allOf:
+        - $ref: '#/components/schemas/UserAddressInput'
+        - type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              example: "d1f7c5e2-98e6-42d5-a342-92cf99a8e901"
+
+    # --- COMPANIES (TENANTS) ---
+    CompanyInput:
+      type: object
+      required: [businessName, taxId, physicalAddress, location]
+      properties:
+        businessName:
+          type: string
+          example: "Baterías y Repuestos del Valle S.A.S"
+        taxId:
+          type: string
+          example: "901234567-8"
+        description:
+          type: string
+          example: "Distribuidor oficial de autopartes Bosch, baterías MAC y filtros automotrices."
+        logoUrl:
+          type: string
+          example: "https://cdn.repu.com/companies/logo-valle.png"
+        physicalAddress:
+          type: string
+          example: "Calle 10 # 43E-12, Medellín"
+        location:
+          $ref: '#/components/schemas/PointCoordinates'
+        operationalConfig:
+          type: object
+          example:
+            businessHours: { "open": "08:00", "close": "18:00" }
+            estimatedPreparationMinutes: 20
+            brandColor: "#0A3D91"
+
+    Company:
+      allOf:
+        - $ref: '#/components/schemas/CompanyInput'
+        - type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              example: "8f5a3b21-6543-41c2-b987-123456789abc"
+            ownerUserId:
+              type: string
+              format: uuid
+              example: "e3b0c442-98fc-1c14-9afb-4c7bca001234"
+            rating:
+              type: number
+              example: 4.85
+            reviewCount:
+              type: integer
+              example: 142
+            active:
+              type: boolean
+              example: true
+
+    CompanyUpdate:
+      type: object
+      properties:
+        businessName: { type: string }
+        description: { type: string }
+        logoUrl: { type: string }
+        physicalAddress: { type: string }
+        location: { $ref: '#/components/schemas/PointCoordinates' }
+        operationalConfig: { type: object }
+
+    PagedCompanyList:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Company'
+        page:
+          $ref: '#/components/schemas/PageMetadata'
+
+    # --- CATALOG ---
+    CategoryInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          example: "Baterías Automotrices"
+        parentId:
+          type: string
+          format: uuid
+          nullable: true
+          example: null
+        description:
+          type: string
+          example: "Baterías para autos livianos, camionetas y transporte pesado"
+        iconUrl:
+          type: string
+          example: "https://cdn.repu.com/categories/battery-icon.svg"
+
+    Category:
+      allOf:
+        - $ref: '#/components/schemas/CategoryInput'
+        - type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              example: "31d5c219-58ec-4991-b3eb-460d3d52d9a1"
+            subCategories:
+              type: array
+              items:
+                $ref: '#/components/schemas/Category'
+
+    ProductInput:
+      type: object
+      required: [companyId, categoryId, name, basePrice, technicalSpecs]
+      properties:
+        companyId:
+          type: string
+          format: uuid
+          example: "8f5a3b21-6543-41c2-b987-123456789abc"
+        categoryId:
+          type: string
+          format: uuid
+          example: "31d5c219-58ec-4991-b3eb-460d3d52d9a1"
+        name:
+          type: string
+          example: "Batería MAC Silver Plus 42-IST-800"
+        sku:
+          type: string
+          example: "BAT-MAC-42IST"
+        shortDescription:
+          type: string
+          example: "Batería sellada libre de mantenimiento, 800 Amp pico de arranque."
+        basePrice:
+          type: number
+          example: 450000.00
+        offerPrice:
+          type: number
+          nullable: true
+          example: 420000.00
+        inventoryAvailable:
+          type: integer
+          example: 25
+        technicalSpecs:
+          type: object
+          example:
+            voltage: "12V"
+            cca: 650
+            amperage: 80
+            groupSize: "42"
+            vehicleFitment: ["Mazda 3", "Toyota Corolla", "Renault Duster"]
+        imageUrls:
+          type: array
+          items: { type: string }
+          example: ["https://cdn.repu.com/products/mac-42ist-front.jpg"]
+
+    Product:
+      allOf:
+        - $ref: '#/components/schemas/ProductInput'
+        - type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              example: "6c2e8471-2bfa-4c48-b4b3-d8928c9b33a2"
+            inventoryReserved:
+              type: integer
+              example: 2
+            rating:
+              type: number
+              example: 4.90
+            reviewCount:
+              type: integer
+              example: 38
+            active:
+              type: boolean
+              example: true
+
+    ProductUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        basePrice: { type: number }
+        offerPrice: { type: number }
+        inventoryAvailable: { type: integer }
+        shortDescription: { type: string }
+        technicalSpecs: { type: object }
+        imageUrls: { type: array, items: { type: string } }
+
+    PagedProductList:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+        page:
+          $ref: '#/components/schemas/PageMetadata'
+
+    # --- CART ---
+    CartItemInput:
+      type: object
+      required: [companyId, productId, quantity]
+      properties:
+        companyId:
+          type: string
+          format: uuid
+          example: "8f5a3b21-6543-41c2-b987-123456789abc"
+        productId:
+          type: string
+          format: uuid
+          example: "6c2e8471-2bfa-4c48-b4b3-d8928c9b33a2"
+        quantity:
+          type: integer
+          minimum: 1
+          example: 1
+        selectedOptions:
+          type: object
+          example: { "instalacionDomicilio": true }
+
+    CartItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        productId:
+          type: string
+          format: uuid
+          example: "6c2e8471-2bfa-4c48-b4b3-d8928c9b33a2"
+        productName:
+          type: string
+          example: "Batería MAC Silver Plus 42-IST-800"
+        unitPrice:
+          type: number
+          example: 420000.00
+        quantity:
+          type: integer
+          example: 1
+        subtotal:
+          type: number
+          example: 420000.00
+
+    Cart:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "b3a9c721-39ab-4221-a4ef-1a2b3c4d5e6f"
+        companyId:
+          type: string
+          format: uuid
+          example: "8f5a3b21-6543-41c2-b987-123456789abc"
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CartItem'
+        total:
+          type: number
+          example: 420000.00
+
+    # --- ORDERS (MÁQUINA DE ESTADOS COMPLETA) ---
+    CheckoutRequest:
+      type: object
+      required: [companyId, addressId]
+      properties:
+        companyId:
+          type: string
+          format: uuid
+          example: "8f5a3b21-6543-41c2-b987-123456789abc"
+        addressId:
+          type: string
+          format: uuid
+          example: "d1f7c5e2-98e6-42d5-a342-92cf99a8e901"
+        customerNotes:
+          type: string
+          example: "Llamar al llegar a la portería."
+
+    OrderItem:
+      type: object
+      properties:
+        itemId:
+          type: string
+          format: uuid
+        productId:
+          type: string
+          format: uuid
+        nameSnapshot:
+          type: string
+          example: "Batería MAC Silver Plus 42-IST-800"
+        skuSnapshot:
+          type: string
+          example: "BAT-MAC-42IST"
+        unitPriceSnapshot:
+          type: number
+          example: 420000.00
+        quantity:
+          type: integer
+          example: 1
+        lineTotal:
+          type: number
+          example: 420000.00
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "4b92c431-7e81-42ab-9d89-9a2f3032d847"
+        humanReadableId:
+          type: integer
+          example: 10452
+        buyerUserId:
+          type: string
+          format: uuid
+          example: "e3b0c442-98fc-1c14-9afb-4c7bca001234"
+        companyId:
+          type: string
+          format: uuid
+          example: "8f5a3b21-6543-41c2-b987-123456789abc"
+        version:
+          type: integer
+          description: Control de concurrencia optimista
+          example: 2
+        orderStatus:
+          type: string
+          enum: [CREADA, CONFIRMADA, EN_PROCESO, EN_CAMINO, COMPLETADA, CANCELADA]
+          example: "CONFIRMADA"
+        paymentStatus:
+          type: string
+          enum: [PENDIENTE, AUTORIZADO, PAGADO, RECHAZADO, REEMBOLSADO]
+          example: "PAGADO"
+        merchantStatus:
+          type: string
+          enum: [PENDIENTE_CONFIRMACION, ACEPTADO, EN_PREPARACION, LISTO_PARA_RECOGIDA, RECHAZADO]
+          example: "EN_PREPARACION"
+        deliveryStatus:
+          type: string
+          enum: [NO_ASIGNADO, ASIGNANDO, ASIGNADO, EN_TIENDA, RECOGIDO, EN_RUTA, ENTREGADO, FALLIDO]
+          example: "ASIGNANDO"
+        subtotal:
+          type: number
+          example: 420000.00
+        shippingCost:
+          type: number
+          example: 12000.00
+        discounts:
+          type: number
+          example: 0.00
+        taxes:
+          type: number
+          example: 79800.00
+        finalTotal:
+          type: number
+          example: 432000.00
+        deliveryAddressSnapshot:
+          type: object
+          example:
+            fullAddress: "Carrera 43A # 7-50, Apto 1201"
+            city: "Medellín"
+            lat: 6.2442
+            lng: -75.5812
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-09-22T17:15:00Z"
+
+    PagedOrderList:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Order'
+        page:
+          $ref: '#/components/schemas/PageMetadata'
+
+    # --- PAYMENTS ---
+    PaymentCheckoutSessionRequest:
+      type: object
+      required: [orderId, gateway]
+      properties:
+        orderId:
+          type: string
+          format: uuid
+          example: "4b92c431-7e81-42ab-9d89-9a2f3032d847"
+        gateway:
+          type: string
+          enum: [WOMPI, MERCADOPAGO]
+          example: "WOMPI"
+
+    PaymentCheckoutSessionResponse:
+      type: object
+      properties:
+        paymentIntentId:
+          type: string
+          format: uuid
+          example: "8893a7d2-641e-45fa-bb29-2321456a09bc"
+        idempotencyKey:
+          type: string
+          example: "ORD-10452-INTENT-1"
+        gateway:
+          type: string
+          example: "WOMPI"
+        amountInCents:
+          type: integer
+          example: 43200000
+        currency:
+          type: string
+          example: "COP"
+        integritySignature:
+          type: string
+          example: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        publicKey:
+          type: string
+          example: "pub_test_Q6B2J2Z7A4E8M5"
+
+    PaymentStatusResponse:
+      type: object
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        paymentStatus:
+          type: string
+          example: "PAGADO"
+        transactionReference:
+          type: string
+          example: "WMP-902384-TX"
+        paidAt:
+          type: string
+          format: date-time
+          example: "2026-09-22T17:18:22Z"
+
+    # --- DRIVER & LOGISTICS ---
+    DriverAssignment:
+      type: object
+      properties:
+        shipmentId:
+          type: string
+          format: uuid
+          example: "904b89c1-482a-4318-b2ef-304e6c98aa21"
+        orderId:
+          type: string
+          format: uuid
+          example: "4b92c431-7e81-42ab-9d89-9a2f3032d847"
+        humanOrderNumber:
+          type: integer
+          example: 10452
+        deliveryStatus:
+          type: string
+          enum: [ASIGNADO, EN_TIENDA, RECOGIDO, EN_RUTA, ENTREGADO, FALLIDO]
+          example: "ASIGNADO"
+        pickupLocation:
+          type: object
+          example:
+            name: "Baterías del Valle"
+            address: "Calle 10 # 43E-12"
+            lat: 6.2084
+            lng: -75.5658
+        dropoffLocation:
+          type: object
+          example:
+            recipient: "Juan Pérez"
+            address: "Carrera 43A # 7-50, Apto 1201"
+            notes: "Dejar en portería"
+            lat: 6.2442
+            lng: -75.5812
+
+    DriverPickupRequest:
+      type: object
+      required: [pickupPin, location]
+      properties:
+        pickupPin:
+          type: string
+          description: PIN suministrado por la tienda para validar entrega del paquete
+          example: "4829"
+        location:
+          $ref: '#/components/schemas/PointCoordinates'
+        photoUrl:
+          type: string
+          nullable: true
+          example: "https://s3.repu.com/shipments/pickup-pkg-10452.jpg"
+
+    DriverDeliveryRequest:
+      type: object
+      required: [deliveryOtpCode, location]
+      properties:
+        deliveryOtpCode:
+          type: string
+          description: Código entregado por el comprador al momento de la entrega
+          example: "7193"
+        location:
+          $ref: '#/components/schemas/PointCoordinates'
+        evidenceUrl:
+          type: string
+          nullable: true
+          example: "https://s3.repu.com/shipments/delivery-pkg-10452.jpg"
+
+    TelemetryBatchInput:
+      type: object
+      required: [shipmentId, points]
+      properties:
+        shipmentId:
+          type: string
+          format: uuid
+          example: "904b89c1-482a-4318-b2ef-304e6c98aa21"
+        points:
+          type: array
+          items:
+            type: object
+            required: [latitude, longitude, timestamp]
+            properties:
+              latitude: { type: number, format: double, example: 6.2442 }
+              longitude: { type: number, format: double, example: -75.5812 }
+              speedKmH: { type: number, example: 38.5 }
+              heading: { type: number, example: 180.0 }
+              batteryLevel: { type: integer, example: 84 }
+              timestamp: { type: string, format: date-time, example: "2026-09-22T17:40:00Z" }
+
+    LocationSnapshot:
+      type: object
+      properties:
+        driverId:
+          type: string
+          format: uuid
+          example: "fa5c7e12-88ba-4412-a631-0192837465ab"
+        latitude:
+          type: number
+          example: 6.2312
+        longitude:
+          type: number
+          example: -75.5701
+        speedKmH:
+          type: number
+          example: 32.0
+        heading:
+          type: number
+          example: 210.0
+        estimatedMinutesToArrival:
+          type: integer
+          example: 8
+        recordedAt:
+          type: string
+          format: date-time
+          example: "2026-09-22T17:42:15Z"
+
+    # --- REVIEWS ---
+    TargetReviewInput:
+      type: object
+      required: [targetType, targetId, rating]
+      properties:
+        targetType:
+          type: string
+          enum: [PRODUCTO, EMPRESA, DOMICILIARIO]
+          example: "PRODUCTO"
+        targetId:
+          type: string
+          format: uuid
+          example: "6c2e8471-2bfa-4c48-b4b3-d8928c9b33a2"
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 5
+        comment:
+          type: string
+          example: "Excelente batería, mi vehículo encendió de inmediato."
+        imageUrls:
+          type: array
+          items: { type: string }
+          example: ["https://s3.repu.com/reviews/battery-installed.jpg"]
+
+    OrderReviewSubmission:
+      type: object
+      required: [reviews]
+      properties:
+        reviews:
+          type: array
+          items:
+            $ref: '#/components/schemas/TargetReviewInput'
+
+    Review:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        authorName:
+          type: string
+          example: "Juan P."
+        targetType:
+          type: string
+          example: "PRODUCTO"
+        rating:
+          type: integer
+          example: 5
+        comment:
+          type: string
+          example: "Excelente producto."
+        merchantReply:
+          type: string
+          nullable: true
+          example: "¡Muchas gracias por preferirnos!"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-09-22T18:00:00Z"
+
+    PagedReviewList:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Review'
+        page:
+          $ref: '#/components/schemas/PageMetadata'
+
+    # --- SUPPORT & DISPUTES ---
+    DisputeTicketInput:
+      type: object
+      required: [procedureType, subject, description]
+      properties:
+        procedureType:
+          type: string
+          enum: [CONSULTA, PQR, GARANTIA, DEVOLUCION]
+          example: "GARANTIA"
+        orderId:
+          type: string
+          format: uuid
+          nullable: true
+          example: "4b92c431-7e81-42ab-9d89-9a2f3032d847"
+        orderDetailId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Obligatorio si la reclamación corresponde a un producto específico de la orden
+          example: "6c2e8471-2bfa-4c48-b4b3-d8928c9b33a2"
+        subject:
+          type: string
+          example: "Batería no retiene carga después de 3 días"
+        description:
+          type: string
+          example: "Se instaló según el manual y al tercer día el borne derecho presentó sulfatación excesiva."
+        claimedAmount:
+          type: number
+          example: 420000.00
+        initialEvidenceUrls:
+          type: array
+          items: { type: string }
+          example: ["https://s3.repu.com/claims/borne-danado.jpg"]
+
+    DisputeTicket:
+      allOf:
+        - $ref: '#/components/schemas/DisputeTicketInput'
+        - type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              example: "018b87a2-192a-41e9-913a-718293a4b5c6"
+            ticketNumber:
+              type: integer
+              example: 409
+            claimantUserId:
+              type: string
+              format: uuid
+              example: "e3b0c442-98fc-1c14-9afb-4c7bca001234"
+            status:
+              type: string
+              enum: [ABIERTO, EN_INVESTIGACION, ESPERANDO_EVIDENCIA, APROBADO, RECHAZADO, CERRADO]
+              example: "EN_INVESTIGACION"
+            priority:
+              type: string
+              enum: [BAJA, MEDIA, ALTA, CRITICA]
+              example: "ALTA"
+            slaDeadline:
+              type: string
+              format: date-time
+              example: "2026-09-24T17:00:00Z"
+            finalResolution:
+              type: string
+              nullable: true
+              example: null
+            createdAt:
+              type: string
+              format: date-time
+              example: "2026-09-22T17:45:00Z"
+
+    PagedDisputeList:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/DisputeTicket'
+        page:
+          $ref: '#/components/schemas/PageMetadata'
+
+    TicketMessageInput:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          example: "Adjunto video del multímetro marcando 10.2 voltios."
+        attachmentUrls:
+          type: array
+          items: { type: string }
+          example: ["https://s3.repu.com/claims/video-prueba.mp4"]
+
+    TicketMessage:
+      allOf:
+        - $ref: '#/components/schemas/TicketMessageInput'
+        - type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              example: "21983012-3921-4192-baef-1234567890ab"
+            senderUserId:
+              type: string
+              format: uuid
+              example: "e3b0c442-98fc-1c14-9afb-4c7bca001234"
+            isInternalNote:
+              type: boolean
+              example: false
+            sentAt:
+              type: string
+              format: date-time
+              example: "2026-09-22T17:50:00Z"
+
+    TicketResolutionInput:
+      type: object
+      required: [status, resolutionSummary]
+      properties:
+        status:
+          type: string
+          enum: [APROBADO, RECHAZADO, CERRADO]
+          example: "APROBADO"
+        resolutionSummary:
+          type: string
+          example: "Se valida defecto de fábrica en borne. Se autoriza cambio de producto y garantía con flete cubierto."
+        refundApproved:
+          type: boolean
+          example: false
+
+    # --- DASHBOARD & SYSTEM CONFIG ---
+    KpiReport:
+      type: object
+      properties:
+        totalRevenue:
+          type: number
+          example: 458900000.00
+        completedOrdersCount:
+          type: integer
+          example: 1240
+        activeDriversInFleet:
+          type: integer
+          example: 38
+        averageDeliveryTimeMinutes:
+          type: number
+          example: 26.4
+        openDisputesCount:
+          type: integer
+          example: 4
+
+    SystemParamInput:
+      type: object
+      required: [key, configValue]
+      properties:
+        key:
+          type: string
+          example: "MAX_DELIVERY_RADIUS_KM"
+        configValue:
+          type: object
+          example: { "radiusKm": 15, "fallbackToThirdPartyLogistics": true }
+        description:
+          type: string
+          example: "Radio máximo de cobertura para asignación de repartidores directos."
+
+    SystemParam:
+      allOf:
+        - $ref: '#/components/schemas/SystemParamInput'
+        - type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              example: "712893a1-482a-4318-b2ef-304e6c98aa21"
+            active:
+              type: boolean
+              example: true
+            updatedAt:
+              type: string
+              format: date-time
+              example: "2026-09-22T12:00:00Z"

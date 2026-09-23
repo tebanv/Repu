@@ -11,6 +11,12 @@ spring:
       enabled: false
   profiles:
     active: "local"
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: "repuadmin"
+      timeout: 2s
 
 management:
   endpoints:
@@ -27,19 +33,13 @@ cors:
 adapters:
   r2dbc:
     host: localhost
-    port: 5435
+    port: 5432
     database: repu
     schema: repu
-    username: admin
-    password: "adm1n123@"
-security:
-  jwt:
-    # Esta es una llave de ejemplo en Base64 (32 bytes / 256 bits).
-    secret: "5367566B59703373367639792F423F4528482B4D6251655468576D5A71347437"
-    expiration-minutes: 10600
+    username: repu
+    password: "repuadmin"
 logging:
   level:
     org.springframework.security: INFO
     org.springframework.web.reactive.function.server: INFO
-
-
+    co.repu: INFO

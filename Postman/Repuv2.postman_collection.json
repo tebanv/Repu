@@ -1,0 +1,407 @@
+{
+  "info": {
+    "_postman_id": "b7f3d2d5-4ee9-4ed8-9e4b-7d76f5b36c31",
+    "name": "Repuv2",
+    "description": "Colección para probar autenticación, sesiones opacas, perfil y parámetros del sistema de ms-auth. El login guarda accessToken y userId automáticamente. Postman usará la cookie __Host-repu_session cuando la conexión sea HTTPS; en local HTTP se utiliza Authorization: Bearer {{accessToken}}.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "host",
+      "value": "http://localhost:8081",
+      "type": "string"
+    },
+    {
+      "key": "basePath",
+      "value": "/ms-auth",
+      "type": "string"
+    },
+    {
+      "key": "requestId",
+      "value": "{{$guid}}",
+      "type": "string"
+    },
+    {
+      "key": "email",
+      "value": "user@example.com",
+      "type": "string"
+    },
+    {
+      "key": "password",
+      "value": "P@ssw0rd2026!",
+      "type": "string"
+    },
+    {
+      "key": "firstName",
+      "value": "Esteban",
+      "type": "string"
+    },
+    {
+      "key": "lastName",
+      "value": "Velez",
+      "type": "string"
+    },
+    {
+      "key": "phone",
+      "value": "+573100000000",
+      "type": "string"
+    },
+    {
+      "key": "role",
+      "value": "COMPRADOR",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "systemParamKey",
+      "value": "MAX_DELIVERY_RADIUS_KM",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "01 - Registro y autenticación",
+      "description": "Ejecutar primero Registro y después Login. Login guarda accessToken y userId en las variables de la colección.",
+      "item": [
+        {
+          "name": "Registro de usuario",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Request-ID",
+                "value": "{{requestId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"{{firstName}}\",\n  \"lastName\": \"{{lastName}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"role\": \"{{role}}\",\n  \"phone\": \"{{phone}}\",\n  \"profileAttributes\": {\n    \"source\": \"postman\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{host}}{{basePath}}/api/auth/register",
+              "host": [
+                "{{host}}{{basePath}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Registra un usuario. Roles válidos: COMPRADOR, DISTRIBUIDOR, DOMICILIARIO, ANALISTA y ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Login - crea cookie y token móvil",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login exitoso', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "if (body.accessToken) pm.collectionVariables.set('accessToken', body.accessToken);",
+                  "if (body.userId) pm.collectionVariables.set('userId', body.userId);",
+                  "console.log('Sesión iniciada para userId:', body.userId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Request-ID",
+                "value": "{{requestId}}"
+              },
+              {
+                "key": "X-Device-Info",
+                "value": "Postman Desktop"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{host}}{{basePath}}/api/auth/login",
+              "host": [
+                "{{host}}{{basePath}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Crea una sesión opaca. La respuesta incluye accessToken para clientes móviles y Set-Cookie para clientes web."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02 - Sesiones",
+      "description": "Endpoints de consulta y revocación. Requieren la cookie de sesión o Authorization: Bearer {{accessToken}}.",
+      "item": [
+        {
+          "name": "Listar sesiones activas",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-ID",
+                "value": "{{requestId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{host}}{{basePath}}/api/auth/sessions",
+              "host": [
+                "{{host}}{{basePath}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "sessions"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Logout sesión actual",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-ID",
+                "value": "{{requestId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{host}}{{basePath}}/api/auth/logout",
+              "host": [
+                "{{host}}{{basePath}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Revoca la sesión actual en PostgreSQL y Redis y expira la cookie."
+          },
+          "response": []
+        },
+        {
+          "name": "Logout todas las sesiones",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Request-ID",
+                "value": "{{requestId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{host}}{{basePath}}/api/auth/logout-all",
+              "host": [
+                "{{host}}{{basePath}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "logout-all"
+              ]
+            },
+            "description": "Revoca todas las sesiones activas del usuario actual."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03 - Perfil",
+      "item": [
+        {
+          "name": "Consultar perfil",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-ID",
+                "value": "{{requestId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{host}}{{basePath}}/api/users/profile",
+              "host": [
+                "{{host}}{{basePath}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "profile"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Actualizar perfil",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Request-ID",
+                "value": "{{requestId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Esteban David\",\n  \"lastName\": \"Velez\",\n  \"phone\": \"+573100000001\",\n  \"profileAttributes\": {\n    \"preferredLanguage\": \"es\",\n    \"updatedFrom\": \"postman\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{host}}{{basePath}}/api/users/profile",
+              "host": [
+                "{{host}}{{basePath}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "profile"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04 - Parámetros del sistema",
+      "description": "El endpoint de creación debe ejecutarse con un usuario autorizado según las reglas de seguridad del entorno.",
+      "item": [
+        {
+          "name": "Listar parámetros activos",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-ID",
+                "value": "{{requestId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{host}}{{basePath}}/api/system/parameters",
+              "host": [
+                "{{host}}{{basePath}}"
+              ],
+              "path": [
+                "api",
+                "system",
+                "parameters"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Crear parámetro",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Request-ID",
+                "value": "{{requestId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"{{systemParamKey}}\",\n  \"configValue\": {\n    \"radiusKm\": 15,\n    \"fallbackToThirdPartyLogistics\": true\n  },\n  \"description\": \"Radio máximo de cobertura para asignación de repartidores directos\"\n}"
+            },
+            "url": {
+              "raw": "{{host}}{{basePath}}/api/system/parameters",
+              "host": [
+                "{{host}}{{basePath}}"
+              ],
+              "path": [
+                "api",
+                "system",
+                "parameters"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar parámetro por clave",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-ID",
+                "value": "{{requestId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{host}}{{basePath}}/api/system/parameters/key/{{systemParamKey}}",
+              "host": [
+                "{{host}}{{basePath}}"
+              ],
+              "path": [
+                "api",
+                "system",
+                "parameters",
+                "key",
+                "{{systemParamKey}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "protocolProfileBehavior": {
+    "disableBodyPruning": true
+  }
+}
