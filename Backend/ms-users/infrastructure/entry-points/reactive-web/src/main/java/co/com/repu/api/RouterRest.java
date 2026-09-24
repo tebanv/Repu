@@ -13,7 +13,13 @@ public class RouterRest {
     @Bean
     public RouterFunction<ServerResponse> routerFunction(Handler handler) {
         return route(GET("/api/users/profile"), handler::getMyProfile)
+                .andRoute(POST("/api/users/password-recovery"), handler::requestPasswordRecovery)
+                .andRoute(POST("/api/users/password-reset"), handler::resetPassword)
                 .andRoute(PATCH("/api/users/profile"), handler::updateMyProfile)
+                .andRoute(GET("/api/users/addresses"), handler::getAddresses)
+                .andRoute(POST("/api/users/addresses"), handler::createAddress)
+                .andRoute(PATCH("/api/users/addresses/{addressId}"), handler::updateAddress)
+                .andRoute(DELETE("/api/users/addresses/{addressId}"), handler::deleteAddress)
                 .andRoute(PATCH("/api/users/{userId}/status"), handler::changeUserStatus);
     }
 }

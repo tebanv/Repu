@@ -17,6 +17,16 @@
       "type": "string"
     },
     {
+      "key": "usersHost",
+      "value": "http://localhost:8082",
+      "type": "string"
+    },
+    {
+      "key": "usersBasePath",
+      "value": "/ms-users",
+      "type": "string"
+    },
+    {
       "key": "requestId",
       "value": "{{$guid}}",
       "type": "string"
@@ -64,6 +74,46 @@
     {
       "key": "systemParamKey",
       "value": "MAX_DELIVERY_RADIUS_KM",
+      "type": "string"
+    },
+    {
+      "key": "addressId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "addressName",
+      "value": "Casa Postman",
+      "type": "string"
+    },
+    {
+      "key": "addressFull",
+      "value": "Carrera 43A # 7-50, Apto 1201",
+      "type": "string"
+    },
+    {
+      "key": "addressCity",
+      "value": "Medellin",
+      "type": "string"
+    },
+    {
+      "key": "addressPostalCode",
+      "value": "050021",
+      "type": "string"
+    },
+    {
+      "key": "addressLatitude",
+      "value": "6.2088",
+      "type": "string"
+    },
+    {
+      "key": "addressLongitude",
+      "value": "-75.5672",
+      "type": "string"
+    },
+    {
+      "key": "addressNotes",
+      "value": "Dejar en porteria",
       "type": "string"
     }
   ],
@@ -252,7 +302,8 @@
       ]
     },
     {
-      "name": "03 - Perfil",
+      "name": "03 - Perfil (ms-users)",
+      "description": "Perfil gestionado por ms-users. Requiere Login previo para guardar accessToken.",
       "item": [
         {
           "name": "Consultar perfil",
@@ -265,9 +316,9 @@
               }
             ],
             "url": {
-              "raw": "{{host}}{{basePath}}/api/users/profile",
+              "raw": "{{usersHost}}{{usersBasePath}}/api/users/profile",
               "host": [
-                "{{host}}{{basePath}}"
+                "{{usersHost}}{{usersBasePath}}"
               ],
               "path": [
                 "api",
@@ -297,9 +348,9 @@
               "raw": "{\n  \"firstName\": \"Esteban David\",\n  \"lastName\": \"Velez\",\n  \"phone\": \"+573100000001\",\n  \"profileAttributes\": {\n    \"preferredLanguage\": \"es\",\n    \"updatedFrom\": \"postman\"\n  }\n}"
             },
             "url": {
-              "raw": "{{host}}{{basePath}}/api/users/profile",
+              "raw": "{{usersHost}}{{usersBasePath}}/api/users/profile",
               "host": [
-                "{{host}}{{basePath}}"
+                "{{usersHost}}{{usersBasePath}}"
               ],
               "path": [
                 "api",
@@ -340,6 +391,191 @@
           },
           "response": []
         },
+        {
+              "name": "05 - Direcciones de usuario",
+              "description": "CRUD de direcciones del usuario autenticado. Requiere ejecutar Login previamente para guardar accessToken.",
+              "item": [
+                {
+                  "name": "Listar direcciones",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-Request-ID",
+                        "value": "{{requestId}}"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{usersHost}}{{usersBasePath}}/api/users/addresses",
+                      "host": [
+                        "{{usersHost}}{{usersBasePath}}"
+                      ],
+                      "path": [
+                        "api",
+                        "users",
+                        "addresses"
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Crear dirección principal",
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.test('Direccion creada', function () {",
+                          "    pm.response.to.have.status(201);",
+                          "});",
+                          "const body = pm.response.json();",
+                          "if (body.id) pm.collectionVariables.set('addressId', body.id);",
+                          "console.log('addressId guardado:', body.id);"
+                        ]
+                      }
+                    }
+                  ],
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "X-Request-ID",
+                        "value": "{{requestId}}"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"{{addressName}}\",\n  \"fullAddress\": \"{{addressFull}}\",\n  \"city\": \"{{addressCity}}\",\n  \"postalCode\": \"{{addressPostalCode}}\",\n  \"isPrimary\": true,\n  \"deliveryNotes\": \"{{addressNotes}}\",\n  \"location\": {\n    \"latitude\": {{addressLatitude}},\n    \"longitude\": {{addressLongitude}}\n  }\n}"
+                    },
+                    "url": {
+                      "raw": "{{usersHost}}{{usersBasePath}}/api/users/addresses",
+                      "host": [
+                        "{{usersHost}}{{usersBasePath}}"
+                      ],
+                      "path": [
+                        "api",
+                        "users",
+                        "addresses"
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Actualizar dirección",
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.collectionVariables.get('addressId')) {",
+                          "    console.warn('Ejecuta primero Crear direccion principal para obtener addressId.');",
+                          "}"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.test('Direccion actualizada', function () {",
+                          "    pm.response.to.have.status(200);",
+                          "});"
+                        ]
+                      }
+                    }
+                  ],
+                  "request": {
+                    "method": "PATCH",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "X-Request-ID",
+                        "value": "{{requestId}}"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"{{addressName}} actualizada\",\n  \"fullAddress\": \"{{addressFull}}\",\n  \"city\": \"{{addressCity}}\",\n  \"postalCode\": \"{{addressPostalCode}}\",\n  \"isPrimary\": true,\n  \"deliveryNotes\": \"{{addressNotes}} - actualizada\",\n  \"location\": {\n    \"latitude\": {{addressLatitude}},\n    \"longitude\": {{addressLongitude}}\n  }\n}"
+                    },
+                    "url": {
+                      "raw": "{{usersHost}}{{usersBasePath}}/api/users/addresses/{{addressId}}",
+                      "host": [
+                        "{{usersHost}}{{usersBasePath}}"
+                      ],
+                      "path": [
+                        "api",
+                        "users",
+                        "addresses",
+                        "{{addressId}}"
+                      ]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Eliminar dirección (soft delete)",
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.collectionVariables.get('addressId')) {",
+                          "    console.warn('Ejecuta primero Crear direccion principal para obtener addressId.');",
+                          "}"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.test('Direccion eliminada', function () {",
+                          "    pm.response.to.have.status(204);",
+                          "});",
+                          "pm.collectionVariables.unset('addressId');"
+                        ]
+                      }
+                    }
+                  ],
+                  "request": {
+                    "method": "DELETE",
+                    "header": [
+                      {
+                        "key": "X-Request-ID",
+                        "value": "{{requestId}}"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{usersHost}}{{usersBasePath}}/api/users/addresses/{{addressId}}",
+                      "host": [
+                        "{{usersHost}}{{usersBasePath}}"
+                      ],
+                      "path": [
+                        "api",
+                        "users",
+                        "addresses",
+                        "{{addressId}}"
+                      ]
+                    }
+                  },
+                  "response": []
+                }
+              ]
+            },
         {
           "name": "Crear parámetro",
           "request": {
@@ -394,6 +630,52 @@
                 "key",
                 "{{systemParamKey}}"
               ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "06 - Recuperación de contraseña",
+      "description": "Solicita un código por correo y actualiza la contraseña con el código recibido.",
+      "item": [
+        {
+          "name": "Solicitar código",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "X-Request-ID", "value": "{{requestId}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\"\n}"
+            },
+            "url": {
+              "raw": "{{usersHost}}{{usersBasePath}}/api/users/password-recovery",
+              "host": ["{{usersHost}}{{usersBasePath}}"],
+              "path": ["api", "users", "password-recovery"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Actualizar contraseña",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "X-Request-ID", "value": "{{requestId}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"code\": \"000000\",\n  \"newPassword\": \"NuevaP@ss2026!\"\n}"
+            },
+            "url": {
+              "raw": "{{usersHost}}{{usersBasePath}}/api/users/password-reset",
+              "host": ["{{usersHost}}{{usersBasePath}}"],
+              "path": ["api", "users", "password-reset"]
             }
           },
           "response": []

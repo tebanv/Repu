@@ -1,6 +1,6 @@
 package co.com.repu.api.security;
 
-import co.com.repu.api.config.JwtAuthenticationManager;
+import co.com.repu.r2dbc.SessionAuthenticationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -11,11 +11,13 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
+
 @Component
 @RequiredArgsConstructor
 public class SecurityContextRepository implements ServerSecurityContextRepository {
 
-    private final JwtAuthenticationManager authenticationManager;
+    private final SessionAuthenticationService sessionAuthenticationService;
 
     @Override
     public Mono<Void> save(ServerWebExchange exchange, SecurityContext context) {
@@ -24,15 +26,18 @@ public class SecurityContextRepository implements ServerSecurityContextRepositor
 
     @Override
     public Mono<SecurityContext> load(ServerWebExchange exchange) {
-        return Mono.justOrEmpty(exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION))
-                .filter(authHeader -> authHeader.startsWith("Bearer "))
-                .flatMap(authHeader -> {
-                    String token = authHeader.substring(7);
-                    // Creamos un objeto de autenticación inicial (aún no verificado)
-                    var auth = new UsernamePasswordAuthenticationToken(token, token);
-                    // Delegamos al manager para que lo verifique
-                    return authenticationManager.authenticate(auth)
-                            .map(SecurityContextImpl::new);
-                });
+        String authorization = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+        String token = authorization != null && authorization.startsWith("Bearer ")
+                ? authorization.substring(7)
+                : exchange.getRequest().getCookies().getFirst("__Host-repu_session") == null
+                ? null
+                : exchange.getRequest().getCookies().getFirst("__Host-repu_session").getValue();
+
+        return sessionAuthenticationService.authenticate(token)
+                .map(principal -> new UsernamePasswordAuthenticationToken(
+                        principal.userId().toString(), null,
+                        List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                "ROLE_" + principal.role()))))
+                .map(SecurityContextImpl::new);
     }
 }

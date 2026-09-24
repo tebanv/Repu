@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Repository
 @RequiredArgsConstructor
@@ -28,8 +29,13 @@ public class UserRepositoryAdapter implements UserRepository {
     }
 
     @Override
+    public Mono<User> findById(UUID id) {
+        return repository.findById(id)
+                .map(mapper::toDomain)
+                .doOnNext(u -> log.debug("Usuario encontrado por ID: {}", id));
+    }
+
     public Mono<User> findById(String id) {
-        // R2DBC espera UUID en el método findById si la PK es UUID en la Entity
         return repository.findById(id)
                 .map(mapper::toDomain)
                 .doOnNext(u -> log.debug("Usuario encontrado por ID: {}", id));

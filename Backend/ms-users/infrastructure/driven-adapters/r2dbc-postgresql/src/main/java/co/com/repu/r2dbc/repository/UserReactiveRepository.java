@@ -6,7 +6,8 @@ import org.springframework.data.repository.reactive.ReactiveCrudRepository;
 import reactor.core.publisher.Mono;
 
 // TODO: This file is just an example, you should delete or modify it
-public interface UserReactiveRepository extends ReactiveCrudRepository<UserEntity, String>, ReactiveQueryByExampleExecutor<Object> {
+public interface UserReactiveRepository extends ReactiveCrudRepository<UserEntity, java.util.UUID>, ReactiveQueryByExampleExecutor<Object> {
 
     Mono<UserEntity> findByEmail(String email);
+    Mono<UserEntity> findById(String id);
 }

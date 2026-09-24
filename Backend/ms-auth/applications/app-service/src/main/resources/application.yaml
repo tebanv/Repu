@@ -42,4 +42,7 @@ logging:
   level:
     org.springframework.security: INFO
     org.springframework.web.reactive.function.server: INFO
-    co.repu: INFO
+    org.springframework.r2dbc: DEBUG
+    io.r2dbc.postgresql: DEBUG
+    io.r2dbc.postgresql.QUERY: DEBUG
+    io.r2dbc.postgresql.PARAM: DEBUG

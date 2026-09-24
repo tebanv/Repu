@@ -65,6 +65,70 @@ CREATE TABLE sesiones_usuario (
     ultimo_acceso TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
+-- ======================================================================================
+-- RECUPERACIÓN Y CAMBIO SEGURO DE CONTRASEÑA
+-- ======================================================================================
+
+CREATE TABLE IF NOT EXISTS repu.tokens_recuperacion_contrasena (
+    id_token UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    id_usuario UUID NOT NULL,
+
+    -- Nunca almacenar el código enviado por correo en texto plano.
+    codigo_hash VARCHAR(64) NOT NULL,
+
+    -- Tiempo máximo de validez del código.
+    expira_en TIMESTAMPTZ NOT NULL,
+
+    -- Control de intentos para evitar ataques de fuerza bruta.
+    intentos_fallidos INTEGER DEFAULT 0 NOT NULL,
+    max_intentos INTEGER DEFAULT 5 NOT NULL,
+
+    -- El código solamente puede utilizarse una vez.
+    usado BOOLEAN DEFAULT FALSE NOT NULL,
+    usado_en TIMESTAMPTZ,
+
+    -- Datos útiles para auditoría y control antifraude.
+    direccion_ip VARCHAR(45),
+    agente_usuario TEXT,
+
+    fecha_creacion TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    fecha_actualizacion TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+
+    CONSTRAINT fk_tokens_recuperacion_usuario
+        FOREIGN KEY (id_usuario)
+        REFERENCES repu.usuarios(id_usuario)
+        ON DELETE CASCADE,
+
+    CONSTRAINT chk_tokens_intentos_fallidos
+        CHECK (intentos_fallidos >= 0),
+
+    CONSTRAINT chk_tokens_max_intentos
+        CHECK (max_intentos > 0),
+
+    CONSTRAINT chk_tokens_usado_fecha
+        CHECK (
+            (usado = FALSE AND usado_en IS NULL)
+            OR
+            (usado = TRUE AND usado_en IS NOT NULL)
+        )
+);
+
+CREATE TABLE direcciones_usuario (
+    id_direccion UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id_usuario UUID NOT NULL,
+    nombre_direccion VARCHAR(100) NOT NULL,
+    direccion_completa TEXT NOT NULL,
+    ciudad VARCHAR(100) NOT NULL,
+    codigo_postal VARCHAR(20),
+    es_principal BOOLEAN DEFAULT FALSE NOT NULL,
+    ubicacion GEOGRAPHY(Point, 4326) NOT NULL,
+    notas_entrega TEXT,
+    activo BOOLEAN DEFAULT TRUE NOT NULL,
+    fecha_creacion TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    fecha_actualizacion TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
 CREATE TABLE empresas (
     id_empresa UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     id_usuario_propietario UUID NOT NULL, -- Relación lógica con usuarios
@@ -81,21 +145,6 @@ CREATE TABLE empresas (
     fecha_creacion TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
     fecha_actualizacion TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT chk_empresas_calificacion CHECK (calificacion_promedio BETWEEN 0 AND 5)
-);
-
-CREATE TABLE direcciones_usuario (
-    id_direccion UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    id_usuario UUID NOT NULL,
-    nombre_direccion VARCHAR(100) NOT NULL,
-    direccion_completa TEXT NOT NULL,
-    ciudad VARCHAR(100) NOT NULL,
-    codigo_postal VARCHAR(20),
-    es_principal BOOLEAN DEFAULT FALSE NOT NULL,
-    ubicacion GEOGRAPHY(Point, 4326) NOT NULL,
-    notas_entrega TEXT,
-    activo BOOLEAN DEFAULT TRUE NOT NULL,
-    fecha_creacion TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    fecha_actualizacion TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
 CREATE TABLE categorias (
@@ -386,6 +435,16 @@ CREATE TRIGGER trg_envios_modtime BEFORE UPDATE ON envios FOR EACH ROW EXECUTE F
 CREATE TRIGGER trg_resenas_modtime BEFORE UPDATE ON resenas FOR EACH ROW EXECUTE FUNCTION actualizar_timestamp_modificacion();
 CREATE TRIGGER trg_tickets_modtime BEFORE UPDATE ON tickets_disputas FOR EACH ROW EXECUTE FUNCTION actualizar_timestamp_modificacion();
 
+-- Actualización automática de fecha_actualizacion.
+DROP TRIGGER IF EXISTS trg_tokens_recuperacion_modtime
+ON repu.tokens_recuperacion_contrasena;
+
+CREATE TRIGGER trg_tokens_recuperacion_modtime
+BEFORE UPDATE ON repu.tokens_recuperacion_contrasena
+FOR EACH ROW
+EXECUTE FUNCTION repu.actualizar_timestamp_modificacion();
+
+
 -- ======================================================================================
 -- 9. CLAVES FORÁNEAS (INTEGRIDAD REFERENCIAL FÍSICA)
 -- ======================================================================================
@@ -464,6 +523,15 @@ CREATE UNIQUE INDEX idx_usuarios_correo ON usuarios(correo_electronico) WHERE ac
 CREATE INDEX idx_usuarios_rol ON usuarios(rol_sistema);
 CREATE INDEX idx_sesiones_hash ON sesiones_usuario(token_sesion_hash) WHERE esta_activa = TRUE;
 CREATE INDEX idx_sesiones_usuario ON sesiones_usuario(id_usuario) WHERE esta_activa = TRUE;
+
+-- Permite buscar rápidamente por usuario y código.
+CREATE INDEX IF NOT EXISTS idx_tokens_recuperacion_usuario ON repu.tokens_recuperacion_contrasena(id_usuario);
+CREATE INDEX IF NOT EXISTS idx_tokens_recuperacion_codigo ON repu.tokens_recuperacion_contrasena(codigo_hash);
+CREATE INDEX IF NOT EXISTS idx_tokens_recuperacion_expiracion ON repu.tokens_recuperacion_contrasena(expira_en) WHERE usado = FALSE;
+
+-- Garantiza un único token activo por usuario.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_unico_token_recuperacion_activo ON repu.tokens_recuperacion_contrasena(id_usuario) WHERE usado = FALSE;
+
 
 -- Empresas y Direcciones (Espaciales PostGIS)
 CREATE INDEX idx_empresas_propietario ON empresas(id_usuario_propietario);

@@ -32,13 +32,15 @@ public class SecurityConfig {
 
                         // 2. Swagger / Actuator (Salud)
                         .pathMatchers("/actuator/**").permitAll()
+                        .pathMatchers(HttpMethod.POST, "/api/users/password-recovery",
+                                "/api/users/password-reset").permitAll()
                         .pathMatchers("/webjars/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
 
                         // 3. Obtener usuario con token
-                        .pathMatchers("/api/users/profile").authenticated()
+                        .pathMatchers("/api/users/profile", "/api/users/addresses/**").authenticated()
 
                         // Endpoint de estado: Solo ADMIN
-                        .pathMatchers(HttpMethod.PATCH, "/api/users/*/status").hasAnyRole("ADMIN", "DISTRIBUTOR", "BUYER")
+                        .pathMatchers(HttpMethod.PATCH, "/api/users/*/status").hasRole("ADMIN")
 
                         .anyExchange().authenticated()
                 )
