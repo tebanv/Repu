@@ -28,15 +28,4 @@ public class RegisterRequest {
     @JsonAlias({"profileAttributes", "attributesUser"})
     private Map<String, Object> profileAttributes;
 
-    public String getName() {
-        return this.firstName;
-    }
-
-    public String getNumberMobile() {
-        return this.phone;
-    }
-
-    public Map<String, Object> getAttributesUser() {
-        return this.profileAttributes;
-    }
 }

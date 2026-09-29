@@ -105,26 +105,6 @@ public class AuthUseCase {
                 }));
     }
 
-    public Mono<User> getProfile(UUID userId) {
-        return usersRepository.findById(userId)
-                .switchIfEmpty(Mono.error(new RuntimeException("Usuario no encontrado")));
-    }
-
-    public Mono<User> updateProfile(UUID userId, User userPatch) {
-        return usersRepository.findById(userId)
-                .switchIfEmpty(Mono.error(new RuntimeException("Usuario no encontrado")))
-                .flatMap(existing -> {
-                    User updated = existing.toBuilder()
-                            .name(userPatch.getName() != null ? userPatch.getName() : existing.getName())
-                            .lastName(userPatch.getLastName() != null ? userPatch.getLastName() : existing.getLastName())
-                            .numberMobile(userPatch.getNumberMobile() != null ? userPatch.getNumberMobile() : existing.getNumberMobile())
-                            .attributesUser(userPatch.getAttributesUser() != null ? userPatch.getAttributesUser() : existing.getAttributesUser())
-                            .updatedAt(LocalDateTime.now())
-                            .build();
-                    return usersRepository.save(updated);
-                });
-    }
-
     public Mono<User> authenticateSession(String rawToken) {
         return authenticateSessionDetails(rawToken).map(AuthSession::getUser);
     }

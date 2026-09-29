@@ -225,6 +225,57 @@ paths:
         '204':
           description: Dirección eliminada
 
+  /users/password-recovery:
+    post:
+      tags: [Users & IAM]
+      summary: Solicitar código de recuperación de contraseña
+      description: |
+        Envía un código temporal al correo del usuario. Por seguridad,
+        la respuesta no revela si el correo existe.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordRecoveryRequest'
+      responses:
+        '202':
+          description: Solicitud aceptada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordRecoveryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          description: Error al procesar la solicitud
+  /users/password-reset:
+    post:
+      tags: [Users & IAM]
+      summary: Actualizar contraseña con código de recuperación
+      description: |
+        Valida el código temporal y actualiza la contraseña.
+        El código expira en 10 minutos, tiene máximo 5 intentos
+        y solo puede utilizarse una vez.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+      responses:
+        '204':
+          description: Contraseña actualizada correctamente y sesiones invalidadas
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          description: Error al procesar la solicitud
   # ====================================================================================
   # COMPANIES (TENANTS)
   # ====================================================================================
@@ -1331,6 +1382,49 @@ components:
               type: string
               format: uuid
               example: "d1f7c5e2-98e6-42d5-a342-92cf99a8e901"
+    PasswordRecoveryRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 150
+          example: "juan.comprador@repu.com"
+
+    PasswordRecoveryResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          example: "Si el correo está registrado, recibirás un código de recuperación."
+
+    PasswordResetRequest:
+      type: object
+      required:
+        - email
+        - code
+        - newPassword
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 150
+          example: "juan.comprador@repu.com"
+        code:
+          type: string
+          pattern: '^[0-9]{6}$'
+          minLength: 6
+          maxLength: 6
+          example: "483921"
+        newPassword:
+          type: string
+          format: password
+          minLength: 8
+          example: "NuevaP@ss2026!"
 
     # --- COMPANIES (TENANTS) ---
     CompanyInput:

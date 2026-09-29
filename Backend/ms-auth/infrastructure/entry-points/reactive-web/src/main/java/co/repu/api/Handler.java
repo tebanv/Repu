@@ -7,8 +7,6 @@ import co.repu.api.dto.LoginResponse;
 import co.repu.api.dto.RegisterRequest;
 import co.repu.api.dto.SystemParamInput;
 import co.repu.api.dto.SystemParamResponse;
-import co.repu.api.dto.UserProfile;
-import co.repu.api.dto.UserProfileUpdate;
 import co.repu.api.dto.UserResponse;
 import co.repu.api.dto.UserSession;
 import co.repu.model.system.SystemParameter;
@@ -138,37 +136,6 @@ public class Handler {
                         .bodyValue(new ErrorResponse(e.getMessage())));
     }
 
-    public Mono<ServerResponse> listenGetProfileUseCase(ServerRequest serverRequest) {
-        return resolveUserId(serverRequest)
-                .flatMap(userId -> authUseCase.getProfile(userId)
-                        .map(this::mapToProfileResponse)
-                        .flatMap(profile -> ServerResponse.ok()
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .bodyValue(profile)))
-                .onErrorResume(e -> ServerResponse.status(HttpStatus.NOT_FOUND)
-                        .bodyValue(new ErrorResponse(e.getMessage())));
-    }
-
-    public Mono<ServerResponse> listenUpdateProfileUseCase(ServerRequest serverRequest) {
-        return resolveUserId(serverRequest)
-                .flatMap(userId -> serverRequest.bodyToMono(UserProfileUpdate.class)
-                        .flatMap(request -> {
-                            User userPatch = User.builder()
-                                    .name(request.getFirstName())
-                                    .lastName(request.getLastName())
-                                    .numberMobile(request.getPhone())
-                                    .attributesUser(request.getProfileAttributes())
-                                    .build();
-                            return authUseCase.updateProfile(userId, userPatch)
-                                    .map(this::mapToProfileResponse)
-                                    .flatMap(profile -> ServerResponse.ok()
-                                            .contentType(MediaType.APPLICATION_JSON)
-                                            .bodyValue(profile));
-                        }))
-                .onErrorResume(e -> ServerResponse.status(HttpStatus.BAD_REQUEST)
-                        .bodyValue(new ErrorResponse(e.getMessage())));
-    }
-
     public Mono<ServerResponse> listenGetSystemParametersUseCase(ServerRequest serverRequest) {
         return authUseCase.getSystemParameters()
                 .collectList()
@@ -210,21 +177,6 @@ public class Handler {
                 .role(user.getRole())
                 .status(user.getStatus())
                 .createdAt(user.getCreatedAt())
-                .build();
-    }
-
-    private UserProfile mapToProfileResponse(User user) {
-        return UserProfile.builder()
-                .id(user.getId())
-                .email(user.getEmail())
-                .role(user.getRole())
-                .firstName(user.getName())
-                .lastName(user.getLastName())
-                .phone(user.getNumberMobile())
-                .profileAttributes(user.getProfileAttributes())
-                .status(user.getStatus())
-                .createdAt(user.getCreatedAt())
-                .updatedAt(user.getUpdatedAt())
                 .build();
     }
 

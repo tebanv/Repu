@@ -2,7 +2,6 @@ package co.repu.model.users;
 import lombok.*;
 
 import java.time.LocalDateTime;
-import java.util.Map;
 import java.util.UUID;
 
 
@@ -25,30 +24,4 @@ public class User {
     private LocalDateTime updatedAt;
     private boolean isNew;
 
-    public String getFirstName() {
-        return this.name;
-    }
-
-    public void setFirstName(String firstName) {
-        this.name = firstName;
-    }
-
-    public String getPhone() {
-        return this.numberMobile;
-    }
-
-    public void setPhone(String phone) {
-        this.numberMobile = phone;
-    }
-
-    public Map<String, Object> getProfileAttributes() {
-        if (this.attributesUser instanceof Map<?, ?> map) {
-            return (Map<String, Object>) map;
-        }
-        return null;
-    }
-
-    public void setProfileAttributes(Map<String, Object> profileAttributes) {
-        this.attributesUser = profileAttributes;
-    }
 }
