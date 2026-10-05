@@ -114,6 +114,7 @@ CREATE TABLE IF NOT EXISTS repu.tokens_recuperacion_contrasena (
         )
 );
 
+-- el campo version es para llevar un Control de concurrencia optimista para evitar actualizaciones pisadas entre pestañas.
 CREATE TABLE direcciones_usuario (
     id_direccion UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     id_usuario UUID NOT NULL,
@@ -126,7 +127,9 @@ CREATE TABLE direcciones_usuario (
     notas_entrega TEXT,
     activo BOOLEAN DEFAULT TRUE NOT NULL,
     fecha_creacion TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    fecha_actualizacion TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
+    fecha_actualizacion TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    version INTEGER DEFAULT 0 NOT NULL,
+    CONSTRAINT chk_direcciones_version CHECK (version >= 0)
 );
 
 CREATE TABLE empresas (
@@ -144,7 +147,11 @@ CREATE TABLE empresas (
     activo BOOLEAN DEFAULT TRUE NOT NULL,
     fecha_creacion TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
     fecha_actualizacion TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT chk_empresas_calificacion CHECK (calificacion_promedio BETWEEN 0 AND 5)
+    slug VARCHAR(150) NOT NULL,
+    telefono_comercial VARCHAR(20),
+    banner_url TEXT,
+    CONSTRAINT chk_empresas_calificacion CHECK (calificacion_promedio BETWEEN 0 AND 5),
+    CONSTRAINT uq_empresas_slug UNIQUE (slug)
 );
 
 CREATE TABLE categorias (
@@ -163,6 +170,7 @@ CREATE TABLE productos (
     id_empresa UUID NOT NULL, -- Multi-tenant: El producto pertenece a una empresa
     id_categoria UUID NOT NULL,
     nombre VARCHAR(200) NOT NULL,
+    marca VARCHAR(120),
     sku_referencia VARCHAR(100),
     descripcion_corta TEXT,
     precio_base NUMERIC(15, 2) NOT NULL,
@@ -216,11 +224,12 @@ CREATE TABLE ordenes (
     estado_pago VARCHAR(30) DEFAULT 'PENDIENTE' NOT NULL,
     estado_comercio VARCHAR(30) DEFAULT 'PENDIENTE_CONFIRMACION' NOT NULL,
     estado_envio VARCHAR(30) DEFAULT 'NO_ASIGNADO' NOT NULL,
-    subtotal N  UMERIC(15, 2) NOT NULL,
+    subtotal NUMERIC(15, 2) NOT NULL,
     costo_envio NUMERIC(15, 2) DEFAULT 0.00 NOT NULL,
     descuentos NUMERIC(15, 2) DEFAULT 0.00 NOT NULL,
     impuestos NUMERIC(15, 2) DEFAULT 0.00 NOT NULL,
     total_final NUMERIC(15, 2) NOT NULL,
+    costo_servicio NUMERIC(15, 2) DEFAULT 0.00 NOT NULL,
     direccion_entrega_snapshot JSONB NOT NULL,  -- Datos Snapshot: Dirección en el momento de la compra
     notas_cliente TEXT,
     fecha_limite_confirmacion TIMESTAMPTZ,
@@ -231,9 +240,13 @@ CREATE TABLE ordenes (
     CONSTRAINT chk_orden_macro_estado CHECK (estado_orden IN ('CREADA', 'CONFIRMADA', 'EN_PROCESO', 'EN_CAMINO', 'COMPLETADA', 'CANCELADA')),
     CONSTRAINT chk_orden_pago_estado CHECK (estado_pago IN ('PENDIENTE', 'AUTORIZADO', 'PAGADO', 'RECHAZADO', 'REEMBOLSADO')),
     CONSTRAINT chk_orden_comercio_estado CHECK (estado_comercio IN ('PENDIENTE_CONFIRMACION', 'ACEPTADO', 'EN_PREPARACION', 'LISTO_PARA_RECOGIDA', 'RECHAZADO')),
-    CONSTRAINT chk_orden_envio_estado CHECK (estado_envio IN ('NO_ASIGNADO', 'ASIGNANDO', 'ASIGNADO', 'EN_TIENDA', 'RECOGIDO', 'EN_RUTA', 'ENTREGADO', 'FALLIDO'))
+    CONSTRAINT chk_orden_envio_estado CHECK (estado_envio IN ('NO_ASIGNADO', 'ASIGNANDO', 'ASIGNADO', 'EN_TIENDA', 'RECOGIDO', 'EN_RUTA', 'ENTREGADO', 'FALLIDO')),
+    CONSTRAINT chk_orden_costo_servicio CHECK (costo_servicio >= 0),
+    CONSTRAINT chk_orden_total_final CHECK (total_final = subtotal + costo_envio + costo_servicio + impuestos - descuentos)
 );
 
+-- el campo opciones_seleccionadas_snapshot es para llevar Snapshot de las opciones seleccionadas por el comprador en el carrito.
+-- Evita perder la configuración original si cambia posteriormente el producto.
 CREATE TABLE detalles_orden (
     id_detalle UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     id_orden UUID NOT NULL,
@@ -244,6 +257,7 @@ CREATE TABLE detalles_orden (
     precio_unitario_snapshot NUMERIC(15, 2) NOT NULL,
     total_linea NUMERIC(15, 2) NOT NULL,
     caracteristicas_snapshot JSONB DEFAULT '{}' NOT NULL,
+    opciones_seleccionadas_snapshot JSONB DEFAULT '{}' NOT NULL,
     CONSTRAINT chk_detalle_cantidad CHECK (cantidad > 0)
 );
 
@@ -259,6 +273,87 @@ CREATE TABLE historial_estados_orden (
     fecha_cambio TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT chk_historial_dominio CHECK (dominio_estado IN ('ORDEN', 'PAGO', 'COMERCIO', 'ENVIO')),
     CONSTRAINT chk_historial_actor CHECK (tipo_actor IN ('SISTEMA', 'COMERCIO', 'DOMICILIARIO', 'CLIENTE', 'ADMIN'))
+);
+
+-- Representa la reserva realizada durante checkout.
+-- La modificación física del stock debe efectuarse en la misma transacción
+-- que cree/actualice esta reserva.
+CREATE TABLE reservas_inventario (
+    id_reserva UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    id_orden UUID NOT NULL,
+    id_producto UUID NOT NULL,
+
+    cantidad_reservada INTEGER NOT NULL,
+
+    estado VARCHAR(20) DEFAULT 'ACTIVA' NOT NULL,
+    expira_en TIMESTAMPTZ NOT NULL,
+
+    fecha_creacion TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    fecha_actualizacion TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    fecha_liberacion TIMESTAMPTZ,
+
+    CONSTRAINT fk_reserva_inventario_orden
+        FOREIGN KEY (id_orden)
+        REFERENCES ordenes(id_orden)
+        ON DELETE RESTRICT,
+
+    CONSTRAINT fk_reserva_inventario_producto
+        FOREIGN KEY (id_producto)
+        REFERENCES productos(id_producto)
+        ON DELETE RESTRICT,
+
+    CONSTRAINT chk_reserva_cantidad
+        CHECK (cantidad_reservada > 0),
+
+    CONSTRAINT chk_reserva_estado
+        CHECK (estado IN ('ACTIVA', 'CONSUMIDA', 'LIBERADA', 'EXPIRADA')),
+
+    CONSTRAINT chk_reserva_fecha_liberacion
+        CHECK (
+            (estado IN ('ACTIVA', 'CONSUMIDA')
+                AND fecha_liberacion IS NULL)
+            OR
+            (estado IN ('LIBERADA', 'EXPIRADA')
+                AND fecha_liberacion IS NOT NULL)
+        )
+);
+
+-- IDEMPOTENCIA DEL CHECKOUT
+-- X-Request-ID funciona como clave idempotente.
+-- request_hash evita aceptar la misma clave con un payload diferente.
+
+CREATE TABLE idempotencias_checkout (
+    clave_idempotencia UUID PRIMARY KEY,
+
+    id_usuario UUID NOT NULL,
+    id_empresa UUID NOT NULL,
+    id_orden UUID,
+
+    request_hash VARCHAR(64) NOT NULL,
+
+    estado VARCHAR(20) DEFAULT 'PROCESANDO' NOT NULL,
+
+    fecha_creacion TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    fecha_actualizacion TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+
+    CONSTRAINT fk_idempotencia_checkout_usuario
+        FOREIGN KEY (id_usuario)
+        REFERENCES usuarios(id_usuario)
+        ON DELETE RESTRICT,
+
+    CONSTRAINT fk_idempotencia_checkout_empresa
+        FOREIGN KEY (id_empresa)
+        REFERENCES empresas(id_empresa)
+        ON DELETE RESTRICT,
+
+    CONSTRAINT fk_idempotencia_checkout_orden
+        FOREIGN KEY (id_orden)
+        REFERENCES ordenes(id_orden)
+        ON DELETE RESTRICT,
+
+    CONSTRAINT chk_idempotencia_checkout_estado
+        CHECK (estado IN ('PROCESANDO', 'COMPLETADA', 'FALLIDA'))
 );
 
 -- ======================================================================================
@@ -334,6 +429,39 @@ CREATE TABLE historial_ubicacion_envio (
     fecha_registro TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
     PRIMARY KEY (id_rastreo, fecha_registro)
 ) PARTITION BY RANGE (fecha_registro);
+
+-- POSICIÓN ACTUAL DEL DOMICILIARIO
+-- Una sola fila por envío.
+-- Esta tabla representa el snapshot actual, NO el histórico de telemetría.
+-- El histórico continúa en historial_ubicacion_envio.
+CREATE TABLE posiciones_actuales_envio (
+    id_envio UUID PRIMARY KEY,
+    ubicacion_actual GEOGRAPHY(Point, 4326) NOT NULL,
+    velocidad_detectada NUMERIC(5, 2),
+    rumbo_grados NUMERIC(5, 2),
+    bateria_dispositivo INTEGER,
+    fecha_actualizacion TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+
+    CONSTRAINT fk_posicion_actual_envio
+        FOREIGN KEY (id_envio)
+        REFERENCES envios(id_envio)
+        ON DELETE CASCADE,
+
+    CONSTRAINT chk_posicion_velocidad
+        CHECK (velocidad_detectada IS NULL OR velocidad_detectada >= 0),
+
+    CONSTRAINT chk_posicion_rumbo
+        CHECK (
+            rumbo_grados IS NULL
+            OR (rumbo_grados >= 0 AND rumbo_grados <= 360)
+        ),
+
+    CONSTRAINT chk_posicion_bateria
+        CHECK (
+            bateria_dispositivo IS NULL
+            OR (bateria_dispositivo >= 0 AND bateria_dispositivo <= 100)
+        )
+);
 
 -- Particiones iniciales mensuales de telemetría
 CREATE TABLE historial_ubicacion_envio_2026_09 PARTITION OF historial_ubicacion_envio
@@ -436,8 +564,7 @@ CREATE TRIGGER trg_resenas_modtime BEFORE UPDATE ON resenas FOR EACH ROW EXECUTE
 CREATE TRIGGER trg_tickets_modtime BEFORE UPDATE ON tickets_disputas FOR EACH ROW EXECUTE FUNCTION actualizar_timestamp_modificacion();
 
 -- Actualización automática de fecha_actualizacion.
-DROP TRIGGER IF EXISTS trg_tokens_recuperacion_modtime
-ON repu.tokens_recuperacion_contrasena;
+DROP TRIGGER IF EXISTS trg_tokens_recuperacion_modtime ON repu.tokens_recuperacion_contrasena;
 
 CREATE TRIGGER trg_tokens_recuperacion_modtime
 BEFORE UPDATE ON repu.tokens_recuperacion_contrasena
@@ -532,16 +659,21 @@ CREATE INDEX IF NOT EXISTS idx_tokens_recuperacion_expiracion ON repu.tokens_rec
 -- Garantiza un único token activo por usuario.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_unico_token_recuperacion_activo ON repu.tokens_recuperacion_contrasena(id_usuario) WHERE usado = FALSE;
 
-
--- Empresas y Direcciones (Espaciales PostGIS)
-CREATE INDEX idx_empresas_propietario ON empresas(id_usuario_propietario);
-CREATE INDEX idx_empresas_ubicacion ON empresas USING GIST (ubicacion);
+-- Direcciones Usuario (Espaciales PostGIS)
 CREATE INDEX idx_direcciones_usuario ON direcciones_usuario(id_usuario);
 CREATE INDEX idx_direcciones_ubicacion ON direcciones_usuario USING GIST (ubicacion);
+CREATE INDEX idx_direcciones_usuario_version ON direcciones_usuario(id_usuario, version);
 
--- Catálogo
+-- Empresas
+CREATE INDEX idx_empresas_propietario ON empresas(id_usuario_propietario);
+CREATE INDEX idx_empresas_ubicacion ON empresas USING GIST (ubicacion);
+CREATE INDEX idx_empresas_slug ON empresas(slug);
+CREATE INDEX idx_empresas_telefono ON empresas(telefono_comercial);
+
+-- Catálogo y productos
 CREATE INDEX idx_categorias_padre ON categorias(id_categoria_padre);
 CREATE INDEX idx_productos_empresa ON productos(id_empresa);
+CREATE INDEX idx_productos_marca ON productos(marca);
 CREATE INDEX idx_productos_categoria ON productos(id_categoria);
 CREATE INDEX idx_productos_caracteristicas ON productos USING GIN (caracteristicas_tecnicas);
 CREATE INDEX idx_productos_sku ON productos(id_empresa, sku_referencia);
@@ -560,6 +692,15 @@ CREATE INDEX idx_ordenes_activas_usuario ON ordenes(id_usuario_comprador, estado
 CREATE INDEX idx_detalles_orden_orden ON detalles_orden(id_orden);
 CREATE INDEX idx_historial_estados_orden ON historial_estados_orden(id_orden, fecha_cambio ASC);
 
+-- Una orden no debe reservar dos veces el mismo producto mientras la reserva siga activa.
+CREATE UNIQUE INDEX idx_reserva_activa_orden_producto ON reservas_inventario(id_orden, id_producto) WHERE estado = 'ACTIVA';
+CREATE INDEX idx_reservas_producto_estado ON reservas_inventario(id_producto, estado);
+CREATE INDEX idx_reservas_expiracion ON reservas_inventario(expira_en) WHERE estado = 'ACTIVA';
+CREATE INDEX idx_reservas_orden ON reservas_inventario(id_orden);
+
+-- Reservas de inventario
+CREATE INDEX idx_reservas_activas_expiracion ON reservas_inventario(expira_en, id_producto) WHERE estado = 'ACTIVA';
+
 -- Pagos
 CREATE INDEX idx_intentos_pago_orden ON intentos_pago(id_orden);
 CREATE INDEX idx_intentos_pago_referencia ON intentos_pago(referencia_transaccion_pasarela);
@@ -571,6 +712,9 @@ CREATE INDEX idx_envios_domiciliario ON envios(id_usuario_domiciliario);
 CREATE INDEX idx_envios_estado ON envios(estado_envio);
 CREATE INDEX idx_envios_ubicacion_destino ON envios USING GIST (ubicacion_destino);
 CREATE INDEX idx_rastreo_envio_particionado ON historial_ubicacion_envio(id_envio, fecha_registro DESC);
+
+-- Posición actual de envío
+CREATE INDEX idx_posiciones_actuales_fecha ON posiciones_actuales_envio(fecha_actualizacion DESC);
 
 -- Reseñas y Soporte
 CREATE UNIQUE INDEX idx_resena_unica_por_objetivo ON resenas(id_orden, tipo_objetivo, id_objetivo) WHERE activo = TRUE;

@@ -206,13 +206,19 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UserAddressInput'
+              $ref: '#/components/schemas/UserAddressUpdate'
       responses:
         '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserAddress'
+        '409':
+          description: Conflicto de concurrencia. La dirección fue modificada por otro cliente o pestaña.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     delete:
       tags: [Users & IAM]
       summary: Desactivar dirección (Soft Delete)
@@ -643,7 +649,12 @@ paths:
     post:
       tags: [Orders]
       summary: Convertir el carrito en una orden formal
-      description: Valida stock disponible, efectúa reserva temporal de inventario e inicializa la orden en estado CREADA.
+      description: |
+        Convierte el carrito activo del comercio en una orden formal.
+        Valida stock disponible y crea reservas temporales de inventario.
+        La operación es idempotente mediante X-Request-ID.
+        Repetir la misma solicitud con la misma clave devuelve la misma orden.
+        Reutilizar la misma clave con un contenido diferente produce conflicto.
       parameters:
         - $ref: '#/components/parameters/RequestIdHeader'
       requestBody:
@@ -654,10 +665,17 @@ paths:
               $ref: '#/components/schemas/CheckoutRequest'
       responses:
         '201':
+          description: Orden creada correctamente.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Order'
+        '409':
+          description: Conflicto de idempotencia, concurrencia o disponibilidad de inventario.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /orders/{orderId}:
     get:
@@ -1161,7 +1179,7 @@ components:
       name: X-Request-ID
       in: header
       required: true
-      description: UUID único para trazabilidad distribuida e idempotencia.
+      description: UUID único para trazabilidad distribuida. En operaciones de checkout funciona además como clave de idempotencia.
       schema:
         type: string
         format: uuid
@@ -1382,6 +1400,23 @@ components:
               type: string
               format: uuid
               example: "d1f7c5e2-98e6-42d5-a342-92cf99a8e901"
+            version:
+              type: integer
+              minimum: 0
+              description: Versión actual del recurso para control de concurrencia optimista.
+              example: 3
+    UserAddressUpdate:
+      allOf:
+        - $ref: '#/components/schemas/UserAddressInput'
+        - type: object
+          required: [version]
+          properties:
+            version:
+              type: integer
+              minimum: 0
+              description: Versión conocida por el cliente al iniciar la actualización.
+              example: 3
+
     PasswordRecoveryRequest:
       type: object
       required:
@@ -1443,6 +1478,15 @@ components:
         logoUrl:
           type: string
           example: "https://cdn.repu.com/companies/logo-valle.png"
+        phone:
+          type: string
+          maxLength: 20
+          nullable: true
+          example: "+576044321234"
+        bannerUrl:
+          type: string
+          nullable: true
+          example: "https://cdn.repu.com/companies/valle-banner.jpg"
         physicalAddress:
           type: string
           example: "Calle 10 # 43E-12, Medellín"
@@ -1477,6 +1521,18 @@ components:
             active:
               type: boolean
               example: true
+            slug:
+              type: string
+              description: Identificador único e inmutable usado en la URL pública del comercio.
+              example: "baterias-del-valle"
+            phone:
+              type: string
+              nullable: true
+              example: "+576044321234"
+            bannerUrl:
+              type: string
+              nullable: true
+              example: "https://cdn.repu.com/companies/valle-banner.jpg"
 
     CompanyUpdate:
       type: object
@@ -1487,6 +1543,13 @@ components:
         physicalAddress: { type: string }
         location: { $ref: '#/components/schemas/PointCoordinates' }
         operationalConfig: { type: object }
+        phone:
+          type: string
+          maxLength: 20
+          nullable: true
+        bannerUrl:
+          type: string
+          nullable: true
 
     PagedCompanyList:
       type: object
@@ -1498,7 +1561,7 @@ components:
         page:
           $ref: '#/components/schemas/PageMetadata'
 
-    # --- CATALOG ---
+    # --- CATALOG AND PRODUCTS ---
     CategoryInput:
       type: object
       required: [name]
@@ -1575,6 +1638,10 @@ components:
           type: array
           items: { type: string }
           example: ["https://cdn.repu.com/products/mac-42ist-front.jpg"]
+        brand:
+          type: string
+          nullable: true
+          example: "BOSCH"
 
     Product:
       allOf:
@@ -1608,6 +1675,9 @@ components:
         shortDescription: { type: string }
         technicalSpecs: { type: object }
         imageUrls: { type: array, items: { type: string } }
+        brand:
+          type: string
+          nullable: true
 
     PagedProductList:
       type: object
@@ -1619,7 +1689,7 @@ components:
         page:
           $ref: '#/components/schemas/PageMetadata'
 
-    # --- CART ---
+    # --- CART AND ORDERS---
     CartItemInput:
       type: object
       required: [companyId, productId, quantity]
@@ -1724,6 +1794,12 @@ components:
         lineTotal:
           type: number
           example: 420000.00
+        selectedOptionsSnapshot:
+          type: object
+          description: Copia inmutable de las opciones seleccionadas por el comprador al momento del checkout.
+          example:
+            instalacionDomicilio: true
+            tipoInstalacion: "BASICA"
 
     Order:
       type: object
@@ -1778,6 +1854,12 @@ components:
         finalTotal:
           type: number
           example: 432000.00
+        serviceFee:
+          type: number
+          format: double
+          minimum: 0
+          example: 5000.00
+          description: Cargo por servicio cobrado por la plataforma.
         deliveryAddressSnapshot:
           type: object
           example:
