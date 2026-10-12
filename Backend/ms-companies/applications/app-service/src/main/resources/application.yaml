@@ -1,0 +1,45 @@
+server:
+  port: 8083
+spring:
+  application:
+    name: "ms-companies"
+  webflux:
+    base-path: "/ms-companies"
+  devtools:
+    add-properties: false
+    restart:
+      enabled: false
+  profiles:
+    active: "local"
+  r2dbc:
+    # Si corres la App desde IntelliJ/Terminal usa localhost y el puerto externo (5435)
+    # Si la App corre DENTRO de otro contenedor, usa el nombre del servicio: postgres_repu y puerto 5432
+    url: r2dbc:postgresql://localhost:5435/repu
+    username: postgres
+    password: "postgres"
+    pool:
+      initial-size: 10
+      max-size: 20
+      max-idle-time: 30m
+    properties:
+      schema: repu
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,prometheus"
+  endpoint:
+    health:
+      probes:
+        enabled: true
+security:
+  jwt:
+    # Esta es una llave de ejemplo en Base64 (32 bytes / 256 bits).
+    secret: "5367566B59703373367639792F423F4528482B4D6251655468576D5A71347437"
+cors:
+  #allowed-origins: "http://localhost:4200,http://localhost:8080"
+  allowed-origins: "*"
+logging:
+  level:
+    org.springframework.security: INFO
+    org.springframework.web.reactive.function.server: INFO

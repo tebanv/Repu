@@ -1,0 +1,30 @@
+server:
+  port: 8088
+spring:
+  application:
+    name: "ms-orders"
+  devtools:
+    add-properties: false
+  profiles:
+    include: null
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,prometheus"
+  endpoint:
+    health:
+      probes:
+        enabled: true
+cors:
+  allowed-origins: "http://localhost:4200,http://localhost:8088"
+adapters:
+  r2dbc:
+    host: ${DB_HOST}
+    port: ${DB_PORT}
+    database: ${DB_NAME}
+    schema: ${DB_SCHEMA:repu}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+orders:
+  reservation-ttl: ${ORDER_RESERVATION_TTL:PT15M}

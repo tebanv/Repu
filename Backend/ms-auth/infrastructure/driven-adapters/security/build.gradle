@@ -1,0 +1,7 @@
+dependencies {
+    implementation project(':model')
+    implementation 'org.springframework:spring-context'
+    implementation("org.springframework.security:spring-security-crypto:7.0.0")
+    // UUID Creator (V7) - Ya lo usaste en companies, úsalo aquí también
+    implementation 'com.github.f4b6a3:uuid-creator:6.0.0'
+}

@@ -1,0 +1,63 @@
+server:
+  port: 8082
+spring:
+  application:
+    name: "ms-users"
+  webflux:
+    base-path: "/ms-users"
+  devtools:
+    add-properties: false
+    restart:
+      enabled: false
+  profiles:
+    active: "local"
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:false}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS:false}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,prometheus"
+  endpoint:
+    health:
+      probes:
+        enabled: true
+cors:
+  allowed-origins: "http://localhost:4200,http://localhost:8080,http://localhost:*"
+
+adapters:
+  r2dbc:
+    host: localhost
+    port: 5432
+    database: repu
+    schema: repu
+    username: repu
+    password: "repuadmin"
+security:
+  jwt:
+    # Esta es una llave de ejemplo en Base64 (32 bytes / 256 bits).
+    secret: "5367566B59703373367639792F423F4528482B4D6251655468576D5A71347437"
+    expiration-minutes: 60
+logging:
+  level:
+    org.springframework.security: INFO
+    org.springframework.web.reactive.function.server: INFO
+    org.springframework.r2dbc: DEBUG
+    io.r2dbc.postgresql: DEBUG
+    io.r2dbc.postgresql.QUERY: DEBUG
+    io.r2dbc.postgresql.PARAM: DEBUG
+    co.com.repu: INFO
+    org.springframework.mail: INFO
+
+app:
+  password-recovery:
+    from: ${MAIL_FROM:no-reply@repu.local}

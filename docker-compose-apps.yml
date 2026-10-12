@@ -1,0 +1,264 @@
+version: '3.8'
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # ==========================================
+  # FRONTEND (Repu User App)
+  # ==========================================
+  front-user:
+    build:
+      context: ./front-user
+      dockerfile: Dockerfile
+    container_name: repu_front_user
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    networks:
+      - proxy-net
+    labels:
+      - "traefik.enable=true"
+      # Enrutamiento inicial basado en IP pública sin requerir dominio obligatorio
+      - "traefik.http.routers.repu-front.rule=Host(`${PUBLIC_HOST:-167.86.88.151}`)"
+      - "traefik.http.routers.repu-front.entrypoints=web"
+      - "traefik.http.services.repu-front.loadbalancer.server.port=80"
+      - "traefik.docker.network=repu_proxy"
+
+  # ==========================================
+  # BACKEND: MICROSERVICIOS SPRING BOOT (7)
+  # ==========================================
+
+  ms-auth:
+    build:
+      context: ./Backend/ms-auth
+      dockerfile: Dockerfile
+    container_name: repu_ms_auth
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: '0.75'
+          memory: 512M
+        reservations:
+          cpus: '0.10'
+          memory: 256M
+    environment:
+      - SPRING_PROFILES_ACTIVE=local
+      - SERVER_PORT=8081
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://repu_postgres:5432/${POSTGRES_DB}
+      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+    networks:
+      - internal-net
+      - proxy-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.repu-ms-auth.rule=Host(`${PUBLIC_HOST:-167.86.88.151}`) && PathPrefix(`/ms-auth`)"
+      - "traefik.http.routers.repu-ms-auth.entrypoints=web"
+      - "traefik.http.services.repu-ms-auth.loadbalancer.server.port=8081"
+      - "traefik.docker.network=repu_proxy"
+
+  ms-categories:
+    build:
+      context: ./Backend/ms-categories
+      dockerfile: Dockerfile
+    container_name: repu_ms_categories
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: '0.75'
+          memory: 512M
+        reservations:
+          cpus: '0.10'
+          memory: 256M
+    environment:
+      - SPRING_PROFILES_ACTIVE=local
+      - SERVER_PORT=8082
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://repu_postgres:5432/${POSTGRES_DB}
+      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+    networks:
+      - internal-net
+      - proxy-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.repu-ms-categories.rule=Host(`${PUBLIC_HOST:-167.86.88.151}`) && PathPrefix(`/ms-categories`)"
+      - "traefik.http.routers.repu-ms-categories.entrypoints=web"
+      - "traefik.http.services.repu-ms-categories.loadbalancer.server.port=8082"
+      - "traefik.docker.network=repu_proxy"
+
+  ms-companies:
+    build:
+      context: ./Backend/ms-companies
+      dockerfile: Dockerfile
+    container_name: repu_ms_companies
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: '0.75'
+          memory: 512M
+        reservations:
+          cpus: '0.10'
+          memory: 256M
+    environment:
+      - SPRING_PROFILES_ACTIVE=local
+      - SERVER_PORT=8083
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://repu_postgres:5432/${POSTGRES_DB}
+      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+    networks:
+      - internal-net
+      - proxy-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.repu-ms-companies.rule=Host(`${PUBLIC_HOST:-167.86.88.151}`) && PathPrefix(`/ms-companies`)"
+      - "traefik.http.routers.repu-ms-companies.entrypoints=web"
+      - "traefik.http.services.repu-ms-companies.loadbalancer.server.port=8083"
+      - "traefik.docker.network=repu_proxy"
+
+  ms-manage-payment:
+    build:
+      context: ./Backend/ms-manage-payment
+      dockerfile: Dockerfile
+    container_name: repu_ms_manage_payment
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: '0.75'
+          memory: 512M
+        reservations:
+          cpus: '0.10'
+          memory: 256M
+    environment:
+      - SPRING_PROFILES_ACTIVE=local
+      - SERVER_PORT=8084
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://repu_postgres:5432/${POSTGRES_DB}
+      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+    networks:
+      - internal-net
+      - proxy-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.repu-ms-manage-payment.rule=Host(`${PUBLIC_HOST:-167.86.88.151}`) && PathPrefix(`/ms-manage-payment`)"
+      - "traefik.http.routers.repu-ms-manage-payment.entrypoints=web"
+      - "traefik.http.services.repu-ms-manage-payment.loadbalancer.server.port=8084"
+      - "traefik.docker.network=repu_proxy"
+
+  ms-products:
+    build:
+      context: ./Backend/ms-products
+      dockerfile: Dockerfile
+    container_name: repu_ms_products
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: '0.75'
+          memory: 512M
+        reservations:
+          cpus: '0.10'
+          memory: 256M
+    environment:
+      - SPRING_PROFILES_ACTIVE=local
+      - SERVER_PORT=8085
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://repu_postgres:5432/${POSTGRES_DB}
+      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+    networks:
+      - internal-net
+      - proxy-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.repu-ms-products.rule=Host(`${PUBLIC_HOST:-167.86.88.151}`) && PathPrefix(`/ms-products`)"
+      - "traefik.http.routers.repu-ms-products.entrypoints=web"
+      - "traefik.http.services.repu-ms-products.loadbalancer.server.port=8085"
+      - "traefik.docker.network=repu_proxy"
+
+  ms-users:
+    build:
+      context: ./Backend/ms-users
+      dockerfile: Dockerfile
+    container_name: repu_ms_users
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: '0.75'
+          memory: 512M
+        reservations:
+          cpus: '0.10'
+          memory: 256M
+    environment:
+      - SPRING_PROFILES_ACTIVE=local
+      - SERVER_PORT=8086
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://repu_postgres:5432/${POSTGRES_DB}
+      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+    networks:
+      - internal-net
+      - proxy-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.repu-ms-users.rule=Host(`${PUBLIC_HOST:-167.86.88.151}`) && PathPrefix(`/ms-users`)"
+      - "traefik.http.routers.repu-ms-users.entrypoints=web"
+      - "traefik.http.services.repu-ms-users.loadbalancer.server.port=8086"
+      - "traefik.docker.network=repu_proxy"
+
+  ms-orders:
+    build:
+      context: ./Backend/ms-orders
+      dockerfile: Dockerfile
+    container_name: repu_ms_orders
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: '0.75'
+          memory: 512M
+        reservations:
+          cpus: '0.10'
+          memory: 256M
+    environment:
+      - SPRING_PROFILES_ACTIVE=local
+      - SERVER_PORT=8087
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://repu_postgres:5432/${POSTGRES_DB}
+      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+      # Conexión opcional a Redis para caché/mensajería si el microservicio lo requiere
+      - SPRING_DATA_REDIS_HOST=repu_redis
+      - SPRING_DATA_REDIS_PORT=6379
+    networks:
+      - internal-net
+      - proxy-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.repu-ms-orders.rule=Host(`${PUBLIC_HOST:-167.86.88.151}`) && PathPrefix(`/ms-orders`)"
+      - "traefik.http.routers.repu-ms-orders.entrypoints=web"
+      - "traefik.http.services.repu-ms-orders.loadbalancer.server.port=8087"
+      - "traefik.docker.network=repu_proxy"
+
+networks:
+  internal-net:
+    external: true
+    name: repu_internal
+  proxy-net:
+    external: true
+    name: repu_proxy

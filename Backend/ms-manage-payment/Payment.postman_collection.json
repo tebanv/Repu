@@ -1,0 +1,85 @@
+{
+	"info": {
+		"_postman_id": "bcf0cafd-77cc-4c80-9fe9-e441ed36f823",
+		"name": "Payment",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "43063282"
+	},
+	"item": [
+		{
+			"name": "PrepararPago",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"amountInCents\": 2490000,\n  \"currency\": \"COP\",\n  \"customerEmail\": \"cliente@correo.com\",\n  \"entityId\": 1,\n  \"companyId\": 1,\n  \"redirectUrl\": \"http://localhost:4200/pago-respuesta\",\n  \"expirationTime\": \"2025-12-31T23:59:59.000Z\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8081/ms-manage-payment/wompi/checkout/prepare",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8081",
+					"path": [
+						"ms-manage-payment",
+						"wompi",
+						"checkout",
+						"prepare"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "ConfirmarPago",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-Wompi-Signature",
+						"value": "c6cd4d8cf49027589038df6b826fbc06724c770f56c010520ae6cec1d137593cAPPROVEDtest_integrity_0nE94WAa42rP8VwpJjAulCpyUYOtW4Ec"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"data\": {\n    \"transaction\": {\n      \"id\": \"c6cd4d8cf49027589038df6b826fbc06724c770f56c010520ae6cec1d137593c\",\n      \"reference\": \"459eee4d-f395-4026-b6dc-fa649a923395\",\n      \"status\": \"APPROVED\",\n      \"status_message\": \"Pago aprobado\"\n    }\n  }\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8081/ms-manage-payment/wompi/webhook",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8081",
+					"path": [
+						"ms-manage-payment",
+						"wompi",
+						"webhook"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

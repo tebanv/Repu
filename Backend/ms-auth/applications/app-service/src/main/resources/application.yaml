@@ -1,0 +1,51 @@
+server:
+  port: 8081
+spring:
+  application:
+    name: "ms-auth"
+  webflux:
+    base-path: "/ms-auth"
+  devtools:
+    add-properties: false
+    restart:
+      enabled: false
+  profiles:
+    active: "local"
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: "repuadmin"
+      timeout: 2s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,prometheus"
+  endpoint:
+    health:
+      probes:
+        enabled: true
+cors:
+  allowed-origins: "http://localhost:4200,http://localhost:8080,http://localhost:*"
+security:
+  service-auth:
+    token: ${AUTH_SERVICE_TOKEN:7ed8607cb2f27eafda3f674e4b1495a06b3271ae7d17869a9814ca59d5c72561}
+
+adapters:
+  r2dbc:
+    host: localhost
+    port: 5432
+    database: repu
+    schema: repu
+    username: repu
+    password: "repuadmin"
+logging:
+  level:
+    org.springframework.security: INFO
+    org.springframework.web.reactive.function.server: INFO
+    org.springframework.r2dbc: INFO
+    io.r2dbc.postgresql: INFO
+    io.r2dbc.postgresql.QUERY: INFO
+    io.r2dbc.postgresql.PARAM: INFO
