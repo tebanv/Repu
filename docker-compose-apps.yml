@@ -28,7 +28,7 @@ services:
       # Enrutamiento inicial basado en IP pública sin requerir dominio obligatorio
       - "traefik.http.routers.repu-front.rule=Host(`${PUBLIC_HOST:-167.86.88.151}`)"
       - "traefik.http.routers.repu-front.entrypoints=web"
-      - "traefik.http.services.repu-front.loadbalancer.server.port=80"
+      - "traefik.http.services.repu-front.loadbalancer.server.port=3000"
       - "traefik.docker.network=repu_proxy"
 
   # ==========================================
