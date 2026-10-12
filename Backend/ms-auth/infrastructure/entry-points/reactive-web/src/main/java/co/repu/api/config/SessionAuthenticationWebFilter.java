@@ -4,7 +4,6 @@ import co.repu.api.Handler;
 import co.repu.model.users.User;
 import co.repu.model.users.AuthSession;
 import co.repu.usecase.auth.AuthUseCase;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -17,20 +16,37 @@ import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.util.List;
+import java.security.MessageDigest;
+import java.nio.charset.StandardCharsets;
 
 @Component
-@RequiredArgsConstructor
 @Log4j2
 public class SessionAuthenticationWebFilter implements WebFilter {
 
     private final AuthUseCase authUseCase;
+    private final String serviceToken;
+
+    public SessionAuthenticationWebFilter(AuthUseCase authUseCase,
+                                          @Value("${security.service-auth.token:}") String serviceToken) {
+        this.authUseCase = authUseCase;
+        this.serviceToken = serviceToken;
+    }
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         String path = exchange.getRequest().getPath().value();
-        if (isPublic(path) || "OPTIONS".equals(exchange.getRequest().getMethod().name())) {
+        if ("OPTIONS".equals(exchange.getRequest().getMethod().name())) {
+            return chain.filter(exchange);
+        }
+        if (isSessionIntrospection(path) && !hasTrustedServiceCredential(exchange)) {
+            HttpStatus status = serviceToken == null || serviceToken.isBlank()
+                    ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.FORBIDDEN;
+            return reject(exchange, status, "Validación de servicio no configurada o no autorizada");
+        }
+        if (isPublic(path)) {
             return chain.filter(exchange);
         }
 
@@ -82,8 +98,25 @@ public class SessionAuthenticationWebFilter implements WebFilter {
                 || path.endsWith("/api/auth/register");
     }
 
+    private boolean isSessionIntrospection(String path) {
+        return path.endsWith("/api/auth/session");
+    }
+
+    private boolean hasTrustedServiceCredential(ServerWebExchange exchange) {
+        if (serviceToken == null || serviceToken.isBlank()) {
+            return false;
+        }
+        String supplied = exchange.getRequest().getHeaders().getFirst("X-Auth-Service-Token");
+        return supplied != null && MessageDigest.isEqual(
+                serviceToken.getBytes(StandardCharsets.UTF_8), supplied.getBytes(StandardCharsets.UTF_8));
+    }
+
     private Mono<Void> reject(ServerWebExchange exchange, String message) {
-        exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+        return reject(exchange, HttpStatus.UNAUTHORIZED, message);
+    }
+
+    private Mono<Void> reject(ServerWebExchange exchange, HttpStatus status, String message) {
+        exchange.getResponse().setStatusCode(status);
         exchange.getResponse().getHeaders().add(HttpHeaders.CONTENT_TYPE, "application/json");
         byte[] body = ("{\"message\":\"" + message + "\"}").getBytes(java.nio.charset.StandardCharsets.UTF_8);
         return exchange.getResponse().writeWith(Mono.just(

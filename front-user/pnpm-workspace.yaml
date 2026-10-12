@@ -1,0 +1,8 @@
+# Configuración de pnpm (gestor de paquetes del proyecto).
+# En pnpm 11 las opciones que antes vivían en package.json se declaran aquí.
+# Solo se permite ejecutar scripts de instalación de dependencias explícitamente
+# aprobadas (defensa contra malware de supply chain vía postinstall).
+allowBuilds:
+  '0': sharp
+  '1': unrs-resolver
+  unrs-resolver: true

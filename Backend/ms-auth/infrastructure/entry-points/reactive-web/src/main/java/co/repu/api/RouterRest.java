@@ -20,6 +20,7 @@ public class RouterRest {
                 .andRoute(POST("/api/auth/register"), handler::listenRegisterUseCase)
                 .andRoute(POST("/api/auth/logout"), handler::listenLogoutUseCase)
                 .andRoute(POST("/api/auth/logout-all"), handler::listenLogoutAllUseCase)
+                .andRoute(GET("/api/auth/session"), handler::listenCurrentSessionUseCase)
                 .andRoute(GET("/api/auth/sessions"), handler::listenSessionsUseCase)
                 .andRoute(GET("/api/system/parameters"), handler::listenGetSystemParametersUseCase)
                 .andRoute(POST("/api/system/parameters"), handler::listenCreateSystemParameterUseCase)

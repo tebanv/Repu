@@ -1,6 +1,7 @@
 package co.repu.api;
 
 import co.repu.api.dto.AuthSessionResponse;
+import co.repu.api.dto.CurrentSessionResponse;
 import co.repu.api.dto.ErrorResponse;
 import co.repu.api.dto.LoginRequest;
 import co.repu.api.dto.LoginResponse;
@@ -19,6 +20,7 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseCookie;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
@@ -134,6 +136,26 @@ public class Handler {
                 )
                 .onErrorResume(e -> ServerResponse.status(HttpStatus.UNAUTHORIZED)
                         .bodyValue(new ErrorResponse(e.getMessage())));
+    }
+
+    public Mono<ServerResponse> listenCurrentSessionUseCase(ServerRequest serverRequest) {
+        return serverRequest.principal()
+                .ofType(Authentication.class)
+                .map(authentication -> {
+                    UUID userId = UUID.fromString(authentication.getName());
+                    String role = authentication.getAuthorities().stream()
+                            .map(authority -> authority.getAuthority())
+                            .filter(authority -> authority.startsWith("ROLE_"))
+                            .map(authority -> authority.substring("ROLE_".length()))
+                            .findFirst()
+                            .orElseThrow(() -> new IllegalStateException("La sesión no contiene un rol."));
+                    return new CurrentSessionResponse(userId, role);
+                })
+                .flatMap(principal -> ServerResponse.ok()
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .bodyValue(principal))
+                .switchIfEmpty(ServerResponse.status(HttpStatus.UNAUTHORIZED)
+                        .bodyValue(new ErrorResponse("Sesión inválida o expirada")));
     }
 
     public Mono<ServerResponse> listenGetSystemParametersUseCase(ServerRequest serverRequest) {

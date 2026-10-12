@@ -29,6 +29,9 @@ management:
         enabled: true
 cors:
   allowed-origins: "http://localhost:4200,http://localhost:8080,http://localhost:*"
+security:
+  service-auth:
+    token: ${AUTH_SERVICE_TOKEN:7ed8607cb2f27eafda3f674e4b1495a06b3271ae7d17869a9814ca59d5c72561}
 
 adapters:
   r2dbc:
@@ -42,7 +45,7 @@ logging:
   level:
     org.springframework.security: INFO
     org.springframework.web.reactive.function.server: INFO
-    org.springframework.r2dbc: DEBUG
-    io.r2dbc.postgresql: DEBUG
-    io.r2dbc.postgresql.QUERY: DEBUG
-    io.r2dbc.postgresql.PARAM: DEBUG
+    org.springframework.r2dbc: INFO
+    io.r2dbc.postgresql: INFO
+    io.r2dbc.postgresql.QUERY: INFO
+    io.r2dbc.postgresql.PARAM: INFO

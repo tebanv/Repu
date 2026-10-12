@@ -1,3 +1,6 @@
+# Archivo de configuracion
+.env
+
 # Compiled class file
 *.class
 

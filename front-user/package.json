@@ -1,0 +1,44 @@
+{
+  "name": "delivery-app",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.22.0",
+  "scripts": {
+    "dev": "next dev --turbo",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.0",
+    "framer-motion": "^12.23.24",
+    "immer": "^11.1.4",
+    "lucide-react": "^0.545.0",
+    "mapbox-gl": "^3.10.0",
+    "next": "16.3.1-canary.20",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "tw-animate-css": "^1.4.0",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/forms": "^0.5.11",
+    "@tailwindcss/postcss": "^4",
+    "@types/mapbox-gl": "^3.5.0",
+    "@types/node": "^26.2.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitest/coverage-v8": "^5.0.1",
+    "eslint": "^9",
+    "eslint-config-next": "15.2.2",
+    "jsdom": "^30.0.1",
+    "tailwindcss": "^4",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
+  }
+}
