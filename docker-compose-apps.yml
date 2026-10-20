@@ -53,7 +53,7 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=local
       - SERVER_PORT=8081
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://repu_postgres:5432/${POSTGRES_DB}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${POSTGRES_URL}:${POSTGRES_PORT}/${POSTGRES_DB}
       - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
       - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
     networks:
