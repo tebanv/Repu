@@ -21,6 +21,8 @@ import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 
 @RequiredArgsConstructor
@@ -28,6 +30,8 @@ public class AuthUseCase {
 
     private static final java.util.logging.Logger log =
             java.util.logging.Logger.getLogger(AuthUseCase.class.getName());
+    private static final Set<String> SELF_REGISTRATION_ROLES =
+            Set.of("COMPRADOR", "DISTRIBUIDOR", "DOMICILIARIO");
     private final UsersRepository usersRepository;
     private final SecurityGateway securityGateway;
     private final UserSessionRepository userSessionRepository;
@@ -85,6 +89,13 @@ public class AuthUseCase {
             return Mono.error(new RuntimeException("Email y password son obligatorios"));
         }
 
+        String role = user.getRole() == null || user.getRole().isBlank()
+                ? "COMPRADOR"
+                : user.getRole().strip().toUpperCase(Locale.ROOT);
+        if (!SELF_REGISTRATION_ROLES.contains(role)) {
+            return Mono.error(new RuntimeException("Rol no permitido para autorregistro"));
+        }
+
         if (!PasswordValidator.isValid(user.getPassword())) {
             return Mono.error(new RuntimeException("La contraseña no cumple con los requisitos de seguridad (Min 8 chars, 1 Mayus, 1 Num, 1 Especial)"));
         }
@@ -96,7 +107,7 @@ public class AuthUseCase {
                     User newUser = user.toBuilder()
                             .password(hashedPassword)
                             .status(true)
-                            .role(user.getRole() != null ? user.getRole() : "COMPRADOR")
+                            .role(role)
                             .createdAt(LocalDateTime.now())
                             .updatedAt(LocalDateTime.now())
                             .isNew(true)

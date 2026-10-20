@@ -13,10 +13,10 @@ spring:
     active: "${SPRING_PROFILES_ACTIVE:local}"
   data:
     redis:
-      host: ${REDIS_URL}
-      port: ${REDIS_PORT}
-      password: "${REDIS_PASSWORD}"
-      timeout: ${REDIS_TIMEOUT}
+      host: ${REDIS_URL:localhost}
+      port: ${REDIS_PORT:6379}
+      password: "${REDIS_PASSWORD:repuadmin}"
+      timeout: ${REDIS_TIMEOUT:2s}
 
 management:
   endpoints:
@@ -35,12 +35,12 @@ security:
 
 adapters:
   r2dbc:
-    host: ${POSTGRES_URL}
-    port: ${POSTGRES_PORT}
-    database: ${POSTGRES_DB}
-    schema: ${POSTGRES_SCHEMA}
-    username: ${POSTGRES_USER}
-    password: ${POSTGRES_PASSWORD}
+    host: ${POSTGRES_URL:167.86.88.151}
+    port: ${POSTGRES_PORT:5434}
+    database: ${POSTGRES_DB:repu}
+    schema: ${POSTGRES_SCHEMA:repu}
+    username: ${POSTGRES_USER:repu}
+    password: ${POSTGRES_PASSWORD:repuadmin}
 logging:
   level:
     org.springframework.security: INFO

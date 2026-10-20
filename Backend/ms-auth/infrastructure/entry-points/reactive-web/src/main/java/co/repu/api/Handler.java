@@ -102,7 +102,10 @@ public class Handler {
                 .onErrorResume(e -> {
                     log.error("Error registrando usuario: {}, messageId: {}", e.getMessage(), messageId);
                     HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR;
-                    if (e.getMessage().contains("registrado") || e.getMessage().contains("requisitos de seguridad") || e.getMessage().contains("obligatorios")) {
+                    if (e.getMessage().contains("registrado")
+                            || e.getMessage().contains("requisitos de seguridad")
+                            || e.getMessage().contains("obligatorios")
+                            || e.getMessage().contains("Rol no permitido")) {
                         status = HttpStatus.BAD_REQUEST;
                     }
                     return ServerResponse.status(status).bodyValue(new ErrorResponse(e.getMessage()));

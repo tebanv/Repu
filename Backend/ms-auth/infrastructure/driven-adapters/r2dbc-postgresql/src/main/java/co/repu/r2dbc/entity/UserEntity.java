@@ -18,7 +18,7 @@ import java.util.UUID;
 @Builder(toBuilder = true)
 @AllArgsConstructor
 @NoArgsConstructor
-@Table("usuarios")
+@Table(schema = "repu", value = "usuarios")
 public class UserEntity implements Persistable<UUID> {
 
     @Id
