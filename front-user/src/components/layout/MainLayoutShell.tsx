@@ -15,6 +15,8 @@ export default function MainLayoutShell({
   const router = useRouter();
   const pathname = usePathname();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isAuthLoading = useAuthStore((state) => state.isLoading);
+  const initializeAuth = useAuthStore((state) => state.initialize);
   const authHasHydrated = useAuthHasHydrated();
   const cartHasHydrated = useCartHasHydrated();
   const cartNotice = useCartNotice();
@@ -23,8 +25,15 @@ export default function MainLayoutShell({
   const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    // Esperar a que authStore termine de rehidratar desde localStorage
-    if (!authHasHydrated) {
+    // Revalida la sesión local contra Supabase una vez por montaje del
+    // grupo protegido. Idempotente: llamadas concurrentes comparten vuelo.
+    void initializeAuth();
+  }, [initializeAuth]);
+
+  useEffect(() => {
+    // Esperar rehidratación + validación contra el servidor antes de decidir:
+    // con solo `auth-storage` local se colaría sesión rancia tras expiración.
+    if (!authHasHydrated || isAuthLoading) {
       return;
     }
 
@@ -33,7 +42,7 @@ export default function MainLayoutShell({
     } else {
       setIsChecking(false);
     }
-  }, [authHasHydrated, isAuthenticated, router, pathname]);
+  }, [authHasHydrated, isAuthLoading, isAuthenticated, router, pathname]);
 
   useEffect(() => {
     if (!cartHasHydrated || !cartNotice) {
@@ -49,7 +58,7 @@ export default function MainLayoutShell({
     clearCartNotice();
   }, [cartNotice, clearCartNotice, cartHasHydrated, pushToast]);
 
-  if (isChecking) {
+  if (isChecking || isAuthLoading || !authHasHydrated) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center">

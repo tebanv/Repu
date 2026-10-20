@@ -297,7 +297,7 @@ Transiciones manuales reales (`OrderTimeline`): `PAGADO→PREPARANDO`, `ACEPTADO
 | Servicio | Propósito | Estado real |
 |----------|-----------|-----------|
 | **Mapbox** | Mapas, geocoding, rutas | ✅ Implementado |
-| **Supabase** | Base de datos, auth, realtime | No integrado en `src/` (persistencia local Zustand) |
+| **Supabase** | PostgreSQL/PostGIS + Auth (puente congelado) | Catálogo y auth integrados; sin Realtime. Backend final Spring Boot ([ADR-001](./ADR-001-BACKEND-SPRING.md)) |
 | **Pasarela de pago** | Wompi en línea (simulado en UI, sin PSE/tarjetas/Nequi reales) | Simulado |
 | **Push Notifications** | Alertas de estado del pedido | Pendiente (futuro) |
 | **SMS/WhatsApp** | Notificaciones críticas | Pendiente (futuro) |
@@ -307,7 +307,7 @@ Transiciones manuales reales (`OrderTimeline`): `PAGADO→PREPARANDO`, `ACEPTADO
 
 ## Arquitectura de Tiempo Real
 
-Estado real: persistencia local Zustand (`persist`: `auth-storage`, `cart-storage`, `order-storage`) + sincronización cross-tab (`lib/storageSync.ts`); coordenadas del repartidor solo vía `updateDriverCoordinates` manual. Realtime Supabase/WebSocket es futuro (no implementado).
+Estado real: catálogo y auth contra Supabase (puente congelado); carrito, pedidos y tracking en Zustand `persist` (`cart-storage`, `order-storage`; `auth-storage` solo caché de UI) + sincronización cross-tab (`lib/storageSync.ts`). Coordenadas del repartidor solo vía `updateDriverCoordinates` manual. Realtime Supabase/WebSocket es futuro; el destino es Spring Boot (SSE/STOMP), no Supabase Realtime. Ver [ADR-001](./ADR-001-BACKEND-SPRING.md).
 
 ```
 ┌─────────────┐     persist + cross-tab sync      ┌─────────────┐
@@ -363,8 +363,8 @@ Estado real: persistencia local Zustand (`persist`: `auth-storage`, `cart-storag
 | Mapas | Mapbox GL JS | Personalización, rendimiento |
 | Estilos | Tailwind CSS | Rapidez, consistencia |
 | Animaciones | Framer Motion | Declarativo, performante |
-| Base de datos | Supabase (futuro) | Realtime, auth, PostgreSQL |
-| Tiempo real | Supabase Realtime | Integrado con DB |
+| Base de datos | PostgreSQL + PostGIS (Supabase como puente; Spring Boot final) | PostGIS, RLS, auth integrada |
+| Tiempo real | Spring SSE/STOMP (futuro) | Backend propio; sin acoplar a Supabase Realtime |
 
 ---
 

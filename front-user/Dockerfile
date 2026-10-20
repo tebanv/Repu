@@ -4,19 +4,17 @@
 # Compose (recomendado en servidor): cp .env.example .env && docker compose up -d --build
 # Nota: las vars NEXT_PUBLIC_* se incrustan en el build (van como ARG).
 
-# ==========================================
-# ETAPA 1: Construcción (Build)
-# ==========================================
-
 FROM node:22-alpine AS base
-
+ENV NEXT_TELEMETRY_DISABLED=1 \
+  PNPM_HOME="/pnpm" \
+  PATH="$PNPM_HOME:$PATH"
 RUN apk add --no-cache libc6-compat && corepack enable && corepack prepare pnpm@11.22.0 --activate
 WORKDIR /app
 
 # ---- Deps: instala solo con los manifiestos para aprovechar la caché de capas ----
 FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile --unsafe-perm
+RUN pnpm install --frozen-lockfile
 
 # ---- Build: compila Next.js en modo standalone ----
 FROM base AS builder
@@ -33,10 +31,7 @@ ENV NEXT_PUBLIC_MAPBOX_TOKEN=$NEXT_PUBLIC_MAPBOX_TOKEN \
 
 RUN pnpm build
 
-# ==========================================
-# ETAPA 2: Ejecución (Runtime)
-# ==========================================
-
+# ---- Runner: imagen mínima con server.js autocontenido + usuario no-root ----
 FROM node:22-alpine AS runner
 ENV NODE_ENV=production \
   NEXT_TELEMETRY_DISABLED=1 \

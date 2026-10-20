@@ -6,7 +6,7 @@ Este documento describe la arquitectura general del frontend actual, incluyendo 
 
 El diseño se centra en un **flujo de datos unidireccional y reactivo**, gestionado por stores de Zustand y orquestado por componentes contenedores. La UI renderiza estado derivado; la lógica de negocio vive en stores y servicios.
 
-- **Frontend:** Next.js (App Router), React, Zustand para estado global (+ `persist` + `immer`), Mapbox GL JS para mapas, Tailwind CSS, framer-motion. Mocks locales sin backend.
+- **Frontend:** Next.js (App Router), React, Zustand para estado global (+ `persist` + `immer`), Mapbox GL JS para mapas, Tailwind CSS, framer-motion. Catálogo y auth leen Supabase como **puente congelado**; checkout/pedidos/tracking siguen mock local. Backend objetivo: Spring Boot en Docker ([ADR-001](./ADR-001-BACKEND-SPRING.md)).
 - **Componentes Principales:**
     - **`MapContainer` (Orquestador):** Componente crucial que inicializa el mapa. Al montar hace `fetchStores`; en `moveend` aplica debounce 600ms + umbral 120m (`MIN_FETCH_DISTANCE`, MapContainer.tsx:78-96). Los cambios de filtro no disparan refetch: van por `applyFilters` en memoria (filtros en cliente).
     - `FilterBanner`: Muestra los filtros de categorías. Su única responsabilidad es notificar al `filterStore` cuando el usuario cambia una selección.
@@ -18,7 +18,7 @@ El diseño se centra en un **flujo de datos unidireccional y reactivo**, gestion
     - `locationStore`: Gestiona el estado de la ubicación del usuario y los permisos, con `startTracking`/`stopTracking`, `watchId` e `isTracking`.
     - `storesStore`: Almacena la lista de tiendas, el estado de carga (`isLoading`), y la tienda actualmente seleccionada. Filtra en cliente en memoria (`masterStores` → `stores` vía `applyFilters`); la API solo filtra por radio.
     - `filterStore`: Mantiene el estado de los filtros activos (ej. qué categorías están seleccionadas). **No contiene lógica de aplicación de filtros**.
-    - `authStore`: Gestiona sesión mock persistida (key `auth-storage`); el guard es client-only en `MainLayoutShell.tsx`, sin middleware. Login mock con `MOCK_USERS` en `authService`; cero `@supabase` en `src/`.
+    - `authStore`: Gestiona sesión persistida (key `auth-storage`) revalidada contra Supabase Auth vía `initialize()` (la sesión vigente manda; `onAuthStateChange` para multi-tab/refresh); el guard es client-only en `MainLayoutShell.tsx`, sin middleware. Login real con `signInWithPassword` + `profiles` en `authService` (rol = enum DB sin traducción); JWT custodiado por `supabase-js`, cero tokens en `User`. **Supabase Auth es puente congelado; destino Spring Security/JWT (ADR-001).**
     - `cartStore`: Gestiona el carrito persistente como **fuente única de verdad**. Mantiene contexto de tienda, items, derivados (`itemCount`, `subtotal`), metadatos de persistencia (`lastUpdatedAt`, `version`, persist key `cart-storage`, TTL 24h, cross-tab sync vía `storageSync`) y estado auxiliar de UX (`cartNotice`, `hasHydrated`).
     - `orderStore`: Gestiona pedidos mock (`orders`, `createOrder` mock, `getOrderById`, `updateOrderStatus`/`cancelOrder`/`rateOrder`, selectores `useActiveOrders`/`useActiveOrdersCount`/`useCompletedOrders`, persist `order-storage`). Base de estado de checkout + tracking.
     - `toastStore`: Gestiona feedback transitorio de UI (toasts) para eventos no bloqueantes como agregado al carrito, clamps de cantidad y avisos de expiración.
@@ -124,6 +124,20 @@ Diseñado para operar a gran escala minimizando consumo de batería en móviles,
 ### 8.4 Separación de Client State vs Server Cache (futuro, no implementado)
 - **Zustand (Client Session State):** Gestiona el estado interactivo de la sesión en memoria (carrito activo, órdenes en curso, filtros).
 - **TanStack Query / SWR (Server Cache, futuro):** No implementado — cero TanStack/SWR en `src/`; no existe `GET /orders?status=completed`. El historial es filtrado en memoria (`useCompletedOrders`) sobre persist local `order-storage`.
+
+---
+
+## 9. Estrategia de Backend (ADR-001, 2026-10-19)
+
+**Decisión:** Spring Boot en Docker es el gateway final; Supabase queda congelado como puente en el punto actual.
+
+- **Vigente hoy:** catálogo y auth contra Supabase; carrito y pedidos en Zustand local; sin Realtime.
+- **Congelado:** no se añaden features nuevas que dependan de Supabase Auth, Realtime, Edge Functions o Storage; no se amplía el esquema solo en Supabase.
+- **Objetivo:** front → `src/services/` → Spring Boot REST; PostgreSQL + PostGIS en contenedor; Flyway como dueño de migraciones; SSE/STOMP para tracking.
+- **Contrato:** OpenAPI 3.1 derivado de `src/types/` + `DATA_MODEL.md`; `arquitectura/Apis_Mall_Virtual_V1.yaml` es checklist de alcance, no contrato vigente.
+- **Auth:** migrar de `supabase-js` a Spring Security/JWT; idealmente cookie `httpOnly` + refresh y proxy same-origin.
+- **Corte por dominio:** catálogo → auth → pedidos → realtime, sin escrituras duales.
+- **Criterios de salida y plan detallado:** ver [ADR-001](./ADR-001-BACKEND-SPRING.md).
 
 ---
 

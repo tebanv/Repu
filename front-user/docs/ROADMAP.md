@@ -465,7 +465,9 @@ Visualizador de progreso interactivo y animado adaptado a la cadena de suministr
 
 ## Estrategia de Integración Backend: Supabase (PostgreSQL + PostGIS) ➔ Spring Boot (AWS Docker)
 
-Esta estrategia permite validar de forma inmediata y a bajo costo el producto con **datos reales de repuestos (Excel)**, consultas espaciales reales por proximidad (PostGIS) y WebSockets para tracking en vivo, entregando un paquete listo y probado para el posterior desarrollo en Spring Boot / AWS.
+> **Decisión vigente (2026-10-19, [ADR-001](./ADR-001-BACKEND-SPRING.md)):** Supabase se congela como puente en el punto actual. Spring Boot contenerizado en Docker es el gateway final. No se construyen nuevas features sobre Supabase Auth/Realtime/Edge Functions/Storage. El backend real se integra en el entorno local del equipo; el contenido de esta sección queda como contexto histórico y checklist de alcance.
+
+Esta estrategia permitió validar de forma inmediata y a bajo costo el producto con **datos reales de repuestos**, consultas espaciales reales por proximidad (PostGIS) y una base para el posterior desarrollo en Spring Boot / AWS.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -501,7 +503,7 @@ Para garantizar que la migración futura a Spring Boot requiera **cero modificac
 
 ---
 
-### Fases del Plan de Integración con Supabase
+### Fases del Plan de Integración con Supabase (histórico; congelado 2026-10-19)
 
 #### 1. Modelado Relacional y PostGIS en PostgreSQL
 > Contrato vigente: `docs/DATA_MODEL.md` (supersede al legado `arquitectura/` y a los
@@ -529,6 +531,7 @@ Para garantizar que la migración futura a Spring Boot requiera **cero modificac
 
 #### 3. Conexión con la Capa de Servicios del Frontend
 - Implementación del cliente en `src/services/supabaseClient.ts`.
+- **[HECHO - P1 2026-10-12] Auth real:** `authService.ts` sobre Supabase Auth (`signInWithPassword`/`signOut`/`getSession`/`signUp`/`resetPasswordForEmail` + `subscribeToAuthChanges`), `UserRole` = enum DB sin traducción, `authStore.initialize()` (la sesión vigente manda sobre `auth-storage`) y migraciones `0010_handle_new_user` + `0011_handle_new_user_search_path` (trigger auto-creación de perfil; aplicadas en cloud, verificadas) + 3 seeds dev verificados (`admin@mallvirtual.com` rol `admin`, `usuario@demo.com` y `demo@demo.com` rol `comprador`).
 - Adaptadores en `src/services/api.ts` para resolver:
   - `fetchStores({ location, filters })` $\rightarrow$ consulta PostGIS en Supabase.
   - `fetchProductsByStore(storeId)` $\rightarrow$ consulta relacional indexada.
@@ -541,5 +544,30 @@ Al contratar al desarrollador backend, se le entrega un paquete completo que red
 - **Datos de prueba reales:** Seed SQL con el catálogo de tiendas y repuestos.
 - **Contratos OpenAPI actualizados:** Especificación Swagger/OpenAPI 3.0 basada exactamente en los tipos probados en `src/types/`.
 - **Colección Postman / Insomnia:** Endpoints y casos de prueba ya validados contra el frontend.
+
+---
+
+## Corte a Spring Boot (vigente desde 2026-10-19)
+
+**Regla:** Supabase no recibe features nuevas. El front se corta por dominio contra Spring Boot; cada corte se hace en `src/services/` sin tocar UI ni stores.
+
+### Orden de corte
+
+1. **Contrato:** OpenAPI 3.1 desde `src/types/` + `DATA_MODEL.md`; cerrar gaps de estados, pagos, dirección, conductor, `stock: 0` e idempotencia.
+2. **Catálogo:** `fetchNearbyStores`, `fetchStoreBySlug`, `fetchProductsByStore` contra REST.
+3. **Auth:** `authService` contra Spring Security/JWT (cookie `httpOnly` + refresh recomendado); migrar `profiles` y retirar `auth.users`.
+4. **Pedidos:** `orderService` + endpoints; reemplazar `orderStore` mock como fuente transaccional.
+5. **Realtime:** SSE o STOMP/WebSocket; `subscribeToOrderTracking` en `services/`.
+6. **Retiro de Supabase:** limpiar SDK, claves, migraciones `0010/0011` y documentación transitoria.
+
+### Criterios de salida (DoD)
+
+- [ ] Front sin imports de `@supabase/supabase-js` ni claves `NEXT_PUBLIC_SUPABASE_*` (salvo flag transitorio documentado).
+- [ ] Catálogo, auth, pedidos y tracking funcionando contra Spring.
+- [ ] Flyway es el único dueño del esquema; RLS/triggers de Supabase retirados o adaptados.
+- [ ] `pnpm test`, `pnpm type-check` y `pnpm build` verdes + smoke test de los flujos críticos.
+- [ ] Supabase apagado o reducido a archivo.
+
+> Detalle completo, contexto y alternativas en [ADR-001](./ADR-001-BACKEND-SPRING.md).
 
 

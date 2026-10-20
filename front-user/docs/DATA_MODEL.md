@@ -1,6 +1,6 @@
 # Modelo de Datos — Repu (contrato Etapa 1)
 
-Fuente única del esquema para la validación con datos reales (Supabase/PostGIS).
+Fuente única del esquema para PostgreSQL/PostGIS. Supabase es el **puente congelado** actual ([ADR-001](./ADR-001-BACKEND-SPRING.md)); el backend final Spring Boot será el dueño del esquema vía Flyway.
 Supersede a `arquitectura/BD_Mall_Virtual.sql` y `Apis_Mall_Virtual_V1.yaml` en el
 scope cliente: esos archivos quedan como **referencia de alcance** (checklist para
 `front-store`/`front-driver`/`front-admin` futuros), no como DDL vigente.
@@ -68,9 +68,10 @@ created_at / updated_at
 ```
 > Roles existen desde día uno como columna (no tabla `roles` con `SERIAL`): los tres
 > fronts futuros filtran por ella. Sin tabla de roles separada.
-> Gap: `UserRole` del front (`src/types/auth.ts`: `admin|user|demo`) NO equivale al
-> enum DB (`comprador|distribuidor|domiciliario|admin`); falta spec de adaptador
-> `authService`-mock → `profiles` antes de cablear.
+> Gap cerrado en P1 (2026-10-12): `UserRole` del front (`src/types/auth.ts`) es
+> idéntico al enum DB (`comprador|distribuidor|domiciliario|admin`), sin capa de
+> traducción; `'demo'` no es rol (atajo UX del login contra seeds `comprador`).
+> El trigger `0010_handle_new_user` crea el perfil con rol `comprador` en cada signUp.
 
 ### 3.2 `stores` — tiendas de autopartes
 ```sql
@@ -213,7 +214,7 @@ retención de 30 días solo como nota futura (fuera de Etapa 1).
 | `Order.driver/driverCoordinates` | `profiles(driver_id)` + `driver_positions` | Hoy mock embebido; en Etapa 1, join — insuficiente para `DriverInfo` (`vehicleType`/`vehiclePlate`/rating/avatar): requiere extensión del perfil conductor o tabla `driver` |
 | `DeliveryAddress` | `addresses` + snapshot en `orders` | `coordinates ↔ location`; gaps `label`/`is_default` (ver §3.4) |
 | `Store.id/slug/name` (+ gaps) | `stores.id/slug/name` | El front no tiene `address`/`phone`/`is_active`; `logo/banner` vs `logo_url`/`banner_url`; `stats.totalOrders` vs `total_reviews` |
-| `authStore.user` (+ roles) | `profiles` vía Supabase Auth | Fin de `authService` mock; JWT fuera de `localStorage`; mapeo de roles pendiente (ver §3.1) |
+| `authStore.user` (+ roles) | `profiles` vía Supabase Auth | `authService` real (P1); JWT custodiado por `supabase-js` fuera de `localStorage`; roles directos sin traducción (ver §3.1) |
 
 Regla Zero-Coupling intacta: este mapeo vive **solo** en `src/services/`; cambiar una
 columna no toca componentes ni stores.
@@ -247,7 +248,9 @@ y el modelo exigen **una tienda por pedido**). Todo con punto de extensión anot
 
 Migraciones SQL numeradas (`supabase/migrations/`) generadas **desde este documento**:
 `0001_enums → 0002_profiles → 0003_stores → 0004_products →
-0005_addresses → 0006_orders → 0007_rls → 0008_rpc_nearby → 0009_seed_dev`.
+0005_addresses → 0006_orders → 0007_rls → 0008_rpc_nearby → 0009_seed_dev →
+0010_handle_new_user` (trigger auto-creación de perfil al signUp, P1) →
+`0011_handle_new_user_search_path` (fix: `SECURITY DEFINER` + `search_path = public` y tabla calificada; sin esto el signUp abortaba con "Database error saving new user").
 Ningún SQL vive fuera de migraciones; ningún cambio de esquema sin actualizar este doc.
 `0009` es solo seed de catálogo Medellín/Envigado, idempotente, sin usuarios ni pedidos.
 
@@ -260,3 +263,15 @@ del slice cliente; legado como checklist de alcance, no como base.**
 - Rescatable: cobertura 4 roles, UUIDs + `timestamptz`, `pagos.detalle_respuesta_ext JSONB`, `historial_estados_pedido` (≈ `stateHistory`), endpoints por actor en OpenAPI.
 - Crítico: sin PostGIS (lat/lng `NUMERIC` sueltos, sin GiST/RPC); telemetría 1Hz como INSERT relacional sin índice ni retención; carrito 100% server sin regla una-tienda ni TTL; dinero `NUMERIC/float`; **3 vocabularios de estados** (SQL vs OpenAPI vs front); IDs `SERIAL` mezclados con UUID; faltan `slug`, `rating`, `schedule` estructurado, `delivery_fee`, `specs/compatibilidad`, `breakdown` con `service_fee`.
 - Roto: `podman-compose.yml` monta `./schema.sql` inexistente; tablas sin esquema `marketplace`; credenciales default + token de ejemplo en el diagrama; diagrama solo cubre front/Vercel (`lat default 89.0` errónea); OpenAPI sin endpoint de tiendas por radio, sin `cart/validate`, sin webhooks, `security` con sintaxis inválida.
+
+## 10. Vigencia y traspaso a Spring Boot (2026-10-19)
+
+Decisión [ADR-001](./ADR-001-BACKEND-SPRING.md): Supabase se congela como puente; Spring Boot en Docker es el gateway final y el dueño del esquema.
+
+- **Esquema canónico:** este documento sigue siendo la fuente única. El backend Spring lo implementará con **Flyway**.
+- **Migraciones portables:** `0001`–`0009` son referencia directa para Flyway. `0010_handle_new_user` y `0011_handle_new_user_search_path` son específicas de Supabase Auth y se retiran al migrar a Spring Security/JWT.
+- **RLS:** las policies de `0007` dependen de `auth.uid()` y solo tienen sentido mientras Supabase exponga PostgREST. Si Spring es el único gateway, la seguridad se mueve a la capa de servicio y RLS se retira o se adapta a roles de DB.
+- **Sin cambios solo-Supabase:** no se añaden tablas, columnas, RPC ni triggers que no estén reflejados aquí y que no puedan implementarse en Spring.
+- **Datos existentes:** planificar export/import de Supabase al PostgreSQL del backend antes del apagado.
+- **Gaps a cerrar antes del contrato:** `RECHAZADO/REEMBOLSADO`, `payment_status FAILED/REFUNDED`, `discount`, `addresses.label/is_default`, datos de vehículo del conductor, `maxPerOrder`, regla de `stock: 0`, `order_number` vs UUID e idempotencia.
+- **Legacy:** `arquitectura/BD_Mall_Virtual.sql` y `Apis_Mall_Virtual_V1.yaml` no son DDL/contrato vigentes; solo checklist de alcance.

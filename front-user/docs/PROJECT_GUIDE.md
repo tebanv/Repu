@@ -6,7 +6,7 @@ Documento pensado para **humanos**: explica cómo está construido el frontend, 
 
 ## 1. Qué es esto
 
-**Repu** es una plataforma de delivery de repuestos automotrices: el cliente ve tiendas de autopartes cercanas en un mapa, entra al catálogo de una tienda, arma un carrito y (en el futuro) paga y sigue su pedido en tiempo real.
+**Repu** es una plataforma de delivery de repuestos automotrices: el cliente ve tiendas de autopartes cercanas en un mapa, entra al catálogo de una tienda, arma un carrito, paga (checkout mock) y sigue su pedido (simulación local). El backend real será Spring Boot en Docker ([ADR-001](./ADR-001-BACKEND-SPRING.md)).
 
 Este repositorio (`front-user`) es **la aplicación del cliente final**. Según el diseño de producto, habrá además `front-store` (tienda), `front-driver` (repartidor) y `front-admin` — aún no existen.
 
@@ -14,13 +14,13 @@ Este repositorio (`front-user`) es **la aplicación del cliente final**. Según 
 
 | Área | Estado |
 |---|---|
-| Login con persistencia de sesión | Funcional (mock) |
+| Login con persistencia de sesión | Funcional (Supabase Auth real + `initialize()`; seeds dev con rol `comprador`/`admin`) |
 | Mapa + geolocalización + filtros | Funcional |
 | Página de tienda / catálogo | Funcional |
 | Carrito global persistente | Funcional e integrado en la UI |
 | Checkout | Funcional (mock): `app/(main)/checkout/page.tsx` + 4 componentes `components/checkout/` + `orderStore.createOrder`; el CTA del drawer navega a `/checkout` |
 | Pedidos y tracking | Funcional (mock, sin realtime): `app/(main)/order/[id]/page.tsx` + 7 componentes `components/tracking/` + `orderStore` (`createOrder`/`getOrderById`, máx. 20 órdenes) |
-| Backend real | Pendiente (todo es mock local) |
+| Backend real | **Objetivo Spring Boot en Docker (ADR-001).** Hoy: catálogo/auth sobre Supabase (puente congelado); pedidos/carrito locales. |
 
 ---
 
@@ -38,7 +38,7 @@ Este repositorio (`front-user`) es **la aplicación del cliente final**. Según 
 | Mapbox GL JS | Mapa interactivo |
 | Immer | Mutaciones seguras del carrito |
 
-Datos reales de catálogo vía `src/services/api.ts` (Supabase); mocks restantes en `src/services/authService.ts` y `src/data/products.ts` (este último ya sin consumidores tras la migración de `api.ts`). En la raíz del workspace (`arquitectura/`) ya existe el contrato del backend futuro: OpenAPI (`Apis_Mall_Virtual_V1.yaml`, Spring Boot + JWT) y esquema PostgreSQL (`BD_Mall_Virtual.sql`).
+Catálogo y auth vía Supabase (`src/services/api.ts`, `src/services/authService.ts`) como **puente congelado**; pedidos y tracking siguen mock local. El backend final es Spring Boot en Docker ([ADR-001](./ADR-001-BACKEND-SPRING.md)); el contrato se derivará de `src/types/` + `DATA_MODEL.md`. La carpeta `arquitectura/` (OpenAPI/SQL) queda como referencia de alcance y está desactualizada respecto al backend real que se integra en local; `src/data/products.ts` ya no tiene consumidores.
 
 ---
 
@@ -64,7 +64,7 @@ src/
 │   ├── tracking/           # Header, Map, Timeline, DriverCard, DetailsAccordion, RatingModal, ActiveOrdersDrawer
 │   └── ui/                 # Genéricos: AdCarousel, LoadingIndicator, ToastViewport
 ├── store/                  # Stores Zustand (el "cerebro" de la app), incl. orderStore.ts + __tests__
-├── services/               # Acceso a datos externos (hoy mock)
+├── services/               # Acceso a datos externos (Supabase puente; objetivo Spring)
 ├── lib/                    # Constantes y utilidades puras, incl. analytics.ts + storageSync.ts (+ __tests__)
 ├── types/                  # Contratos de dominio (8 ficheros, incl. order.ts)
 └── data/                   # Catálogo mock de productos
@@ -97,7 +97,7 @@ Reglas de oro:
 
 - **`(auth)`** y **`(main)`** son route groups de Next.js: no afectan la URL, solo organizan layouts.
 - `src/app/(main)/layout.tsx` monta el **guard de sesión real en `components/layout/MainLayoutShell.tsx`** (doble capa): espera la rehidratación, si no hay sesión redirige a `/login`; mientras verifica muestra un spinner ("Verificando credenciales..."). Este shell también monta el `ToastViewport` global y escucha `cartNotice` para avisar automáticamente si el carrito expiró al reabrir la app.
-- **`authStore`** (Zustand + `persist`, key `auth-storage`): guarda `user` e `isAuthenticated` en localStorage. `login()` delega en `authService` (mock con 3 usuarios: `admin@mallvirtual.com/admin123`, `usuario@test.com/user123`, `demo@demo.com/demo`, password `demo`). Acciones reales: `login`, `logout`, `clearError`, `setHasHydrated` (+ `useAuthHasHydrated`); no existe `updateUser`. En `authService` los stubs preparados son `verifyToken`/`getCurrentUser`/`register`/`requestPasswordReset`.
+- **`authStore`** (Zustand + `persist`, key `auth-storage`): guarda `user` e `isAuthenticated` en localStorage como caché de UI; la fuente de verdad es la sesión Supabase, revalidada por `initialize()` al montar (la sesión vigente manda; sin sesión se descarta la local). `login()` delega en `authService` real (Supabase Auth + `profiles`; seeds dev: `admin@mallvirtual.com/admin123`, `usuario@demo.com/user123`, `demo@demo.com/demo123`). Acciones reales: `login`, `logout` (async), `clearError`, `setHasHydrated`, `initialize` (+ `useAuthHasHydrated`); no existe `updateUser`. `UserRole` = enum DB (`comprador|distribuidor|domiciliario|admin`); `'demo'` no es rol.
 
 > Nota de producción: la sesión en localStorage y el guard client-side son aceptables para prototipo, pero el diseño final debería usar JWT (idealmente en cookie httpOnly) y verificación server-side.
 
@@ -214,14 +214,14 @@ useCartHasHydrated()      → fin de rehidratación
 
 ---
 
-## 10. Datos y servicios (todo mock, por diseño)
+## 10. Datos y servicios (Supabase puente; Spring objetivo)
 
 | Servicio | Qué hace hoy | Futuro |
 |---|---|---|
-| `services/api.ts` | Supabase real: `fetchNearbyStores` por RPC `get_nearby_stores`, resto por tablas `stores`/`products` (adaptadores EWKB→lat/lng) | `createOrder` transaccional + Realtime (contrato en `arquitectura/Apis_Mall_Virtual_V1.yaml`) |
-| `services/authService.ts` | Login contra 3 usuarios mock; `verifyToken`, `getCurrentUser`, `register` preparados | JWT real contra Spring Boot |
+| `services/api.ts` | Supabase real: `fetchNearbyStores` por RPC `get_nearby_stores`, resto por tablas `stores`/`products` (adaptadores EWKB→lat/lng) | REST Spring Boot (catálogo + pedidos); SSE/STOMP para tracking |
+| `services/authService.ts` | Supabase Auth real (`signIn`/`signOut`/`getSession`/`signUp`/`resetPassword` + `subscribeToAuthChanges`); trigger 0010 crea el perfil | Spring Security/JWT (cookie `httpOnly` + refresh) y guard server-side |
 | `services/geolocationService.ts` | Wrapper de `navigator.geolocation` (promise) | Sin cambios |
-| `data/products.ts` | ~20 productos con specs, compatibilidad y stock | Reemplazar por datos del backend |
+| `data/products.ts` | ~20 productos con specs, compatibilidad y stock | Sin consumidores; el catálogo ya usa Supabase. No usar como fuente |
 | `lib/constants.ts`, `lib/geoUtils.ts` | Constantes (defaults, permisos, errores) y geo-math | Crecer |
 | `lib/analytics.ts`, `lib/storageSync.ts` | Telemetría (`track('cart_expired')`) y sincronización multi-tab | Crecer |
 
@@ -253,7 +253,7 @@ useCartHasHydrated()      → fin de rehidratación
    - `order/[id]`, mapa/header/timeline/DriverCard/RatingModal de seguimiento, sin Supabase Realtime. Redefinir como realtime + repartidor vivo.
 5. **Otras pantallas del diseño**: `/product/[id]`, `/cart`, `/orders`, `/profile` — siguen inexistentes (no hay pages), mantener.
 6. **Fotos reales de producto** en catálogo, modal y carrito.
-7. **Backend real**: migrar `api.ts`/`authService.ts` al contrato OpenAPI existente.
+7. **Backend real (decisión 2026-10-19):** Spring Boot en Docker es el gateway final ([ADR-001](./ADR-001-BACKEND-SPRING.md)). Congelar Supabase; definir OpenAPI 3.1 desde `src/types/` + `DATA_MODEL.md`; cortar por dominio catálogo → auth → pedidos → realtime.
 
 ---
 
@@ -264,13 +264,13 @@ useCartHasHydrated()      → fin de rehidratación
 - **La disciplina de estado es de nivel producción.** `cartStore` es la mejor pieza del código: saneo de rehidratación, TTL, resultados estructurados (`ok/code/message`), límites de cantidad, redondeo monetario y selectores reactivos son exactamente los patrones correctos para un carrito de e-commerce. Muchos proyectos reales no llegan a esto.
 - **La documentación es excelente** y además es *normativa* (AI_GUIDELINES obliga a seguirla). El mapa mental del proyecto se reconstruye en minutos.
 - **Las decisiones de rendimiento están documentadas y justificadas** (memo, selectores, umbrales), y hay guardrails anti-regresión (Safari iOS) con checklist de QA.
-- **El contrato de backend ya existe** (OpenAPI + SQL en `arquitectura/`), así que el norte técnico está definido.
+- **El contrato de dominio ya existe** (`src/types/` + `DATA_MODEL.md`) y el backend Spring ya está en el equipo; el legacy `arquitectura/` queda como checklist de alcance, no como contrato vigente.
 
 ### Lo que me preocupa
 
-1. **Los mocks siguen siendo el riesgo principal, pero ya hay pruebas.** Existe suite Vitest (cart/auth/stores/order/analytics/storageSync; 47 tests de referencia): ampliar cobertura, no montarla desde cero. Cada cambio al carrito —la lógica con más reglas— ya tiene red de protección básica; seguir extendiéndola es lo primero.
-2. **El riesgo de "UI sobre supuestos".** Catálogo, precios, stock y auth son datos inventados. Al conectar el backend real, es probable que el shape de datos cambie (el YAML usa `productoId`, `distribuidorId`, UUIDs; el front usa `id`, `storeId`, strings). Cuanto más se construya sobre el mock, más cara la migración.
-3. **Auth de prototipo**: localStorage + guard client-side. Para producción hay que mover el token fuera del localStorage y verificar en servidor. Está previsto en los docs, pero conviene no dejarlo para el final.
+1. **Los mocks siguen siendo el riesgo principal, pero ya hay pruebas.** Existe suite Vitest de 61 tests (cart/auth/stores/order/analytics/storageSync + `authService` real con cliente mockeado): ampliar cobertura, no montarla desde cero. Cada cambio al carrito —la lógica con más reglas— ya tiene red de protección básica; auth P1 también cubierta (incl. `initialize` con/sin sesión). Con el backend Spring ya en el equipo, el riesgo se desplaza a la convivencia temporal Supabase/Spring; [ADR-001](./ADR-001-BACKEND-SPRING.md) fija el corte por dominio y los criterios de salida.
+2. **El riesgo de "UI sobre supuestos".** Catálogo, precios y stock ya vienen de Supabase, pero el contrato final Spring puede cambiar shapes (el legacy usa `productoId`, `distribuidorId`, UUIDs; el front usa `id`, `storeId`, strings). Cuanto más se construya sin cerrar el contrato, más cara la migración.
+3. **Auth de prototipo**: aunque Supabase Auth ya es real, la sesión se cachea en localStorage y el guard es client-side. El destino Spring permitirá cookie `httpOnly` + verificación server-side; conviene no dejarlo para el final.
 4. **Multi-tab ya resuelto**: `lib/storageSync.ts` sincroniza el carrito entre pestañas; quitarlo de preocupaciones.
 5. **Orquestación concentrada en `MapContainer`**: funciona, pero mezcla init de Mapbox, debounce, umbrales y refs. Cuando llegue búsqueda por dirección, clustering o tracking en vivo, ese archivo va a pedir refactor a hooks/testeables.
 6. **Detalles de pulido**: branding acotado (header y metadata ya dicen "Repu"; "Mall Virtual" solo sobrevive en emails mock y nombres de `arquitectura/*.sql`), tildes faltantes en textos del drawer; el CTA de checkout ya navega.
@@ -280,7 +280,7 @@ useCartHasHydrated()      → fin de rehidratación
 No daría un giro radical: **la arquitectura está bien orientada y el problema no es de diseño sino de orden de prioridades**. Mi orden sería:
 
 1. **Tests antes que nuevas features**: la suite Vitest ya existe (cubrir `cartStore`: agregar/mergear, conflicto de tienda, límites, TTL, rehidratación corrupta, y extender a checkout/tracking). Después, cualquier cambio al carrito queda protegido.
-2. **Fijar los contratos de datos con el backend** (el YAML ya existe): si el backend no está listo, al menos crear una capa de adaptadores (`api.ts` real vs mock) que respete los shapes del OpenAPI para que el switch no rompa UI.
+2. **Fijar los contratos de datos con el backend Spring** desde `src/types/` + `DATA_MODEL.md`; el YAML legacy no es la fuente. Crear adaptadores en `src/services/` que respeten esos shapes para que el switch no rompa UI.
 3. **Checkout (Fase 8) con validación server-side como requisito de entrada** — sin esto, el carrito local "se miente" sobre stock y precios.
 4. **Auth seria** al momento de conectar backend (JWT en cookie httpOnly, refresh, guard server-side).
 5. **Fase 9 (tracking en vivo)**: es el diferenciador real del producto ("Uber de repuestos"); todo lo anterior es infraestructura para llegar aquí.

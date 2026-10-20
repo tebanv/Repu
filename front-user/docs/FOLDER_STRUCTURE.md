@@ -111,10 +111,12 @@ src/
 │   └── __tests__/                    # Vitest suites (cartStore, orderStore, authStore, storesStore)
 │
 ├── services/                         # Business logic, interaction with external APIs
-│   ├── api.ts                        # Catálogo real sobre Supabase (RPC get_nearby_stores + stores/products, adaptadores DB→dominio)
-│   ├── supabaseClient.ts             # Singleton diferido del cliente Supabase (único importador de la lib)
-│   ├── authService.ts                # Authentication service (mock login/logout)
-│   └── geolocationService.ts         # Browser geolocation abstraction
+│   ├── api.ts                        # Catálogo real sobre Supabase (RPC get_nearby_stores + stores/products, adaptadores DB→dominio). Puente congelado; objetivo REST Spring
+│   ├── supabaseClient.ts             # Singleton diferido del cliente Supabase (único importador de la lib; se retira al cortar a Spring)
+│   ├── authService.ts                # Auth real Supabase (signIn/signOut/session/signUp/reset + subscribeToAuthChanges, rol real sin traducción). Objetivo Spring Security/JWT
+│   ├── geolocationService.ts         # Browser geolocation abstraction
+│   └── __tests__/                    # Vitest suites (authService con cliente mockeado)
+│   # Nota: services/ es el único punto de intercambio Supabase → Spring Boot (ADR-001)
 │
 ├── lib/                              # Pure utilities, helpers, constants
 │   ├── analytics.ts                  # Minimal telemetry sink (track, dev-only debug)

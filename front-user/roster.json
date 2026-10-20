@@ -1,7 +1,103 @@
 {
   "version": 1,
-  "savedAt": "2026-09-24T04:46:29.966Z",
-  "agents": [],
+  "savedAt": "2026-10-12T22:26:47.180Z",
+  "agents": [
+    {
+      "id": "god",
+      "name": "Michael",
+      "character": "michael",
+      "accent": "lemon",
+      "description": "god — runs the floor, triages requests, escalates only critical calls to you",
+      "project": "hive",
+      "tmuxTarget": "",
+      "cwd": "C:\\Users\\Svarupa D\\Documents\\code\\Delivery-app\\front-user",
+      "status": "idle",
+      "action": "idle",
+      "progress": 0,
+      "currentStation": "desk",
+      "ptyId": "pty-god",
+      "command": "opencode --model grok-4.6",
+      "provider": "opencode",
+      "model": "grok-4.6",
+      "isGod": true
+    },
+    {
+      "id": "worker-docs-update-plan",
+      "name": "Scribe",
+      "character": "jim",
+      "accent": "lilac",
+      "description": "temp",
+      "project": "worker-docs-update-plan",
+      "tmuxTarget": "",
+      "cwd": "C:\\Users\\Svarupa D\\Documents\\code\\Delivery-app\\front-user\\worktrees\\worker-docs-update-plan",
+      "status": "idle",
+      "action": "starting up",
+      "progress": 0,
+      "currentStation": "desk",
+      "ptyId": "worker-docs-update-plan",
+      "command": "opencode",
+      "provider": "claude",
+      "isGod": false,
+      "archived": false
+    },
+    {
+      "id": "worker-doc-ai-guidelines",
+      "name": "Rev-Guidelines",
+      "character": "jim",
+      "accent": "sky",
+      "description": "temp",
+      "project": "worker-doc-ai-guidelines",
+      "tmuxTarget": "",
+      "cwd": "C:\\Users\\Svarupa D\\Documents\\code\\Delivery-app\\front-user\\worktrees\\worker-doc-ai-guidelines",
+      "status": "idle",
+      "action": "starting up",
+      "progress": 0,
+      "currentStation": "desk",
+      "ptyId": "worker-doc-ai-guidelines",
+      "command": "opencode",
+      "provider": "claude",
+      "isGod": false,
+      "archived": false
+    },
+    {
+      "id": "worker-doc-app-flow",
+      "name": "Rev-AppFlow",
+      "character": "jim",
+      "accent": "coral",
+      "description": "temp",
+      "project": "worker-doc-app-flow",
+      "tmuxTarget": "",
+      "cwd": "C:\\Users\\Svarupa D\\Documents\\code\\Delivery-app\\front-user\\worktrees\\worker-doc-app-flow",
+      "status": "idle",
+      "action": "starting up",
+      "progress": 0,
+      "currentStation": "desk",
+      "ptyId": "worker-doc-app-flow",
+      "command": "opencode",
+      "provider": "claude",
+      "isGod": false,
+      "archived": false
+    },
+    {
+      "id": "worker-doc-architecture",
+      "name": "Rev-Architecture",
+      "character": "jim",
+      "accent": "lemon",
+      "description": "temp",
+      "project": "worker-doc-architecture",
+      "tmuxTarget": "",
+      "cwd": "C:\\Users\\Svarupa D\\Documents\\code\\Delivery-app\\front-user\\worktrees\\worker-doc-architecture",
+      "status": "idle",
+      "action": "awaiting",
+      "progress": 0,
+      "currentStation": "desk",
+      "ptyId": "worker-doc-architecture",
+      "command": "opencode",
+      "provider": "claude",
+      "isGod": false,
+      "archived": false
+    }
+  ],
   "archived": [
     {
       "id": "worker-verify-login",
@@ -429,127 +525,42 @@
       "archived": true
     }
   ],
-  "restorable": [
-    {
-      "id": "worker-docs-update-plan",
-      "name": "Scribe",
-      "character": "jim",
-      "accent": "lilac",
-      "description": "temp",
-      "project": "worker-docs-update-plan",
-      "tmuxTarget": "",
-      "cwd": "C:\\Users\\Svarupa D\\Documents\\code\\Delivery-app\\front-user\\worktrees\\worker-docs-update-plan",
-      "status": "idle",
-      "action": "reconnecting…",
-      "progress": 0,
-      "currentStation": "desk",
-      "ptyId": "worker-docs-update-plan",
-      "command": "opencode",
-      "provider": "claude",
-      "isGod": false,
-      "archived": false
-    },
-    {
-      "id": "worker-doc-ai-guidelines",
-      "name": "Rev-Guidelines",
-      "character": "jim",
-      "accent": "sky",
-      "description": "temp",
-      "project": "worker-doc-ai-guidelines",
-      "tmuxTarget": "",
-      "cwd": "C:\\Users\\Svarupa D\\Documents\\code\\Delivery-app\\front-user\\worktrees\\worker-doc-ai-guidelines",
-      "status": "idle",
-      "action": "reconnecting…",
-      "progress": 0,
-      "currentStation": "desk",
-      "ptyId": "worker-doc-ai-guidelines",
-      "command": "opencode",
-      "provider": "claude",
-      "isGod": false,
-      "archived": false
-    },
-    {
-      "id": "worker-doc-app-flow",
-      "name": "Rev-AppFlow",
-      "character": "jim",
-      "accent": "coral",
-      "description": "temp",
-      "project": "worker-doc-app-flow",
-      "tmuxTarget": "",
-      "cwd": "C:\\Users\\Svarupa D\\Documents\\code\\Delivery-app\\front-user\\worktrees\\worker-doc-app-flow",
-      "status": "idle",
-      "action": "reconnecting…",
-      "progress": 0,
-      "currentStation": "desk",
-      "ptyId": "worker-doc-app-flow",
-      "command": "opencode",
-      "provider": "claude",
-      "isGod": false,
-      "archived": false
-    },
-    {
-      "id": "worker-doc-architecture",
-      "name": "Rev-Architecture",
-      "character": "jim",
-      "accent": "lemon",
-      "description": "temp",
-      "project": "worker-doc-architecture",
-      "tmuxTarget": "",
-      "cwd": "C:\\Users\\Svarupa D\\Documents\\code\\Delivery-app\\front-user\\worktrees\\worker-doc-architecture",
-      "status": "idle",
-      "action": "reconnecting…",
-      "progress": 0,
-      "currentStation": "desk",
-      "ptyId": "worker-doc-architecture",
-      "command": "opencode",
-      "provider": "claude",
-      "isGod": false,
-      "archived": false
-    }
-  ],
+  "restorable": [],
   "queues": {
     "worker-docs-update-plan": [
-      {
-        "id": "q-1790108389367-1",
-        "text": "You have new hive inbox message(s) — at least: 2026-09-22T20-04-55-881Z-c7ead9. Read your inbox, act on what is pending there, and move handled ones to inbox/.done/. Your inbox directory is authoritative: work everything still pending in it, and if a named id is already in inbox/.done/ you handled it on an earlier turn and can ignore that one. Act autonomously; only message god if you genuinely need a decision.",
-        "ts": 1790108389367,
-        "precondition": "inbox-nonempty"
-      },
       {
         "id": "q-1790113337061-37",
         "text": "/compact Keep the current task, recent decisions, open questions, and file paths in play. Drop resolved tangents.",
         "ts": 1790113337061,
         "compactUsed": 0
+      },
+      {
+        "id": "q-1791834395821-2",
+        "text": "You have new hive inbox message(s) — at least: 2026-09-22T20-04-55-881Z-c7ead9. Read your inbox, act on what is pending there, and move handled ones to inbox/.done/. Your inbox directory is authoritative: work everything still pending in it, and if a named id is already in inbox/.done/ you handled it on an earlier turn and can ignore that one. Act autonomously; only message god if you genuinely need a decision.",
+        "ts": 1791834395821,
+        "precondition": "inbox-nonempty"
       }
     ],
     "worker-doc-ai-guidelines": [
-      {
-        "id": "q-1790108389371-2",
-        "text": "You have new hive inbox message(s) — at least: 2026-09-22T20-07-11-197Z-7b58f3. Read your inbox, act on what is pending there, and move handled ones to inbox/.done/. Your inbox directory is authoritative: work everything still pending in it, and if a named id is already in inbox/.done/ you handled it on an earlier turn and can ignore that one. Act autonomously; only message god if you genuinely need a decision.",
-        "ts": 1790108389371,
-        "precondition": "inbox-nonempty"
-      },
       {
         "id": "q-1790113337061-38",
         "text": "/compact Keep the current task, recent decisions, open questions, and file paths in play. Drop resolved tangents.",
         "ts": 1790113337061,
         "compactUsed": 0
+      },
+      {
+        "id": "q-1791834395829-3",
+        "text": "You have new hive inbox message(s) — at least: 2026-09-22T20-07-11-197Z-7b58f3. Read your inbox, act on what is pending there, and move handled ones to inbox/.done/. Your inbox directory is authoritative: work everything still pending in it, and if a named id is already in inbox/.done/ you handled it on an earlier turn and can ignore that one. Act autonomously; only message god if you genuinely need a decision.",
+        "ts": 1791834395829,
+        "precondition": "inbox-nonempty"
       }
     ],
     "worker-doc-app-flow": [
       {
-        "id": "q-1790113337061-39",
-        "text": "/compact Keep the current task, recent decisions, open questions, and file paths in play. Drop resolved tangents.",
-        "ts": 1790113337061,
-        "compactUsed": 0
-      }
-    ],
-    "worker-doc-architecture": [
-      {
-        "id": "q-1790113337062-40",
-        "text": "/compact Keep the current task, recent decisions, open questions, and file paths in play. Drop resolved tangents.",
-        "ts": 1790113337062,
-        "compactUsed": 0
+        "id": "q-1791834395831-4",
+        "text": "You have new hive inbox message(s) — at least: 2026-09-22T20-07-13-984Z-4f26e4. Read your inbox, act on what is pending there, and move handled ones to inbox/.done/. Your inbox directory is authoritative: work everything still pending in it, and if a named id is already in inbox/.done/ you handled it on an earlier turn and can ignore that one. Act autonomously; only message god if you genuinely need a decision.",
+        "ts": 1791834395831,
+        "precondition": "inbox-nonempty"
       }
     ],
     "worker-doc-project-guide": [
@@ -561,5 +572,5 @@
       }
     ]
   },
-  "selectedId": null
+  "selectedId": "worker-doc-app-flow"
 }

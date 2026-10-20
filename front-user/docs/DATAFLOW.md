@@ -2,6 +2,8 @@
 
 Este documento describe el flujo de datos actualizado para reflejar la implementación de la **estrategia híbrida de filtrado** del mapa y la nueva base del **carrito persistente**.
 
+> **Estado de backend (2026-10-19, [ADR-001](./ADR-001-BACKEND-SPRING.md)):** catálogo y auth leen Supabase como **puente congelado**; pedidos/tracking siguen locales. El gateway final es Spring Boot. Los flujos descritos siguen vigentes; solo cambiará la implementación de `src/services/`.
+
 El cambio principal es la introducción de una **Lista Maestra (`masterStores`)**: La API descarga todas las tiendas cercanas por ubicación, y el filtrado por categoría ocurre **en el cliente** (memoria) para una experiencia de usuario instantánea.
 
 La API filtra **solo por radio** (distancia Haversine aproximada en `src/services/api.ts`); las categorías se filtran en memoria vía `filterStores()` sobre `masterStores` (sin HTTP).
@@ -122,7 +124,7 @@ El carrito sigue un flujo separado del mapa, pero con la misma filosofía: **fue
 
 ## 7. Flujo de Datos Multi-Pedido y Simulación Local de Seguimiento
 
-> Estado real: no hay telemetría en tiempo real. Sin WebSocket/SWR/TanStack, sin Supabase Realtime, sin stream GPS y sin backend PostgreSQL en el front (`createOrder` es mock). El estado vive en Zustand `persist` (`order-storage`) + sync multi-tab; la posición del repartidor solo cambia vía `updateDriverCoordinates` manual y el mapa la interpola de forma estática según `status`. Realtime/SWR/WebSocket/streaming quedan como trabajo futuro.
+> Estado real: no hay telemetría en tiempo real. Sin WebSocket/SWR/TanStack, sin Supabase Realtime, sin stream GPS y sin backend de pedidos en el front (`createOrder` es mock; el catálogo/auth sí leen Supabase como puente). El estado vive en Zustand `persist` (`order-storage`) + sync multi-tab; la posición del repartidor solo cambia vía `updateDriverCoordinates` manual y el mapa la interpola de forma estática según `status`. Realtime/SWR/WebSocket/streaming quedan como trabajo futuro hacia Spring Boot (SSE/STOMP).
 
 ```text
 [Checkout / API] ──(createOrder)──▶ [orderStore: orders[]]

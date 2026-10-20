@@ -19,11 +19,12 @@ import { useAuthField } from './AuthFieldContext';
 
 type Phase = 'idle' | 'loading' | 'success';
 
-/** Accesos rápidos de demostración (usuarios mock del authService) */
+/** Accesos rápidos de desarrollo (usuarios seed en Supabase Auth, rol 'comprador').
+ * Deben crearse en el proyecto Supabase (signUp o panel Auth); no son mocks. */
 const DEMO_USERS = [
   { label: 'Admin', email: 'admin@mallvirtual.com', password: 'admin123' },
-  { label: 'Usuario', email: 'usuario@test.com', password: 'user123' },
-  { label: 'Demo', email: 'demo@demo.com', password: 'demo' },
+  { label: 'Usuario', email: 'usuario@demo.com', password: 'user123' },
+  { label: 'Demo', email: 'demo@demo.com', password: 'demo123' },
 ] as const;
 
 export default function LoginForm() {
@@ -41,10 +42,17 @@ export default function LoginForm() {
 
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const authHasHydrated = useAuthHasHydrated();
+  const initializeAuth = useAuthStore((state) => state.initialize);
   const login = useAuthStore((state) => state.login);
   const isLoading = useAuthStore((state) => state.isLoading);
   const error = useAuthStore((state) => state.error);
   const clearError = useAuthStore((state) => state.clearError);
+
+  useEffect(() => {
+    // Revalida sesión vigente al entrar a /login: evita redirect con
+    // `auth-storage` rancio si el token Supabase ya expiró.
+    void initializeAuth();
+  }, [initializeAuth]);
 
   useEffect(() => {
     if (authHasHydrated && isAuthenticated && phase !== 'success') {

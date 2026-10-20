@@ -4,9 +4,11 @@ Este documento describe el sistema de autenticación implementado en la aplicaci
 
 ## Resumen
 
-El sistema utiliza **Zustand** con persistencia en `localStorage` para gestionar el estado de autenticación. Actualmente trabaja con datos mockeados (100% cliente, sin backend), pero está diseñado para integrarse fácilmente con un backend real.
+El sistema utiliza **Zustand** con persistencia en `localStorage` para el estado de UI de sesión, con **Supabase Auth como fuente de verdad** (desde P1, 2026-10-12; antes mock 100% cliente). El JWT lo custodia `supabase-js` en su propia key; `User` nunca lleva token ni password.
 
 **Persistencia:** `persist` con key `auth-storage`, `partialize` solo `user` + `isAuthenticated` (no se persisten `isLoading`/`error`/`hasHydrated`). Rehidratación con gate `hasHydrated` (`onRehydrateStorage` → `setHasHydrated(true)`), que evita flash/redirect prematuro.
+
+> **Decisión backend (2026-10-19, [ADR-001](./ADR-001-BACKEND-SPRING.md)):** Supabase Auth es el **puente congelado** actual. El destino es **Spring Security + JWT**; el contrato de `authService`/`authStore` se mantiene para no tocar UI/stores. No se añaden flujos nuevos dependientes de Supabase Auth. El login actual sigue operativo hasta el corte.
 
 ## Arquitectura
 
@@ -49,9 +51,13 @@ Store de Zustand que gestiona:
 - **Estado del usuario** (`user`, `isAuthenticated`)
 - **Estados de UI** (`isLoading`, `error`)
 - **Gate de rehidratación** (`hasHydrated`, `setHasHydrated`, hook `useAuthHasHydrated()`)
-- **Acciones** (`login`, `logout`, `clearError`, `setHasHydrated`)
+- **Acciones** (`login`, `logout` async, `clearError`, `setHasHydrated`, `initialize`)
 
 `login(credentials): Promise<boolean>` — retorna `true` en éxito, `false` en error (el mensaje queda en `state.error`).
+
+`initialize(): Promise<void>` — idempotente (vuelos concurrentes comparten promesa): revalida `auth-storage` contra `getSession()` + `profiles` (la sesión vigente manda; sin sesión descarta la local rancia) y arranca la suscripción única a `onAuthStateChange`. La llaman `MainLayoutShell` (grupo protegido) y `LoginForm` (`/login`).
+
+`logout(): Promise<void>` — `signOut()` + limpieza local garantizada aun sin red.
 
 **Persistencia:**
 
@@ -62,22 +68,25 @@ Store de Zustand que gestiona:
 
 ### 2. `src/services/authService.ts`
 
-Servicio mock (sin backend) con 6 funciones:
+Servicio real sobre Supabase Auth (vía `getSupabase()`, único importador del SDK). Mismas 6 exportaciones que en la era mock, ahora con tipos de dominio `User` con rol real (`comprador|distribuidor|domiciliario|admin`, asignación directa sin traducción):
 
-- **`login(email, password): Promise<User>`**: delay 800ms; email case-insensitive; error `'Email y contraseña son requeridos'` si faltan datos, `'Credenciales inválidas'` si no hay match; retorna `User` **sin** password.
-- **`logout(): void`**: solo `console.log('Sesión cerrada')` — **no** limpia nada; la limpieza (`user=null`, `isAuthenticated=false`) la hace el store.
-- **`verifyToken(token): Promise<boolean>`** (stub): delay 300ms, retorna `Boolean(token)` — no es validación JWT real.
-- **`getCurrentUser(token): Promise<User | null>`** (stub): delay 300ms; `null` sin token; con token devuelve `MOCK_USERS[0]` sin password.
-- **`register(userData)`** (stub existente): delay 1000ms y lanza `'Función de registro no implementada aún'`.
-- **`requestPasswordReset(email)`** (stub existente): delay 800ms, `console.log(...)` y retorna `true`.
+- **`login(email, password): Promise<User>`**: `signInWithPassword` (email normalizado a minúsculas/trim) + fetch de `profiles` por `id`. Errores normalizados: `'Email y contraseña son requeridos'` si faltan datos, `'Credenciales inválidas'` en resto (no filtra si el email existe). Requiere la policy `profiles_owner` (0007) y el trigger 0010 para cuentas recién registradas.
+- **`logout(): Promise<void>`**: `supabase.auth.signOut()`; el store limpia `user/isAuthenticated` siempre, incluso si la red falla.
+- **`verifyToken(_token): Promise<boolean>`**: retorna si hay sesión vigente (`getSession()`); el argumento legacy se ignora (el JWT nunca sale del cliente Supabase).
+- **`getCurrentUser(): Promise<User | null>`**: `null` sin sesión; con sesión, perfil desde `profiles`.
+- **`register(userData)`**: `signUp` con `name` en `options.data` (lo consume el trigger 0010, que crea el perfil con rol `comprador`).
+- **`requestPasswordReset(email)`**: `resetPasswordForEmail`; mensaje genérico anti-enumeración.
+- **`subscribeToAuthChanges(listener): () => void`** (nuevo): envuelve `onAuthStateChange` y entrega `User | null` de dominio al store (multi-tab, expiración/refresh sin polling). Zero-Coupling: el store nunca importa el SDK.
 
-**Usuarios de prueba:**
+**Usuarios seed de desarrollo (Supabase Auth, rol `comprador`):**
 
 ```typescript
 admin@mallvirtual.com / admin123
-usuario@test.com / user123
-demo@demo.com / demo
+usuario@demo.com / user123
+demo@demo.com / demo123
 ```
+
+> Deben crearse en el proyecto Supabase (signUp o panel Auth → Users); el trigger `0010_handle_new_user` les crea el perfil automáticamente. Los chips "Acceso demo" del `LoginForm` solo rellenan estas credenciales, no son un rol (`'demo'` no existe en `UserRole`).
 
 ### 3. `src/components/auth/LoginForm.tsx`
 
@@ -117,22 +126,24 @@ Barra superior de la aplicación:
 ### Logout
 
 1. Usuario hace clic en botón "Salir" en `AppHeader`
-2. `AppHeader` llama a `authStore.logout()`, que a su vez llama a `logout()` del service (solo log)
-3. El store setea `user=null` / `isAuthenticated=false` (este estado se persiste; **la key `auth-storage` PERMANECE**, no se borra)
-4. `AppHeader` redirige con `router.push('/login')` (la redirección la hace el header, no el store)
+2. `AppHeader` llama a `authStore.logout()` (async, fire-and-forget) + `router.push('/login')`; el store hace `signOut()` en Supabase y limpia `user=null` / `isAuthenticated=false` **incluso si la red falla** (este estado se persiste; **la key `auth-storage` PERMANECE**, no se borra)
+3. La suscripción `onAuthStateChange` propaga el `SIGNED_OUT` a otras pestañas abiertas
 
 ### Restauración de Sesión
 
 1. Usuario recarga la página o vuelve a la app
-2. Zustand rehidrata automáticamente el estado desde localStorage
-3. `onRehydrateStorage` pone `hasHydrated=true`
-4. `MainLayoutShell` espera el flag (spinner "Verificando credenciales...") y recién entonces verifica `isAuthenticated`
-5. Si es `true`, permite el acceso
-6. Si es `false`, redirige a `/login`
+2. Zustand rehidrata el estado local desde localStorage (puede estar rancio)
+3. `MainLayoutShell` llama a `initialize()`: `getSession()` + fetch de `profiles`; **la sesión vigente manda sobre `auth-storage`** (sin sesión, se descarta la local en vez de conservarla)
+4. `onRehydrateStorage` + fin de `initialize()` ponen `hasHydrated=true`
+5. `MainLayoutShell` espera `hasHydrated + !isLoading` (spinner "Verificando credenciales...") y recién entonces verifica `isAuthenticated`
+6. Si es `true`, permite el acceso
+7. Si es `false`, redirige a `/login`
 
-## Integración con Backend Real (Futuro — no implementado)
+## Integración con Backend Real (Supabase P1 → Spring Boot, ADR-001)
 
-Hoy **no** hay backend: sin `.env`, sin `NEXT_PUBLIC_API_URL`/`AUTH_ENDPOINT`, sin JWT/expiry/refresh, cero `@supabase` en `src/`, sin middleware. `User` no lleva token ni password. Para conectar con un backend, modifica `src/services/authService.ts`:
+`login`/`logout`/sesión ya van contra Supabase Auth (ver §Componentes). `User` no lleva token ni password. JWT custodiado por `supabase-js`, refresh automático y `onAuthStateChange` suscrito desde `authStore.initialize()`.
+
+Ejemplo legacy (referencia para la futura migración a Spring Boot, donde sí se reescribe `authService.ts` por dentro sin tocar UI/stores):
 
 ```typescript
 export const login = async (email, password) => {
@@ -158,42 +169,42 @@ export const login = async (email, password) => {
 };
 ```
 
-### Consideraciones para Producción (Futuro — no implementado)
+### Consideraciones para Producción
 
-1. **Tokens JWT**: Guarda el token en el store y envíalo en las headers de las peticiones
-2. **Refresh Tokens**: Implementa lógica para renovar tokens expirados
-3. **Interceptores**: Usa axios o fetch interceptors para agregar el token a todas las peticiones
-4. **Logout en backend**: Invalida el token en el servidor
-5. **Seguridad**:
-   - No guardes información sensible en localStorage
-   - Usa HTTPS siempre
-   - Implementa CSRF protection
-   - Configura CORS correctamente
+1. **Tokens JWT**: custodiados por `supabase-js` (nunca en `auth-storage` ni en `User`); el cliente los envía en cada request (RLS `profiles_owner`/`orders_owner`)
+2. **Refresh Tokens**: automático vía `onAuthStateChange` suscrito en `initialize()` (sin polling)
+3. **Logout multi-pestaña**: propagado por el mismo canal
+4. **Pendiente**: endurecer expiración/refresh manual y CSRF/CORS al migrar a Spring Boot. Preferencia: access token corto + refresh en cookie `httpOnly` y proxy same-origin; guard server-side en Next.js.
+5. **Corte a Spring:** reescribir solo la implementación de `authService` (login/logout/getCurrentUser/register/reset/subscribe) contra Spring Security; `User`, `UserRole`, `authStore` y componentes no cambian (Zero-Coupling).
+6. **Seguridad**:
+   - No guardar información sensible en localStorage (solo `user` público + flag)
+   - Usar HTTPS siempre
+   - No filtrar en mensajes de error si el email existe (anti-enumeración)
 
 ## Extensiones Futuras
 
-- [x] Registro (`register`: stub existente, lanza "no implementada", pendiente backend)
-- [x] Recuperación de contraseña (`requestPasswordReset`: stub existente, log + `true`, pendiente backend)
+- [x] Registro (`register`: `signUp` real + trigger 0010 crea el perfil; falta UI de registro)
+- [x] Recuperación de contraseña (`requestPasswordReset`: `resetPasswordForEmail` real; falta UI)
 - [ ] Autenticación con redes sociales (OAuth)
 - [ ] Two-Factor Authentication (2FA)
 - [ ] Roles y permisos granulares
 - [ ] Sesiones múltiples / gestión de dispositivos
 
-## Variables de Entorno (Futuro — no implementado)
-
-Hoy no existe ningún `.env` en el repo. Cuando se cablee el backend:
+## Variables de Entorno
 
 ```env
-NEXT_PUBLIC_API_URL=https://tu-api.com
-NEXT_PUBLIC_AUTH_ENDPOINT=/auth/login
+NEXT_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
 ```
+
+Sin ellas, `getSupabase()` lanza error descriptivo (no hay fallback silencioso al mock). Ver `.env.example`. Las credenciales reales nunca se commitean (pendiente P0 en `CHANGELOG.md`).
 
 ## Testing
 
-Usuarios de prueba disponibles en desarrollo:
+Usuarios seed de desarrollo (Supabase Auth, ver arriba):
 
 | Email | Password | Rol |
 |-------|----------|-----|
 | admin@mallvirtual.com | admin123 | admin |
-| usuario@test.com | user123 | user |
-| demo@demo.com | demo | user |
+| usuario@demo.com | user123 | comprador |
+| demo@demo.com | demo123 | comprador |

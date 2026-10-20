@@ -69,7 +69,11 @@ Cuando un agente de IA o desarrollador sea instruido para actualizar, complement
 3. **Retorno Tipado Estricto:**
    - Toda función en `src/services/` debe recibir y retornar tipos e interfaces de dominio estrictamente definidos en `src/types/` (`Store`, `Product`, `Order`, etc.).
 4. **Independencia del Proveedor:**
-   - El frontend debe poder cambiar entre mocks locales en memoria, Supabase BaaS o un backend en Spring Boot / AWS modificando únicamente la capa `src/services/` y variables de entorno, sin alterar ningún componente de UI ni store de Zustand. (Estado actual: solo existen mocks locales en memoria; Supabase BaaS / Spring Boot / AWS son dirección futura, no implementada.)
+   - El frontend debe poder cambiar entre mocks locales en memoria, Supabase BaaS o un backend en Spring Boot / AWS modificando únicamente la capa `src/services/` y variables de entorno, sin alterar ningún componente de UI ni store de Zustand. (Estado actual: catálogo y auth sobre Supabase como puente congelado; pedidos/carrito locales. Spring Boot es el destino final, no una migración opcional.)
+5. **Backend objetivo Spring Boot (ADR-001, 2026-10-19):**
+   - Spring Boot en Docker es el gateway final. Supabase queda congelado como puente: no añadir features nuevas que dependan de Supabase Auth, Realtime, Edge Functions o Storage, ni cambios de esquema que solo existan en Supabase.
+   - Todo acceso a datos pasa por `src/services/`; el contrato se deriva de `src/types/` + `docs/DATA_MODEL.md`. El legacy `arquitectura/` es checklist de alcance, no contrato vigente.
+   - El corte es por dominio (catálogo → auth → pedidos → realtime) y sin escrituras duales. Ver `docs/ADR-001-BACKEND-SPRING.md`.
 
 ---
 

@@ -1,5 +1,80 @@
 # Changelog
 
+## ⚠️ PENDIENTE POST-PRUEBAS — Rotar claves y sacar `.env.local` del historial
+- El commit `dad7e6e` (`test(front-user)`) subió `front-user/.env.local` a `echava` SOLO para pruebas en servidor.
+- Al terminar las pruebas, hacer SÍ o SÍ:
+  1. Rotar `NEXT_PUBLIC_MAPBOX_TOKEN` (Mapbox) y `NEXT_PUBLIC_SUPABASE_ANON_KEY` (Supabase).
+  2. `git rm --cached front-user/.env.local` y reescribir/excluir el archivo del historial (o nuevo commit + `git filter-repo` si ya se mergeó).
+  3. Verificar que `.env.local` vuelve a estar ignorado (`git check-ignore front-user/.env.local`).
+- No cerrar este pendiente sin completar los 3 pasos.
+
+## 2026-10-19 — Decisión de backend: Supabase congelado como puente y Spring Boot como gateway final
+
+### Contexto
+- Supabase se adoptó para desbloquear el front sin backend. El desarrollador backend ya está en el equipo y el backend real (Spring Boot, Docker) se integrará en el entorno local; la copia actual de `arquitectura/` está desactualizada.
+- Sin una decisión explícita, el “paso intermedio” podía volverse permanente y duplicar trabajo en auth, pedidos y realtime.
+
+### Decisión ([ADR-001](./ADR-001-BACKEND-SPRING.md))
+1. Spring Boot en Docker es el gateway final y único; Supabase se congela en el punto actual (PostgreSQL/PostGIS + Auth como puente).
+2. No se añaden features nuevas sobre Supabase Auth, Realtime, Edge Functions o Storage, ni cambios de esquema que solo existan en Supabase.
+3. El contrato objetivo es OpenAPI 3.1 derivado de `src/types/` + `DATA_MODEL.md`; `arquitectura/Apis_Mall_Virtual_V1.yaml` queda como checklist de alcance.
+4. `createOrder` sigue mock hasta los endpoints de pedidos en Spring; el tracking usará SSE/STOMP, no Supabase Realtime.
+5. Flyway será el dueño del esquema. `0010`/`0011` y las policies RLS dependientes de `auth.uid()` se retiran o adaptan al cortar la auth.
+6. Auth destino: Spring Security/JWT, preferible cookie `httpOnly` + refresh y proxy same-origin. El contrato de `authService`/`authStore` se mantiene.
+
+### Cambios documentales
+- Nuevo `docs/ADR-001-BACKEND-SPRING.md`.
+- Actualizados `ARCHITECTURE.md`, `ROADMAP.md`, `PROJECT_GUIDE.md`, `APP_FLOW.md`, `DATAFLOW.md`, `DATA_MODEL.md`, `AUTHENTICATION.md`, `TESTING.md`, `FOLDER_STRUCTURE.md`, `AI_GUIDELINES.md`, `README.md`.
+- `README.md` y `AGENTS.md` revisados: variables de entorno, convenciones (pnpm/Zero-Coupling/Supabase congelado), mapa de componentes y referencia al ADR.
+- Correcciones de estado: catálogo/auth son Supabase real (no mocks); checkout/tracking son mock local; el contrato de datos apunta a Spring.
+
+### Sin cambios de código
+- No se tocó `src/`; el front sigue operando igual. El corte se hará por dominio (catálogo → auth → pedidos → realtime) cuando el backend Spring esté disponible en local.
+
+## 2026-10-12 — P1 Auth real Supabase (fin del mock, roles reales, migración 0010)
+
+### Contexto
+- `authService.ts` era el último mock de acceso (3 usuarios en memoria); el catálogo ya leía Supabase desde 2026-09-24. La sesión local (`auth-storage`) podía quedar rancia tras expirar el JWT.
+
+### Cambios implementados
+1. **Roles reales (sin adaptador):** `UserRole` front = enum DB `comprador|distribuidor|domiciliario|admin` (`src/types/auth.ts`); `'demo'` deja de ser rol (es atajo UX del login contra seeds con rol `comprador`). `mapProfileRow` es asignación directa.
+2. **`src/services/authService.ts` real:** `login` vía `signInWithPassword` + fetch `profiles`, `logout` con `signOut` (limpieza local garantizada aun sin red), `getCurrentUser`/`verifyToken` por `getSession`, `register` por `signUp`, `requestPasswordReset` por `resetPasswordForEmail`, nuevo `subscribeToAuthChanges` (Zero-Coupling: el store recibe `User|null`, nunca el SDK).
+3. **`src/store/authStore.ts`:** nueva acción idempotente `initialize()` (la sesión vigente manda sobre `auth-storage`; sin sesión se descarta la local) + suscripción única a `onAuthStateChange` (multi-tab, expiración/refresh sin polling). `logout` ahora `async` (fire-and-forget en `AppHeader`, sin cambio visual).
+4. **Guard:** `MainLayoutShell` llama a `initialize()` y espera `hasHydrated + !isLoading` antes de decidir (cierra el flash de sesión rancia); `LoginForm` también revalida al entrar a `/login`.
+5. **Migración `0010_handle_new_user`:** trigger `on_auth_user_created` crea la fila `profiles` (rol `comprador`) en cada `signUp`. Sin ella el login falla en el fetch (RLS `profiles_owner`).
+6. **Tests:** suite 47 → 61 verdes. `authStore.test.ts` reescrito contra servicio mockeado (incl. `initialize` con/sin sesión); nuevo `src/services/__tests__/authService.test.ts` (12: mapeo directo, degradación de rol desconocido a `comprador`, normalización de email, register con `name` para el trigger, subscribe SIGNED_OUT/SIGNED_IN). `type-check` 0 errores en `src/` (persisten los 5 pre-existentes en `worktrees/`).
+- Estado operativo (2026-10-12, verificado contra cloud `qewsgjdnuarsyvpnngsn`): `0010` + `0011_handle_new_user_search_path` aplicadas vía `db push` (pooler IPv4) y trigger `on_auth_user_created` confirmado en `auth.users`; 3 seeds verificados de punta a punta (`signIn` + perfil: admin rol `admin`, usuario/demo rol `comprador`); `front-user/.env.local` fuera del índice (`e35a446`, `ignored=True`). Hallazgos del seed: `usuario@test.com` es dominio bloqueado por Supabase y el password mínimo es 6 → seeds finales `usuario@demo.com/user123`, `demo@demo.com/demo123` (actualizados en código/docs/LoginForm); la `0010` inicial abortaba signUps por `search_path` no fijado (corregido en `0011`).
+- Resta (rotación, cuando digas): Mapbox + Supabase `anon key` en dashboards + DB password (circuló por chat) + decidir `filter-repo` + force-push sobre `echava`.
+
+### Archivos impactados
+- `supabase/migrations/0010_handle_new_user.sql` (nuevo, a nivel de repo)
+- `src/types/auth.ts`, `src/services/authService.ts`, `src/store/authStore.ts`
+- `src/components/layout/MainLayoutShell.tsx`, `src/components/auth/LoginForm.tsx`
+- `src/store/__tests__/authStore.test.ts`, `src/services/__tests__/authService.test.ts` (nuevo)
+- `docs/CHANGELOG.md`, `docs/AUTHENTICATION.md`, `docs/DATA_MODEL.md`, `docs/TESTING.md`, `docs/ROADMAP.md`, `docs/PROJECT_GUIDE.md`, `docs/FOLDER_STRUCTURE.md`
+
+## 2026-10-12 — Compose para desplegar el front en servidor
+
+### Cambios implementados
+1. **`docker-compose.yml` (nuevo):** servicio `front` (build con `args NEXT_PUBLIC_*` desde `.env`, `image repu-front:latest`, puerto `${PORT:-3000}:3000`, `restart: unless-stopped`, `healthcheck` wget a `/`).
+2. **`Dockerfile`:** comentario con flujo Compose recomendado.
+- Uso en servidor: `cp .env.example .env` → completar valores → `docker compose up -d --build`.
+
+## 2026-10-12 — Dockerfile de producción para el front (`standalone` + pnpm)
+
+### Contexto
+- Sin artefacto de despliegue: el front (Next.js 16.3.1-canary.20 + pnpm 11.22.0) no tenía imagen Docker para servidor.
+
+### Cambios implementados
+1. **`next.config.js`:** `output: 'standalone'` para generar `.next/standalone/server.js` autocontenido.
+2. **`Dockerfile` (nuevo, multi-stage):** `base` (node:22-alpine + pnpm 11.22.0 vía corepack) → `deps` (`pnpm install --frozen-lockfile`) → `builder` (`ARG NEXT_PUBLIC_MAPBOX_TOKEN/SUPABASE_URL/SUPABASE_ANON_KEY` + `pnpm build`) → `runner` mínimo no-root (`nextjs:nodejs`, solo `standalone` + `public` + `.next/static`, `PORT 3000`, `CMD node server.js`).
+3. **`.dockerignore` (nuevo):** excluye `node_modules`, `.next`, `worktrees/`, `.env*` (menos `.env.example`), docs y secretos del contexto.
+- Nota: `pnpm build` local falla solo por `TS2300` pre-existente en `worktrees/*` (ajeno a `src/`); en Docker no afecta porque `worktrees/` está excluido del contexto.
+
+### Archivos impactados
+- `next.config.js`, `Dockerfile` (nuevo), `.dockerignore` (nuevo)
+- `docs/CHANGELOG.md`
+
 ## 2026-09-24 — Front lee la BD real: `api.ts` sobre Supabase (fin del mock de catálogo)
 
 ### Contexto

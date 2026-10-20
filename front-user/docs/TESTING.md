@@ -2,15 +2,15 @@
 
 Fuente única para pruebas del cliente. `ROADMAP.md` solo resume el DoD por fase y apunta aquí para el detalle.
 
-> Estado: runner instalado (Vitest 5 + jsdom). Comandos con `pnpm` exclusivo (nunca `npm`/`yarn`). Suite actual: 47 tests en 6 archivos, todos verdes (verificado 2026-09-16).
+> Estado: runner instalado (Vitest 5 + jsdom). Comandos con `pnpm` exclusivo (nunca `npm`/`yarn`). Suite actual: 61 tests en 7 archivos, todos verdes (P1 Auth real, 2026-10-12; antes 47/6). La suite valida el puente Supabase actual; al cortar a Spring Boot ([ADR-001](./ADR-001-BACKEND-SPRING.md)) se reescriben los tests de adaptadores, no los de stores.
 
 ## 1. Comandos
 
 ```bash
-pnpm test            # vitest run (CI) — 47 tests
+pnpm test            # vitest run (CI) — 61 tests
 pnpm test:watch      # vitest (watch en local)
 pnpm test:coverage   # vitest run --coverage (v8, stores + lib)
-pnpm type-check    # tsc --noEmit (último estado verificado: 0 errores, 2026-09-16)
+pnpm type-check    # tsc --noEmit (0 errores en `src/`; 5 pre-existentes en `worktrees/` ajenos, ver CHANGELOG 2026-10-12)
 pnpm build         # Next producción
 ```
 
@@ -27,16 +27,19 @@ Config: `vitest.config.mts` (extensión `.mts` para carga ESM sin warnings) con 
 
 ## 3. Matriz unitaria — código actual
 
-> Cobertura Fase A (2026-09-16): §3.1 auth, §3.2 híbrido, §3.3 carrito y §3.4 pedidos implementados en `src/store/__tests__/` (42 tests). §3.5 ubicación y §3.6 toasts pendientes (sin cambios recientes, riesgo bajo).
+> Cobertura Fase A (2026-09-16) + P1 (2026-10-12): §3.1 auth, §3.2 híbrido, §3.3 carrito y §3.4 pedidos implementados en `src/store/__tests__/` + `src/services/__tests__/authService.test.ts` (61 tests). §3.5 ubicación y §3.6 toasts pendientes (sin cambios recientes, riesgo bajo).
 
-### 3.1 Auth (`authStore.ts` + `authService.ts`)
-Hereda lo útil de `TEST_LOGIN.md` (eliminado, ver §6):
-- [ ] `login` ok con `admin@mallvirtual.com/admin123` y `demo@demo.com/demo` (con test ok; `usuario@test.com/user123` existe como mock sin test de login ok) → `isAuthenticated=true`, `user` sin `password`.
-- [ ] `login` con credencial inválida → `false`, `error='Credenciales inválidas'`, `isAuthenticated=false`.
-- [ ] `login` con email/contraseña vacíos → `false`, `error='Email y contraseña son requeridos'`.
-- [ ] `clearError` resetea el mensaje de error.
-- [ ] `logout` limpia `user`/`isAuthenticated` (key `auth-storage` en localStorage).
-- [ ] Rehidratación: `hasHydrated=true` vía `onRehydrateStorage`; `MainLayoutShell` no redirige antes de hidratar (sin test, solo código).
+### 3.1 Auth (`authStore.ts` + `authService.ts` real Supabase, P1)
+Hereda lo útil de `TEST_LOGIN.md` (eliminado, ver §6); el servicio mockeado en tests de store, cliente Supabase mockeado en tests de servicio:
+- [x] `login` ok con rol real (`comprador`/`admin`) → `isAuthenticated=true`, `user` sin `password` (email normalizado a minúsculas/trim).
+- [x] `login` con credencial inválida → `false`, `error='Credenciales inválidas'`, `isAuthenticated=false`.
+- [x] `login` con email/contraseña vacíos → `false`, `error='Email y contraseña son requeridos'` (sin llamada de red).
+- [x] Rol DB desconocido → degrada a `comprador` sin romper (test de servicio).
+- [x] `clearError` resetea el mensaje de error.
+- [x] `logout` limpia `user`/`isAuthenticated` incluso si `signOut` falla (key `auth-storage` en localStorage).
+- [x] `initialize()`: con sesión vigente hidrata autenticado; sin sesión descarta la local rancia; `hasHydrated=true` al terminar.
+- [x] `subscribeToAuthChanges`: `SIGNED_OUT` → `null`, `SIGNED_IN` → perfil (cobertura en `authService.test.ts`).
+- [ ] Rehidratación: `MainLayoutShell` espera `hasHydrated + !isLoading` antes de decidir (sin test, solo código).
 - [ ] `LoginForm`: si hay sesión activa redirige a `/` (sin test, solo código).
 
 ### 3.2 Tiendas híbrido (`storesStore.ts` + `filterStore.ts` + `api.ts`)
@@ -105,9 +108,9 @@ Hereda lo útil de `TEST_LOGIN.md` (eliminado, ver §6):
 ## 6. Legado `TEST_LOGIN.md` (eliminado)
 
 Se migró lo útil y se eliminó el archivo para evitar doble fuente:
-- Conservado: credenciales mock (§3.1), persistencia `auth-storage` + recarga, flujo logout, debugging localStorage.
+ - Conservado: credenciales seed (§3.1, ahora en Supabase Auth, nunca prod), persistencia `auth-storage` + recarga, flujo logout, debugging localStorage.
 - Descartado: estructura de carpetas `.js` (ya es `.tsx`), capturas “Mall Virtual” (branding hoy `Repu`), pasos que asumían `layout.js/page.js`.
-- Credenciales dev (mock, nunca prod): `admin@mallvirtual.com/admin123`, `usuario@test.com/user123`, `demo@demo.com/demo`.
+ - Credenciales dev (seed Supabase Auth, nunca prod): `admin@mallvirtual.com/admin123`, `usuario@demo.com/user123`, `demo@demo.com/demo123`.
 
 ## 7. Deuda y siguientes
 
@@ -115,5 +118,5 @@ Se migró lo útil y se eliminó el archivo para evitar doble fuente:
 - [x] Multi-tab sync + evento `cart_expired` (A2) — `storageSync.ts` + `analytics.ts`, con tests.
 - [ ] QUIRK conocido: `stock: 0` se normaliza a “sin límite” (igual que `null`) en vez de agotado. Test lo documenta (`cartStore.test.ts`). Decidir regla de agotado antes del backend real (ver §3.3: `stock 0` → `ITEM_ADDED`, no `INVALID_PRODUCT`).
 - [ ] `pnpm lint` roto a nivel entorno (pre-existente, no de Fase A): `eslint-config-next@15.2.2` no soporta TS 7.0 (`typescript-eslint does not support TS 7.0`).Resolver al margen: subir eslint-config-next o fijar TS soportado.
-- [ ] Al conectar Supabase: tests de adaptadores `api.ts` (RPC `get_tiendas_cercanas`, `fetchProductsByStore`, `createOrder`, Realtime) con mocks de cliente; UI/stores no se tocan (Zero-Coupling).
+- [ ] Al conectar Spring Boot (ADR-001): tests de adaptadores REST (`api.ts`, `authService.ts`, futuro `orderService.ts`) con mocks de red; UI/stores no se tocan (Zero-Coupling). No se planifican tests de Supabase Realtime: el tracking va por SSE/STOMP.
 - [ ] Futuro E2E (Playwright) solo para checkout→tracking cuando haya backend real.

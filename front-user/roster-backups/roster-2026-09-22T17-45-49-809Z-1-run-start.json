@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "savedAt": "2026-09-22T02:53:53.515Z",
+  "agents": [],
+  "archived": [
+    {
+      "id": "worker-verify-login",
+      "name": "Pam",
+      "character": "pam",
+      "accent": "lilac",
+      "description": "temp",
+      "project": "worker-verify-login",
+      "tmuxTarget": "",
+      "cwd": "C:\\Users\\Svarupa D\\Documents\\code\\Delivery-app\\front-user\\worktrees\\worker-verify-login",
+      "status": "idle",
+      "action": "archived",
+      "progress": 0,
+      "command": "opencode",
+      "provider": "claude",
+      "isGod": false,
+      "archived": true
+    },
+    {
+      "id": "worker-visible-ping",
+      "name": "Jim",
+      "character": "jim",
+      "accent": "lilac",
+      "description": "temp",
+      "project": "front-user",
+      "tmuxTarget": "",
+      "cwd": "C:\\Users\\Svarupa D\\Documents\\code\\Delivery-app\\front-user",
+      "status": "idle",
+      "action": "archived",
+      "progress": 0,
+      "command": "opencode",
+      "provider": "claude",
+      "isGod": false,
+      "archived": true
+    }
+  ],
+  "restorable": [],
+  "queues": {},
+  "selectedId": null
+}
