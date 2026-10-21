@@ -2,9 +2,9 @@ server:
   port: ${SERVER_PORT}
 spring:
   application:
-    name: "${APPLICATION_NAME_MS_AUTH}"
+    name: "${APPLICATION_NAME}"
   webflux:
-    base-path: "/${APPLICATION_NAME_MS_AUTH}"
+    base-path: "/${APPLICATION_NAME}"
   devtools:
     add-properties: false
     restart:
@@ -28,7 +28,7 @@ management:
       probes:
         enabled: ${MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED}
 cors:
-  allowed-origins: ${CORS_ALLOWED_ORIGINS_MS_AUTH}
+  allowed-origins: ${CORS_ALLOWED_ORIGINS}
 security:
   service-auth:
     token: ${AUTH_SERVICE_TOKEN}
