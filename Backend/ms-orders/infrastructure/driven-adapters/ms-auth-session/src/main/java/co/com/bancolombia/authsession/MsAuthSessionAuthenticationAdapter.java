@@ -24,10 +24,11 @@ public class MsAuthSessionAuthenticationAdapter implements SessionAuthentication
     private final WebClient webClient;
 
     public MsAuthSessionAuthenticationAdapter(@Value("${auth.session.base-url}") String baseUrl,
+                                              @Value("${auth.session.allow-insecure-http:false}") boolean allowInsecureHttp,
                                               @Value("${auth.session.connect-timeout}") Duration connectTimeout,
                                               @Value("${auth.session.response-timeout}") Duration responseTimeout,
                                               @Value("${auth.session.service-token:}") String serviceToken) {
-        validateBaseUrl(baseUrl);
+        validateBaseUrl(baseUrl, allowInsecureHttp);
         HttpClient httpClient = HttpClient.create()
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, Math.toIntExact(connectTimeout.toMillis()))
                 .responseTimeout(responseTimeout);
@@ -82,13 +83,15 @@ public class MsAuthSessionAuthenticationAdapter implements SessionAuthentication
         return new AuthenticatedUser(response.userId(), response.role());
     }
 
-    private void validateBaseUrl(String baseUrl) {
+    private void validateBaseUrl(String baseUrl, boolean allowInsecureHttp) {
         URI uri = URI.create(baseUrl);
         String host = uri.getHost();
         boolean loopbackDevelopmentHost = "localhost".equalsIgnoreCase(host)
                 || "127.0.0.1".equals(host) || "::1".equals(host);
-        if (!"https".equalsIgnoreCase(uri.getScheme()) && !loopbackDevelopmentHost) {
-            throw new IllegalArgumentException("AUTH_SESSION_BASE_URL debe usar HTTPS fuera de localhost.");
+        if (!"https".equalsIgnoreCase(uri.getScheme())
+                && !loopbackDevelopmentHost
+                && !allowInsecureHttp) {
+            throw new IllegalArgumentException("AUTH_SESSION_BASE_URL debe usar HTTPS fuera de localhost o cuando auth.session.allow-insecure-http=true.");
         }
     }
 

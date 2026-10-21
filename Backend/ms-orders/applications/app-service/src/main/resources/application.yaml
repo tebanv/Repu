@@ -33,6 +33,7 @@ orders:
 auth:
   session:
     base-url: ${AUTH_SESSION_BASE_URL}
+    allow-insecure-http: ${AUTH_SESSION_ALLOW_INSECURE_HTTP:false}
     connect-timeout: ${AUTH_SESSION_CONNECT_TIMEOUT}
     response-timeout: ${AUTH_SESSION_RESPONSE_TIMEOUT}
     service-token: ${AUTH_SERVICE_TOKEN}
