@@ -1,48 +1,31 @@
 spring:
   application:
-    name: "ms-manage-payment"
-    #name: ms-manage-payment
+    name: "${APPLICATION_NAME}"
 
   webflux:
-    #base-path: "/ms-manage-payment"
-    base-path: /ms-manage-payment
+    base-path: "/${APPLICATION_NAME}"
 
   r2dbc:
-    #url: "r2dbc:postgresql://89.117.73.146:5434/lucy"
-    #username: "lucy"
-    #password: "adminlucy"
-    url: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
-    username: ${DB_USER}
-    password: ${DB_PASSWORD}
+    url: r2dbc:postgresql://${POSTGRES_URL}:${POSTGRES_PORT}/${POSTGRES_DB}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
 
   sql:
     init:
       mode: "never"
   profiles:
-    #active: "local"
-    active: ${SPRING_PROFILES_ACTIVE}
+    active: "${SPRING_PROFILES_ACTIVE}"
 
 adapters:
   r2dbc:
-    #host: "89.117.73.146"
-    #port: 5434
-    #database: "lucy"
-    #schema: "lucy"
-    #username: "lucy"
-    #password: "lucyadmin"
-    host: ${DB_HOST}
-    port: ${DB_PORT}
-    database: ${DB_NAME}
-    schema: ${DB_SCHEMA}
-    username: ${DB_USER}
-    password: ${DB_PASSWORD}
+    host: ${POSTGRES_URL}
+    port: ${POSTGRES_PORT}
+    database: ${POSTGRES_DB}
+    schema: ${POSTGRES_SCHEMA}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
 
   wompi:
-    #base-url: "https://sandbox.wompi.co/v1"
-    #public-key: "pub_test_PItnC5w2vdRZGS4YSN2dnSU1OLb1ex7h"
-    #private-key: "prv_test_7z03lTmDqWiEDV0YImcFdl2U9se4YLNV"
-    #integrity-secret: "test_integrity_0nE94WAa42rP8VwpJjAulCpyUYOtW4Ec"
-    #event-secret: "test_events_WboasTkrVibjULo5aoM24Lplsx7slJWc"
     base-url: ${WOMPI_BASE_URL}
     public-key: ${WOMPI_PUBLIC_KEY}
     private-key: ${WOMPI_PRIVATE_KEY}
@@ -50,23 +33,20 @@ adapters:
     event-secret: ${WOMPI_EVENT_SECRET}
 
 server:
-  #port: 8084
-  port: ${SERVER_PORT:8084}
+  port: ${SERVER_PORT}
 
 management:
   endpoints:
     web:
       exposure:
-        include: "health,prometheus"
-        #include: health,prometheus
+        include: "${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE}"
   endpoint:
     health:
       probes:
-        enabled: true
+        enabled: ${MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED}
   health:
     circuitbreakers:
       enabled: true
 
 cors:
-  #allowed-origins: http://localhost:3000,http://localhost:4200,http://localhost:8080,http://localhost:5173
   allowed-origins: ${CORS_ALLOWED_ORIGINS}

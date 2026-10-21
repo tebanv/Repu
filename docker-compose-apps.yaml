@@ -101,11 +101,28 @@ services:
           cpus: '0.10'
           memory: 256M
     environment:
-      - SPRING_PROFILES_ACTIVE=local
-      - SERVER_PORT=8082
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://repu_postgres:5432/${POSTGRES_DB}
+      - APPLICATION_NAME=${APPLICATION_NAME_MS_CATEGORIES}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE_MS_CATEGORIES}
+      - SERVER_PORT=${SERVER_PORT_MS_CATEGORIES}
+      - POSTGRES_URL=${POSTGRES_URL}
+      - POSTGRES_PORT=${POSTGRES_PORT}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_SCHEMA=${POSTGRES_SCHEMA}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${POSTGRES_URL}:${POSTGRES_PORT}/${POSTGRES_DB}
       - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
       - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET_MS_CATEGORIES}
+      - MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED=${MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED}
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE}
+      - LOGIN_LEVEL_SPRING_SECURITY=${LOGIN_LEVEL_SPRING_SECURITY}
+      - LOGIN_LEVEL_SPRING_REACTIVE=${LOGIN_LEVEL_SPRING_REACTIVE}
+      - LOGIN_LEVEL_SPRING_R2DBC=${LOGIN_LEVEL_SPRING_R2DBC}
+      - LOGIN_LEVEL_R2DBC_POSTGRESQL=${LOGIN_LEVEL_R2DBC_POSTGRESQL}
+      - LOGIN_LEVEL_R2DBC_POSTGRESQL_QUERY=${LOGIN_LEVEL_R2DBC_POSTGRESQL_QUERY}
+      - LOGIN_LEVEL_R2DBC_POSTGRESQL_PARAM=${LOGIN_LEVEL_R2DBC_POSTGRESQL_PARAM}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS_MS_CATEGORIES}
     networks:
       - internal-net
       - proxy-net
@@ -113,7 +130,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.repu-ms-categories.rule=Host(`${PUBLIC_HOST:-167.86.88.151}`) && PathPrefix(`/ms-categories`)"
       - "traefik.http.routers.repu-ms-categories.entrypoints=web"
-      - "traefik.http.services.repu-ms-categories.loadbalancer.server.port=8082"
+      - "traefik.http.services.repu-ms-categories.loadbalancer.server.port=${SERVER_PORT_MS_CATEGORIES}"
       - "traefik.docker.network=repu_proxy"
 
   ms-companies:
@@ -132,11 +149,29 @@ services:
           cpus: '0.10'
           memory: 256M
     environment:
-      - SPRING_PROFILES_ACTIVE=local
-      - SERVER_PORT=8083
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://repu_postgres:5432/${POSTGRES_DB}
-      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
-      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+      - APPLICATION_NAME=${APPLICATION_NAME_MS_COMPANIES}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE_MS_COMPANIES}
+      - SERVER_PORT=${SERVER_PORT_MS_COMPANIES}
+      - POSTGRES_URL=${POSTGRES_URL}
+      - POSTGRES_PORT=${POSTGRES_PORT}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_SCHEMA=${POSTGRES_SCHEMA}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - SPRING_R2DBC_URL=r2dbc:postgresql://${POSTGRES_URL}:${POSTGRES_PORT}/${POSTGRES_DB}
+      - SPRING_R2DBC_USERNAME=${POSTGRES_USER}
+      - SPRING_R2DBC_PASSWORD=${POSTGRES_PASSWORD}
+      - SPRING_R2DBC_PROPERTIES_SCHEMA=${POSTGRES_SCHEMA}
+      - JWT_SECRET=${JWT_SECRET_MS_COMPANIES}
+      - MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED=${MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED}
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE}
+      - LOGIN_LEVEL_SPRING_SECURITY=${LOGIN_LEVEL_SPRING_SECURITY}
+      - LOGIN_LEVEL_SPRING_REACTIVE=${LOGIN_LEVEL_SPRING_REACTIVE}
+      - LOGIN_LEVEL_SPRING_R2DBC=${LOGIN_LEVEL_SPRING_R2DBC}
+      - LOGIN_LEVEL_R2DBC_POSTGRESQL=${LOGIN_LEVEL_R2DBC_POSTGRESQL}
+      - LOGIN_LEVEL_R2DBC_POSTGRESQL_QUERY=${LOGIN_LEVEL_R2DBC_POSTGRESQL_QUERY}
+      - LOGIN_LEVEL_R2DBC_POSTGRESQL_PARAM=${LOGIN_LEVEL_R2DBC_POSTGRESQL_PARAM}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS_MS_COMPANIES}
     networks:
       - internal-net
       - proxy-net
@@ -144,7 +179,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.repu-ms-companies.rule=Host(`${PUBLIC_HOST:-167.86.88.151}`) && PathPrefix(`/ms-companies`)"
       - "traefik.http.routers.repu-ms-companies.entrypoints=web"
-      - "traefik.http.services.repu-ms-companies.loadbalancer.server.port=8083"
+      - "traefik.http.services.repu-ms-companies.loadbalancer.server.port=${SERVER_PORT_MS_COMPANIES}"
       - "traefik.docker.network=repu_proxy"
 
   ms-manage-payment:
@@ -163,11 +198,28 @@ services:
           cpus: '0.10'
           memory: 256M
     environment:
-      - SPRING_PROFILES_ACTIVE=local
-      - SERVER_PORT=8084
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://repu_postgres:5432/${POSTGRES_DB}
-      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
-      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+      - APPLICATION_NAME=${APPLICATION_NAME_MS_MANAGE_PAYMENT}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE_MS_MANAGE_PAYMENT}
+      - SERVER_PORT=${SERVER_PORT_MS_MANAGE_PAYMENT}
+      - POSTGRES_URL=${POSTGRES_URL}
+      - POSTGRES_PORT=${POSTGRES_PORT}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_SCHEMA=${POSTGRES_SCHEMA}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - SPRING_R2DBC_URL=r2dbc:postgresql://${POSTGRES_URL}:${POSTGRES_PORT}/${POSTGRES_DB}
+      - SPRING_R2DBC_USERNAME=${POSTGRES_USER}
+      - SPRING_R2DBC_PASSWORD=${POSTGRES_PASSWORD}
+      - SPRING_R2DBC_PROPERTIES_SCHEMA=${POSTGRES_SCHEMA}
+      - WOMPI_BASE_URL=${WOMPI_BASE_URL}
+      - WOMPI_PUBLIC_KEY=${WOMPI_PUBLIC_KEY}
+      - WOMPI_PRIVATE_KEY=${WOMPI_PRIVATE_KEY}
+      - WOMPI_INTEGRITY_SECRET=${WOMPI_INTEGRITY_SECRET}
+      - WOMPI_EVENT_SECRET=${WOMPI_EVENT_SECRET}
+      - JWT_SECRET=${JWT_SECRET_MS_MANAGE_PAYMENT}
+      - MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED=${MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED}
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS_MS_MANAGE_PAYMENT}
     networks:
       - internal-net
       - proxy-net
@@ -175,7 +227,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.repu-ms-manage-payment.rule=Host(`${PUBLIC_HOST:-167.86.88.151}`) && PathPrefix(`/ms-manage-payment`)"
       - "traefik.http.routers.repu-ms-manage-payment.entrypoints=web"
-      - "traefik.http.services.repu-ms-manage-payment.loadbalancer.server.port=8084"
+      - "traefik.http.services.repu-ms-manage-payment.loadbalancer.server.port=${SERVER_PORT_MS_MANAGE_PAYMENT}"
       - "traefik.docker.network=repu_proxy"
 
   ms-products:
@@ -194,11 +246,28 @@ services:
           cpus: '0.10'
           memory: 256M
     environment:
-      - SPRING_PROFILES_ACTIVE=local
-      - SERVER_PORT=8085
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://repu_postgres:5432/${POSTGRES_DB}
+      - APPLICATION_NAME=${APPLICATION_NAME_MS_PRODUCTS}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE_MS_PRODUCTS}
+      - SERVER_PORT=${SERVER_PORT_MS_PRODUCTS}
+      - POSTGRES_URL=${POSTGRES_URL}
+      - POSTGRES_PORT=${POSTGRES_PORT}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_SCHEMA=${POSTGRES_SCHEMA}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${POSTGRES_URL}:${POSTGRES_PORT}/${POSTGRES_DB}
       - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
       - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET_MS_PRODUCTS}
+      - MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED=${MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED}
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE}
+      - LOGIN_LEVEL_SPRING_SECURITY=${LOGIN_LEVEL_SPRING_SECURITY}
+      - LOGIN_LEVEL_SPRING_REACTIVE=${LOGIN_LEVEL_SPRING_REACTIVE}
+      - LOGIN_LEVEL_SPRING_R2DBC=${LOGIN_LEVEL_SPRING_R2DBC}
+      - LOGIN_LEVEL_R2DBC_POSTGRESQL=${LOGIN_LEVEL_R2DBC_POSTGRESQL}
+      - LOGIN_LEVEL_R2DBC_POSTGRESQL_QUERY=${LOGIN_LEVEL_R2DBC_POSTGRESQL_QUERY}
+      - LOGIN_LEVEL_R2DBC_POSTGRESQL_PARAM=${LOGIN_LEVEL_R2DBC_POSTGRESQL_PARAM}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS_MS_PRODUCTS}
     networks:
       - internal-net
       - proxy-net
@@ -206,7 +275,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.repu-ms-products.rule=Host(`${PUBLIC_HOST:-167.86.88.151}`) && PathPrefix(`/ms-products`)"
       - "traefik.http.routers.repu-ms-products.entrypoints=web"
-      - "traefik.http.services.repu-ms-products.loadbalancer.server.port=8085"
+      - "traefik.http.services.repu-ms-products.loadbalancer.server.port=${SERVER_PORT_MS_PRODUCTS}"
       - "traefik.docker.network=repu_proxy"
 
   ms-users:
@@ -286,14 +355,23 @@ services:
           cpus: '0.10'
           memory: 256M
     environment:
-      - SPRING_PROFILES_ACTIVE=local
-      - SERVER_PORT=8087
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://repu_postgres:5432/${POSTGRES_DB}
-      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
-      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
-      # Conexión opcional a Redis para caché/mensajería si el microservicio lo requiere
-      - SPRING_DATA_REDIS_HOST=repu_redis
-      - SPRING_DATA_REDIS_PORT=6379
+      - APPLICATION_NAME=${APPLICATION_NAME_MS_ORDERS}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE_MS_ORDERS}
+      - SERVER_PORT=${SERVER_PORT_MS_ORDERS}
+      - POSTGRES_URL=${POSTGRES_URL}
+      - POSTGRES_PORT=${POSTGRES_PORT}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_SCHEMA=${POSTGRES_SCHEMA}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS_MS_ORDERS}
+      - ORDER_RESERVATION_TTL=${ORDER_RESERVATION_TTL}
+      - AUTH_SESSION_BASE_URL=${AUTH_SESSION_BASE_URL}
+      - AUTH_SESSION_CONNECT_TIMEOUT=${AUTH_SESSION_CONNECT_TIMEOUT}
+      - AUTH_SESSION_RESPONSE_TIMEOUT=${AUTH_SESSION_RESPONSE_TIMEOUT}
+      - AUTH_SERVICE_TOKEN=${AUTH_SERVICE_TOKEN}
+      - MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED=${MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED}
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE}
     networks:
       - internal-net
       - proxy-net
@@ -301,7 +379,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.repu-ms-orders.rule=Host(`${PUBLIC_HOST:-167.86.88.151}`) && PathPrefix(`/ms-orders`)"
       - "traefik.http.routers.repu-ms-orders.entrypoints=web"
-      - "traefik.http.services.repu-ms-orders.loadbalancer.server.port=8087"
+      - "traefik.http.services.repu-ms-orders.loadbalancer.server.port=${SERVER_PORT_MS_ORDERS}"
       - "traefik.docker.network=repu_proxy"
 
 networks:
