@@ -1,3 +1,6 @@
+#aplication.yaml
+**/applications/app-service/src/main/resources/application.yaml
+
 # Archivo de configuracion
 .env
 

@@ -5,6 +5,8 @@
 docker compose -f docker-compose-apps.yaml up -d --build
 docker compose -f docker-compose-infra.yaml up -d --build
 
+docker compose -f docker-compose-apps.yaml up -d --build --force-recreate ms-companies
+
 #  Muestra todos los contenedores existentes (los que están activos y los que se han detenido). Si usas solo docker ps verás solo los activos.
 docker ps -a
 

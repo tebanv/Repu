@@ -288,7 +288,7 @@ paths:
   /companies:
     get:
       tags: [Companies (Tenants)]
-      summary: Directorio público de comercios cercanos
+      summary: Directorio público de comercios
       security: []
       parameters:
         - name: lat
@@ -301,15 +301,16 @@ paths:
           schema: { type: number, format: double, example: -75.5658 }
         - name: radiusKm
           in: query
-          schema: { type: number, default: 10, example: 5 }
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/SizeParam'
+          description: Radio de búsqueda en kilómetros; requiere lat y lng.
+          schema: { type: integer, minimum: 1, default: 10, example: 5 }
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PagedCompanyList'
+                type: array
+                items:
+                  $ref: '#/components/schemas/Company'
     post:
       tags: [Companies (Tenants)]
       summary: Registrar nuevo comercio / tenant
@@ -326,6 +327,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Company'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Authentication is required.
+        '403':
+          description: Requires DISTRIBUTOR or ADMIN role.
 
   /companies/{companyId}:
     get:

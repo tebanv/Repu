@@ -11,6 +11,7 @@ SELECT PostGIS_Full_Version();
 
 CREATE SCHEMA IF NOT EXISTS repu;
 ALTER ROLE repu SET search_path TO repu, public;
+SET search_path TO repu, public;
 
 -- Función de actualización automática de timestamp la fecha de modificación
 CREATE OR REPLACE FUNCTION actualizar_timestamp_modificacion()
@@ -666,7 +667,7 @@ CREATE INDEX idx_direcciones_usuario_version ON direcciones_usuario(id_usuario, 
 
 -- Empresas
 CREATE INDEX idx_empresas_propietario ON empresas(id_usuario_propietario);
-CREATE INDEX idx_empresas_ubicacion ON empresas USING GIST (ubicacion);
+CREATE INDEX IF NOT EXISTS idx_empresas_ubicacion ON empresas USING GIST (ubicacion);
 CREATE INDEX idx_empresas_slug ON empresas(slug);
 CREATE INDEX idx_empresas_telefono ON empresas(telefono_comercial);
 
