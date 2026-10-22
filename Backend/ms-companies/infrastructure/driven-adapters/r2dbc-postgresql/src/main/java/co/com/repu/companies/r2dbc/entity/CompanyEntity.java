@@ -7,7 +7,6 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
 import io.r2dbc.postgresql.codec.Json;
-import org.springframework.data.domain.Persistable;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 import java.time.LocalDateTime;
@@ -18,7 +17,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 @Table("empresas")
-public class CompanyEntity implements Persistable<UUID> {
+public class CompanyEntity {
     @Id
     @Column("id_empresa")
     private UUID id;
@@ -38,6 +37,15 @@ public class CompanyEntity implements Persistable<UUID> {
     @Column("descripcion_tienda")
     private String description;
 
+    @Column("telefono_comercial")
+    private String phone;
+
+    @Column("banner_url")
+    private String bannerUrl;
+
+    @Column("slug")
+    private String slug;
+
     // Postgres JSONB requiere configuración especial de R2DBC o convertir a String/Map
     // Por simplicidad inicial, R2DBC a veces lo maneja como String si no hay converter
     @Column("configuracion_operativa")
@@ -46,14 +54,17 @@ public class CompanyEntity implements Persistable<UUID> {
     @Column("direccion_fisica")
     private String address;
 
-    @Column("latitud")
+    @Transient
     private Double latitude;
 
-    @Column("longitud")
+    @Transient
     private Double longitude;
 
     @Column("calificacion_promedio")
     private Double rating;
+
+    @Column("total_resenas")
+    private Integer reviewCount;
 
     @Column("activo")
     private Boolean active;
@@ -64,14 +75,4 @@ public class CompanyEntity implements Persistable<UUID> {
     @Column("fecha_actualizacion")
     private LocalDateTime updatedAt;
 
-    // --- Lógica de Persistable ---
-
-    @Transient // Este campo no va a la BD, es solo para lógica interna de Spring
-    @Builder.Default
-    private boolean isNew = false;
-
-    @Override
-    public boolean isNew() {
-        return this.isNew || id == null; // Si marcamos isNew=true, forzamos INSERT
-    }
 }

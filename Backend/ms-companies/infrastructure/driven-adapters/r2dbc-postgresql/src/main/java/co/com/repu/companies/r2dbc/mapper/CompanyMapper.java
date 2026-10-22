@@ -27,10 +27,14 @@ public class CompanyMapper {
                 .taxId(entity.getTaxId())
                 .logoUrl(entity.getLogoUrl())
                 .description(entity.getDescription())
+                .phone(entity.getPhone())
+                .bannerUrl(entity.getBannerUrl())
+                .slug(entity.getSlug())
                 .address(entity.getAddress())
                 .latitude(entity.getLatitude())
                 .longitude(entity.getLongitude())
                 .rating(entity.getRating())
+                .reviewCount(entity.getReviewCount())
                 .active(entity.getActive())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
@@ -48,10 +52,14 @@ public class CompanyMapper {
                 .taxId(domain.getTaxId())
                 .logoUrl(domain.getLogoUrl())
                 .description(domain.getDescription())
+                .phone(domain.getPhone())
+                .bannerUrl(domain.getBannerUrl())
+                .slug(domain.getSlug())
                 .address(domain.getAddress())
                 .latitude(domain.getLatitude())
                 .longitude(domain.getLongitude())
                 .rating(domain.getRating())
+                .reviewCount(domain.getReviewCount())
                 .active(domain.getActive())
                 .createdAt(domain.getCreatedAt())
                 .updatedAt(domain.getUpdatedAt())
@@ -66,17 +74,21 @@ public class CompanyMapper {
         try {
             return objectMapper.readValue(json.asString(), Map.class);
         } catch (JsonProcessingException e) {
-            return null;
+            throw new IllegalStateException("Company operationalConfig contains invalid JSON", e);
         }
     }
 
     private Json convertObjectToJson(Object object) {
+        return toJson(object);
+    }
+
+    public Json toJson(Object object) {
         if (object == null) return Json.of("{}");
         try {
             String jsonString = objectMapper.writeValueAsString(object);
             return Json.of(jsonString);
         } catch (JsonProcessingException e) {
-            return Json.of("{}");
+            throw new IllegalArgumentException("Company operationalConfig cannot be serialized", e);
         }
     }
 }

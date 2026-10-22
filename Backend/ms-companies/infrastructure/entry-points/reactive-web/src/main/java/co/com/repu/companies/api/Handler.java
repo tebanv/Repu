@@ -5,12 +5,13 @@ import co.com.repu.companies.usecase.managecompany.ManageCompanyUseCase;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j; // 1. Logging
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Mono;
 
-import java.net.URI;
+import java.util.UUID;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -36,15 +37,21 @@ public class Handler {
 
         String latStr = request.queryParam("lat").orElse(null);
         String lngStr = request.queryParam("lng").orElse(null);
+        String radiusStr = request.queryParam("radiusKm").orElse(null);
 
         // 2. Validación de coherencia: Si envían uno, deben enviar el otro
         if ((latStr != null && lngStr == null) || (latStr == null && lngStr != null)) {
             return ServerResponse.badRequest()
                     .bodyValue(Map.of("error", "Both 'lat' and 'lng' are required for geolocation search."));
         }
+        if (radiusStr != null && latStr == null) {
+            return ServerResponse.badRequest()
+                    .bodyValue(Map.of("error", "'radiusKm' requires both 'lat' and 'lng'."));
+        }
 
         Double lat = null;
         Double lng = null;
+        Integer radiusKm = null;
 
         try {
             if (latStr != null) {
@@ -52,13 +59,22 @@ public class Handler {
                 lng = Double.valueOf(lngStr);
 
                 // 3. Validación de rangos geográficos reales
-                if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+                if (!Double.isFinite(lat) || !Double.isFinite(lng)
+                        || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
                     return ServerResponse.badRequest()
                             .bodyValue(Map.of("error", "Coordinates out of range. Lat: [-90, 90], Lng: [-180, 180]"));
                 }
             }
+            if (radiusStr != null) {
+                radiusKm = Integer.valueOf(radiusStr);
+                if (radiusKm <= 0) {
+                    return ServerResponse.badRequest()
+                            .bodyValue(Map.of("error", "'radiusKm' must be a positive integer."));
+                }
+            }
         } catch (NumberFormatException e) {
-            return ServerResponse.badRequest().bodyValue(Map.of("error", "Coordinates must be numeric values."));
+            return ServerResponse.badRequest()
+                    .bodyValue(Map.of("error", "Coordinates and radiusKm must be numeric values."));
         }
 
 
@@ -66,7 +82,8 @@ public class Handler {
 
         return ServerResponse.ok()
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(manageCompanyUseCase.getAllCompanies(lat, lng, messageId), Company.class)
+                .body(manageCompanyUseCase.getAllCompanies(lat, lng, radiusKm, messageId)
+                        .map(Handler::toResponse), CompanyResponse.class)
                 .doOnError(e -> log.error("Error fetching companies: {}, messageId: {}", e, messageId));
     }
 
@@ -78,28 +95,35 @@ public class Handler {
         // 1. Extraer el ID (Si falla, devuelve 400 Bad Request automáticamente)
         String messageId = getRequestId(request);
 
-        return request.bodyToMono(Company.class)
-                .flatMap(company -> {
-                    // 4. Validación Manual Simple (O podrías usar Validator de Spring)
-                    if (company.getName() == null || company.getName().isBlank()) {
-                        return ServerResponse.badRequest().bodyValue(Map.of("error", "Field 'name' is required"));
-                    }
-                    if (company.getTaxId() == null || company.getTaxId().isBlank()) {
-                        return ServerResponse.badRequest().bodyValue(Map.of("error", "Field 'taxId' is required"));
+        return request.principal()
+                .flatMap(principal -> {
+                    UUID ownerId;
+                    try {
+                        ownerId = UUID.fromString(principal.getName());
+                    } catch (IllegalArgumentException e) {
+                        return ServerResponse.status(HttpStatus.UNAUTHORIZED)
+                                .bodyValue(Map.of("error", "Authenticated user identity is invalid."));
                     }
 
-                    log.info("Peticion para crear empresa: {} - TaxID: {}, message-id: {}", company.getName(), company.getTaxId(), messageId);
+                    return request.bodyToMono(CompanyInput.class)
+                            .flatMap(input -> {
+                                String validationError = validateInput(input);
+                                if (validationError != null) {
+                                    return ServerResponse.badRequest()
+                                            .bodyValue(Map.of("error", validationError));
+                                }
 
-                    return manageCompanyUseCase.createCompany(company, messageId)
-                            .flatMap(created -> {
-                                log.info("Company created successfully with ID: {}, messageId: {}", created.getId(), messageId);
-                                return ServerResponse
-                                        .created(URI.create("/companies/" + created.getId())) // Header Location
-                                        .contentType(MediaType.APPLICATION_JSON)
-                                        .bodyValue(created);
+                                Company company = toDomain(input, ownerId);
+                                log.info("Creando empresa para propietario {}, messageId: {}", ownerId, messageId);
+                                return manageCompanyUseCase.createCompany(company, messageId)
+                                        .flatMap(created -> ServerResponse
+                                                .status(HttpStatus.CREATED)
+                                                .contentType(MediaType.APPLICATION_JSON)
+                                                .bodyValue(toResponse(created)));
                             });
                 })
-                .doOnError(e -> log.error("Error creating company: {}, message-id: {}", e, messageId));
+                .switchIfEmpty(Mono.defer(() -> ServerResponse.status(HttpStatus.UNAUTHORIZED).build()))
+                .doOnError(e -> log.error("Error creating company, messageId: {}", messageId, e));
     }
 
     /**
@@ -128,7 +152,7 @@ public class Handler {
                     return manageCompanyUseCase.updateStatus(companyId, dto.active(), messageId)
                             .flatMap(company -> ServerResponse.ok()
                                     .contentType(MediaType.APPLICATION_JSON)
-                                    .bodyValue(company))
+                                    .bodyValue(toResponse(company)))
                             // 6. Manejo de 404: Si el UseCase retorna vacío (no encontró empresa)
                             .switchIfEmpty(Mono.defer(() -> {
                                 log.warn("Empresa con ID {} no fue encontrada para acutalizar el estado, messageId: {}",
@@ -154,18 +178,22 @@ public class Handler {
                     .bodyValue(Map.of("error", "Invalid UUID format for Company ID"));
         }
 
-        return request.bodyToMono(Company.class)
+        return request.bodyToMono(CompanyUpdateRequest.class)
                 .flatMap(updates -> {
+                    String validationError = validateUpdate(updates);
+                    if (validationError != null) {
+                        return ServerResponse.badRequest().bodyValue(Map.of("error", validationError));
+                    }
                     log.info("Peticion para actualizar detalle a la empresa ID: {}, messageId: {}",
                             companyId, messageId);
 
-                    return manageCompanyUseCase.updateCompanyDetails(companyId, updates, messageId)
+                    return manageCompanyUseCase.updateCompanyDetails(companyId, toUpdateDomain(updates), messageId)
                             .flatMap(updatedCompany -> {
                                 log.info("Empresa ID: {} actualizada satisfactoriamente, messageId: {}",
                                         companyId, messageId);
                                 return ServerResponse.ok()
                                         .contentType(MediaType.APPLICATION_JSON)
-                                        .bodyValue(updatedCompany);
+                                        .bodyValue(toResponse(updatedCompany));
                             })
                             // 4. Manejo de 404 Not Found
                             .switchIfEmpty(Mono.defer(() -> {
@@ -188,4 +216,110 @@ public class Handler {
     }
 
     public record StatusDTO(Boolean active) {}
+
+    public record PointCoordinates(Double latitude, Double longitude) {}
+
+    public record CompanyInput(
+            String businessName,
+            String taxId,
+            String description,
+            String logoUrl,
+            String phone,
+            String bannerUrl,
+            String physicalAddress,
+            PointCoordinates location,
+            Object operationalConfig) {}
+
+    public record CompanyUpdateRequest(
+            String businessName,
+            String description,
+            String logoUrl,
+            String phone,
+            String bannerUrl,
+            String physicalAddress,
+            PointCoordinates location,
+            Object operationalConfig) {}
+
+    public record CompanyResponse(
+            String id,
+            UUID ownerUserId,
+            String businessName,
+            String taxId,
+            String description,
+            String logoUrl,
+            String phone,
+            String bannerUrl,
+            String physicalAddress,
+            PointCoordinates location,
+            Object operationalConfig,
+            Double rating,
+            Integer reviewCount,
+            Boolean active,
+            String slug) {}
+
+    private static String validateInput(CompanyInput input) {
+        if (input.businessName() == null || input.businessName().isBlank()) return "businessName is required.";
+        if (input.taxId() == null || input.taxId().isBlank()) return "taxId is required.";
+        if (input.physicalAddress() == null || input.physicalAddress().isBlank()) return "physicalAddress is required.";
+        return validateLocation(input.location());
+    }
+
+    private static String validateUpdate(CompanyUpdateRequest input) {
+        if (input.businessName() != null && input.businessName().isBlank()) return "businessName cannot be blank.";
+        if (input.physicalAddress() != null && input.physicalAddress().isBlank()) {
+            return "physicalAddress cannot be blank.";
+        }
+        return input.location() == null ? null : validateLocation(input.location());
+    }
+
+    private static String validateLocation(PointCoordinates location) {
+        if (location == null || location.latitude() == null || location.longitude() == null) {
+            return "location.latitude and location.longitude are required.";
+        }
+        if (!Double.isFinite(location.latitude()) || !Double.isFinite(location.longitude())
+                || location.latitude() < -90 || location.latitude() > 90
+                || location.longitude() < -180 || location.longitude() > 180) {
+            return "location coordinates are out of range.";
+        }
+        return null;
+    }
+
+    private static Company toDomain(CompanyInput input, UUID ownerId) {
+        return Company.builder()
+                .userIdOwner(ownerId)
+                .name(input.businessName())
+                .taxId(input.taxId())
+                .description(input.description())
+                .logoUrl(input.logoUrl())
+                .phone(input.phone())
+                .bannerUrl(input.bannerUrl())
+                .address(input.physicalAddress())
+                .latitude(input.location().latitude())
+                .longitude(input.location().longitude())
+                .operationalConfig(input.operationalConfig())
+                .build();
+    }
+
+    private static Company toUpdateDomain(CompanyUpdateRequest input) {
+        return Company.builder()
+                .name(input.businessName())
+                .description(input.description())
+                .logoUrl(input.logoUrl())
+                .phone(input.phone())
+                .bannerUrl(input.bannerUrl())
+                .address(input.physicalAddress())
+                .latitude(input.location() == null ? null : input.location().latitude())
+                .longitude(input.location() == null ? null : input.location().longitude())
+                .operationalConfig(input.operationalConfig())
+                .build();
+    }
+
+    private static CompanyResponse toResponse(Company company) {
+        PointCoordinates location = company.getLatitude() == null || company.getLongitude() == null
+                ? null : new PointCoordinates(company.getLatitude(), company.getLongitude());
+        return new CompanyResponse(company.getId(), company.getUserIdOwner(), company.getName(),
+                company.getTaxId(), company.getDescription(), company.getLogoUrl(), company.getPhone(),
+                company.getBannerUrl(), company.getAddress(), location, company.getOperationalConfig(),
+                company.getRating(), company.getReviewCount(), company.getActive(), company.getSlug());
+    }
 }

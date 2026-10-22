@@ -10,13 +10,13 @@ import reactor.core.publisher.Mono;
 public class ManageCompanyUseCase {
 
     private final CompanyRepository companyRepository;
-    private static final int DEFAULT_RADIUS_KM = 10;
+    public static final int DEFAULT_RADIUS_KM = 10;
 
     // Debe aceptar los parámetros de ubicación (pueden llegar nulos)
-    public Flux<Company> getAllCompanies(Double lat, Double lng, String messageId) {
+    public Flux<Company> getAllCompanies(Double lat, Double lng, Integer radiusKm, String messageId) {
         if (lat != null && lng != null) {
-            // El usuario nos dio su ubicación: Mostrar cercanas primero
-            return companyRepository.findNearest(lat, lng, DEFAULT_RADIUS_KM, messageId);
+            return companyRepository.findNearest(lat, lng,
+                    radiusKm == null ? DEFAULT_RADIUS_KM : radiusKm, messageId);
         } else {
             // No hay ubicación: Mostrar todas (idealmente paginado en el futuro)
             return companyRepository.findAll();
@@ -43,6 +43,8 @@ public class ManageCompanyUseCase {
                             .taxId(updates.getTaxId() != null ? updates.getTaxId() : existingCompany.getTaxId())
                             .description(updates.getDescription() != null ? updates.getDescription() : existingCompany.getDescription())
                             .logoUrl(updates.getLogoUrl() != null ? updates.getLogoUrl() : existingCompany.getLogoUrl())
+                            .phone(updates.getPhone() != null ? updates.getPhone() : existingCompany.getPhone())
+                            .bannerUrl(updates.getBannerUrl() != null ? updates.getBannerUrl() : existingCompany.getBannerUrl())
                             .address(updates.getAddress() != null ? updates.getAddress() : existingCompany.getAddress())
                             .latitude(updates.getLatitude() != null ? updates.getLatitude() : existingCompany.getLatitude())
                             .longitude(updates.getLongitude() != null ? updates.getLongitude() : existingCompany.getLongitude())

@@ -16,6 +16,9 @@ public class Company {
     private String taxId;            // NIT
     private String logoUrl;
     private String description;
+    private String phone;
+    private String bannerUrl;
+    private String slug;
 
     // Configuración operativa (JSONB en BD)
     // Usamos Object o un Map para no acoplarnos a librerías de JSON aquí
@@ -25,6 +28,7 @@ public class Company {
     private Double latitude;
     private Double longitude;
     private Double rating;           // calificacion_promedio
+    private Integer reviewCount;
 
     private Boolean active;
     private LocalDateTime createdAt;

@@ -28,14 +28,14 @@ public class SecurityConfig {
 
                 .authorizeExchange(exchanges -> exchanges
                         // 1. Endpoints Públicos (Si quieres que listar sea público, descomenta)
-                        // .pathMatchers(HttpMethod.GET, "/companies").permitAll()
+                        .pathMatchers(HttpMethod.GET, "/api/companies").permitAll()
 
                         // 2. Swagger / Actuator (Salud)
                         .pathMatchers("/actuator/**").permitAll()
                         .pathMatchers("/webjars/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
 
                         // 3. Crear empresa solo para ADMIN o DISTRIBUTOR
-                        .pathMatchers(HttpMethod.POST, "/api/companies").hasAnyRole("ADMIN", "DISTRIBUTOR", "BUYER")
+                        .pathMatchers(HttpMethod.POST, "/api/companies").hasAnyRole("ADMIN", "DISTRIBUIDOR")
 
                         // 4. Actualizar estado solo ADMIN
                         .pathMatchers(HttpMethod.PATCH, "/api/companies/*/status").hasRole("ADMIN")

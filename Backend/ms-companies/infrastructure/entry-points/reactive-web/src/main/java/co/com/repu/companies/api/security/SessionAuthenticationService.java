@@ -33,7 +33,7 @@ public class SessionAuthenticationService {
         }
 
         WebClient.RequestHeadersSpec<?> request = webClient.get()
-                .uri(URI.create("/api/auth/session"));
+                .uri("/api/auth/session");
 
         if (bearer) {
             request.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
