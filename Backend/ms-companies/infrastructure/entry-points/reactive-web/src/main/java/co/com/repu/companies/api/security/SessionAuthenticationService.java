@@ -14,14 +14,15 @@ import java.util.UUID;
 public class SessionAuthenticationService {
 
     private final WebClient webClient;
+    private final URI sessionUri;
     private final String sessionCookieName;
 
     public SessionAuthenticationService(@Value("${auth.session.base-url}") String baseUrl,
                                         @Value("${auth.session.service-token:}") String serviceToken,
                                         @Value("${security.session-cookie.name:__Host-repu_session}") String sessionCookieName) {
         this.sessionCookieName = sessionCookieName;
-        WebClient.Builder builder = WebClient.builder()
-                .baseUrl(baseUrl);
+        this.sessionUri = resolveSessionUri(baseUrl);
+        WebClient.Builder builder = WebClient.builder();
 
         if (serviceToken != null && !serviceToken.isBlank()) {
             builder.defaultHeader("X-Auth-Service-Token", serviceToken);
@@ -36,7 +37,7 @@ public class SessionAuthenticationService {
         }
 
         WebClient.RequestHeadersSpec<?> request = webClient.get()
-                .uri("/api/auth/session");
+                .uri(sessionUri);
 
         if (bearer) {
             request.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
@@ -53,6 +54,11 @@ public class SessionAuthenticationService {
 
     public String getSessionCookieName() {
         return sessionCookieName;
+    }
+
+    static URI resolveSessionUri(String baseUrl) {
+        String normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
+        return URI.create(normalizedBaseUrl).resolve("api/auth/session");
     }
 
     public record SessionPrincipal(UUID userId, String role) {

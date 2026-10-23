@@ -27,9 +27,6 @@ public class SecurityConfig {
                 .securityContextRepository(securityContextRepository)
 
                 .authorizeExchange(exchanges -> exchanges
-                        // 1. Endpoints Públicos (Si quieres que listar sea público, descomenta)
-                        // .pathMatchers(HttpMethod.GET, "/companies").permitAll()
-
                         // 2. Swagger / Actuator (Salud)
                         .pathMatchers("/actuator/**").permitAll()
                         .pathMatchers("/webjars/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()

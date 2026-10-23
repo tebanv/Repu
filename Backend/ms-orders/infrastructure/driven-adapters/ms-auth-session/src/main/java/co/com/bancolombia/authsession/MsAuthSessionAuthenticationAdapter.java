@@ -21,6 +21,7 @@ import java.util.UUID;
 @Component
 public class MsAuthSessionAuthenticationAdapter implements SessionAuthenticationGateway {
     private final WebClient webClient;
+    private final URI sessionUri;
     private final String sessionCookieName;
 
     public MsAuthSessionAuthenticationAdapter(@Value("${auth.session.base-url}") String baseUrl,
@@ -31,11 +32,12 @@ public class MsAuthSessionAuthenticationAdapter implements SessionAuthentication
                                               @Value("${security.session-cookie.name:__Host-repu_session}") String sessionCookieName) {
         this.sessionCookieName = sessionCookieName;
         validateBaseUrl(baseUrl, allowInsecureHttp);
+        String normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
+        this.sessionUri = URI.create(normalizedBaseUrl).resolve("api/auth/session");
         HttpClient httpClient = HttpClient.create()
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, Math.toIntExact(connectTimeout.toMillis()))
                 .responseTimeout(responseTimeout);
         this.webClient = WebClient.builder()
-                .baseUrl(baseUrl)
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .defaultHeaders(headers -> {
                     if (serviceToken != null && !serviceToken.isBlank()) {
@@ -48,7 +50,7 @@ public class MsAuthSessionAuthenticationAdapter implements SessionAuthentication
     @Override
     public Mono<AuthenticatedUser> authenticate(SessionCredential credential, String requestId) {
         WebClient.RequestHeadersSpec<?> request = webClient.get()
-                .uri("/api/auth/session")
+                .uri(sessionUri)
                 .header("X-Request-ID", requestId);
         if (credential.type() == SessionCredential.Type.BEARER) {
             request.header(HttpHeaders.AUTHORIZATION, "Bearer " + credential.value());
