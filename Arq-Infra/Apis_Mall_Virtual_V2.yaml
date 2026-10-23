@@ -329,6 +329,18 @@ paths:
                 $ref: '#/components/schemas/Company'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Conflicto de unicidad o integridad referencial.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Base de datos temporalmente no disponible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: Authentication is required.
         '403':
@@ -350,6 +362,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Company'
+
     patch:
       tags: [Companies (Tenants)]
       summary: Actualizar datos operativos del comercio
@@ -371,6 +384,54 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Company'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: El slug o el NIT ya está en uso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /companies/{companyId}/status:
+    patch:
+      tags: [Companies (Tenants)]
+      summary: Activar o desactivar un comercio
+      description: 'Rol requerido: ADMIN o DISTRIBUIDOR propietario'
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [active]
+              properties:
+                active:
+                  type: boolean
+      responses:
+        '200':
+          description: Estado actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: El usuario no es administrador ni propietario de la empresa.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Empresa no encontrada.
 
   # Operaciones de Comercio sobre Órdenes (Máquina de Estados de Tienda)
   /companies/{companyId}/orders/{orderId}/accept:
@@ -479,6 +540,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Category'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: La categoría ya existe o la referencia a una categoría padre es inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Base de datos temporalmente no disponible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /catalog/products:
     get:
@@ -526,6 +601,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Product'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Conflicto de unicidad o referencia a empresa/categoría inexistente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Base de datos temporalmente no disponible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /catalog/products/{productId}:
     get:
@@ -1229,6 +1318,10 @@ components:
         details:
           type: object
           example: { "currentPaymentStatus": "PENDIENTE" }
+        requestId:
+          type: string
+          format: uuid
+          description: Identificador de correlación de la solicitud.
 
     PageMetadata:
       type: object
@@ -1494,6 +1587,11 @@ components:
           type: string
           nullable: true
           example: "https://cdn.repu.com/companies/valle-banner.jpg"
+        slug:
+          type: string
+          maxLength: 150
+          description: Opcional en la entrada. El servidor lo normaliza y valida su unicidad; si se omite al crear, se genera desde businessName.
+          example: "baterias-del-valle"
         physicalAddress:
           type: string
           example: "Calle 10 # 43E-12, Medellín"
@@ -1528,10 +1626,6 @@ components:
             active:
               type: boolean
               example: true
-            slug:
-              type: string
-              description: Identificador único e inmutable usado en la URL pública del comercio.
-              example: "baterias-del-valle"
             phone:
               type: string
               nullable: true
@@ -1545,6 +1639,11 @@ components:
       type: object
       properties:
         businessName: { type: string }
+        slug:
+          type: string
+          maxLength: 150
+          description: Si se omite, el slug existente se conserva. Si cambia, el servidor lo normaliza y valida su unicidad.
+          example: "baterias-del-valle-medellin"
         description: { type: string }
         logoUrl: { type: string }
         physicalAddress: { type: string }

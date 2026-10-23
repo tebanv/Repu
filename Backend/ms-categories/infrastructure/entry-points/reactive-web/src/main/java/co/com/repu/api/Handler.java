@@ -4,7 +4,6 @@ import co.com.repu.model.category.Category;
 import co.com.repu.usecase.managecategory.ManageCategoryUseCase;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.server.ServerRequest;
@@ -80,7 +79,7 @@ public class Handler {
         // 1. Validar formato UUID del ID de la URL
         if (!UUID_PATTERN.matcher(categoryId).matches()) {
             return ServerResponse.badRequest()
-                    .bodyValue(new ErrorResponse("ID de categoría inválido en la URL."));
+                    .bodyValue(new ErrorResponse("INVALID_REQUEST", "ID de categoría inválido en la URL."));
         }
 
         return request.bodyToMono(Category.class)
@@ -110,7 +109,8 @@ public class Handler {
         String categoryId = request.pathVariable("categoryId");
 
         if (!UUID_PATTERN.matcher(categoryId).matches()) {
-            return ServerResponse.badRequest().bodyValue(new ErrorResponse("ID de categoría inválido"));
+            return ServerResponse.badRequest()
+                    .bodyValue(new ErrorResponse("INVALID_REQUEST", "ID de categoría inválido"));
         }
 
         return request.bodyToMono(StatusDTO.class)
@@ -136,22 +136,10 @@ public class Handler {
     }
 
     private Mono<ServerResponse> handleError(Throwable e, String requestId) {
-        log.error("Error procesando solicitud: {}, messageId: {}", e.getMessage(), requestId);
-
-        HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR;
-
-        if (e instanceof IllegalArgumentException || e.getMessage().contains("obligatorio") || e.getMessage().contains("válido")) {
-            status = HttpStatus.BAD_REQUEST;
-        } else if (e.getMessage().contains("no encontrada")) {
-            status = HttpStatus.NOT_FOUND;
-        }
-
-        return ServerResponse.status(status)
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(new ErrorResponse(e.getMessage()));
+        return ApiErrorHandler.handle(e, requestId);
     }
 
     // DTOs Internos
     public record StatusDTO(Boolean active) {}
-    public record ErrorResponse(String error) {}
+    public record ErrorResponse(String code, String message) {}
 }

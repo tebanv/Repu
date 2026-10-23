@@ -1,11 +1,13 @@
 package co.com.repu.companies.api;
 
 import co.com.repu.companies.model.company.Company;
+import co.com.repu.companies.model.company.CompanySlug;
 import co.com.repu.companies.usecase.managecompany.ManageCompanyUseCase;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j; // 1. Logging
 import org.springframework.http.MediaType;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
@@ -123,7 +125,7 @@ public class Handler {
                             });
                 })
                 .switchIfEmpty(Mono.defer(() -> ServerResponse.status(HttpStatus.UNAUTHORIZED).build()))
-                .doOnError(e -> log.error("Error creating company, messageId: {}", messageId, e));
+                .onErrorResume(e -> ApiErrorHandler.handle(e, messageId));
     }
 
     /**
@@ -140,27 +142,42 @@ public class Handler {
             return ServerResponse.badRequest().bodyValue(Map.of("error", "Invalid UUID format"));
         }
 
-        return request.bodyToMono(StatusDTO.class)
-                .flatMap(dto -> {
-                    if (dto.active() == null) {
-                        return ServerResponse.badRequest().bodyValue(Map.of("error", "Field 'active' is required"));
+        return request.principal()
+                .ofType(Authentication.class)
+                .flatMap(authentication -> {
+                    UUID actorId;
+                    try {
+                        actorId = UUID.fromString(authentication.getName());
+                    } catch (IllegalArgumentException e) {
+                        return ServerResponse.status(HttpStatus.UNAUTHORIZED).build();
                     }
+                    boolean administrator = authentication.getAuthorities().stream()
+                            .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
 
-                    log.info("Actualizando estado para Empresa ID: {} a {}, messageId: {}",
-                            companyId, dto.active(), messageId);
+                    return request.bodyToMono(StatusDTO.class)
+                            .flatMap(dto -> {
+                                if (dto.active() == null) {
+                                    return ServerResponse.badRequest()
+                                            .bodyValue(Map.of("error", "Field 'active' is required"));
+                                }
 
-                    return manageCompanyUseCase.updateStatus(companyId, dto.active(), messageId)
-                            .flatMap(company -> ServerResponse.ok()
-                                    .contentType(MediaType.APPLICATION_JSON)
-                                    .bodyValue(toResponse(company)))
-                            // 6. Manejo de 404: Si el UseCase retorna vacío (no encontró empresa)
-                            .switchIfEmpty(Mono.defer(() -> {
-                                log.warn("Empresa con ID {} no fue encontrada para acutalizar el estado, messageId: {}",
-                                        companyId, messageId);
-                                return ServerResponse.notFound().build();
-                            }));
+                                log.info("Actualizando estado para Empresa ID: {} a {}, actor: {}, messageId: {}",
+                                        companyId, dto.active(), actorId, messageId);
+
+                                return manageCompanyUseCase.updateStatus(
+                                                companyId, dto.active(), actorId, administrator, messageId)
+                                        .flatMap(company -> ServerResponse.ok()
+                                                .contentType(MediaType.APPLICATION_JSON)
+                                                .bodyValue(toResponse(company)))
+                                        .switchIfEmpty(Mono.defer(() -> {
+                                            log.warn("Empresa con ID {} no fue encontrada, messageId: {}",
+                                                    companyId, messageId);
+                                            return ServerResponse.notFound().build();
+                                        }));
+                            });
                 })
-                .doOnError(e -> log.error("Error updating company status", e));
+                .switchIfEmpty(Mono.defer(() -> ServerResponse.status(HttpStatus.UNAUTHORIZED).build()))
+                .onErrorResume(e -> ApiErrorHandler.handle(e, messageId));
     }
 
     /**
@@ -202,7 +219,7 @@ public class Handler {
                                 return ServerResponse.notFound().build();
                             }));
                 })
-                .doOnError(e -> log.error("System error updating company details", e));
+                .onErrorResume(e -> ApiErrorHandler.handle(e, messageId));
     }
 
     private String getRequestId(ServerRequest request) {
@@ -228,7 +245,8 @@ public class Handler {
             String bannerUrl,
             String physicalAddress,
             PointCoordinates location,
-            Object operationalConfig) {}
+            Object operationalConfig,
+            String slug) {}
 
     public record CompanyUpdateRequest(
             String businessName,
@@ -238,7 +256,8 @@ public class Handler {
             String bannerUrl,
             String physicalAddress,
             PointCoordinates location,
-            Object operationalConfig) {}
+            Object operationalConfig,
+            String slug) {}
 
     public record CompanyResponse(
             String id,
@@ -261,6 +280,8 @@ public class Handler {
         if (input.businessName() == null || input.businessName().isBlank()) return "businessName is required.";
         if (input.taxId() == null || input.taxId().isBlank()) return "taxId is required.";
         if (input.physicalAddress() == null || input.physicalAddress().isBlank()) return "physicalAddress is required.";
+        String slugError = validateSlug(input.slug());
+        if (slugError != null) return slugError;
         return validateLocation(input.location());
     }
 
@@ -269,7 +290,19 @@ public class Handler {
         if (input.physicalAddress() != null && input.physicalAddress().isBlank()) {
             return "physicalAddress cannot be blank.";
         }
+        String slugError = validateSlug(input.slug());
+        if (slugError != null) return slugError;
         return input.location() == null ? null : validateLocation(input.location());
+    }
+
+    private static String validateSlug(String slug) {
+        if (slug == null) return null;
+        try {
+            CompanySlug.normalize(slug);
+            return null;
+        } catch (IllegalArgumentException e) {
+            return "slug must contain 1-" + CompanySlug.MAX_LENGTH + " letters or numbers.";
+        }
     }
 
     private static String validateLocation(PointCoordinates location) {
@@ -297,6 +330,7 @@ public class Handler {
                 .latitude(input.location().latitude())
                 .longitude(input.location().longitude())
                 .operationalConfig(input.operationalConfig())
+                .slug(input.slug())
                 .build();
     }
 
@@ -311,6 +345,7 @@ public class Handler {
                 .latitude(input.location() == null ? null : input.location().latitude())
                 .longitude(input.location() == null ? null : input.location().longitude())
                 .operationalConfig(input.operationalConfig())
+                .slug(input.slug())
                 .build();
     }
 

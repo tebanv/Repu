@@ -13,6 +13,8 @@ import java.util.UUID;
 @Service
 public class SessionAuthenticationService {
 
+    static final String SESSION_COOKIE_NAME = "__Host-repu_session";
+
     private final WebClient webClient;
 
     public SessionAuthenticationService(@Value("${auth.session.base-url}") String baseUrl,
@@ -38,7 +40,7 @@ public class SessionAuthenticationService {
         if (bearer) {
             request.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
         } else {
-            request.header(HttpHeaders.COOKIE, "__Host-repo_session=" + token);
+            request.header(HttpHeaders.COOKIE, SESSION_COOKIE_NAME + "=" + token);
         }
 
         return request.retrieve()

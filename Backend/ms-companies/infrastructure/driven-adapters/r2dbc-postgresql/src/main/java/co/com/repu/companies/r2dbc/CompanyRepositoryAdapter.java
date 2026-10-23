@@ -1,12 +1,15 @@
 package co.com.repu.companies.r2dbc;
 
 import co.com.repu.companies.model.company.Company;
+import co.com.repu.companies.model.company.CompanySlug;
+import co.com.repu.companies.model.company.PersistenceException;
 import co.com.repu.companies.model.company.gateways.CompanyRepository;
 import co.com.repu.companies.r2dbc.entity.CompanyEntity;
 import co.com.repu.companies.r2dbc.mapper.CompanyMapper;
 import com.github.f4b6a3.uuid.UuidCreator;
 import io.r2dbc.postgresql.codec.Json;
 import io.r2dbc.spi.Row;
+import io.r2dbc.spi.R2dbcException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.r2dbc.core.DatabaseClient;
@@ -15,8 +18,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
-import java.text.Normalizer;
-import java.util.Locale;
 import java.util.UUID;
 
 @Repository
@@ -40,7 +41,9 @@ public class CompanyRepositoryAdapter implements CompanyRepository {
         if (company.getId() == null) {
             UUID id = UuidCreator.getTimeOrderedEpoch();
             company.setId(id.toString());
-            company.setSlug(createSlug(company.getName(), id));
+            if (company.getSlug() == null) {
+                company.setSlug(CompanySlug.generate(company.getName(), id));
+            }
             log.info("Creando empresa [{}] con id: {}, messageId: {}",company.getName(),  id, messageId);
             return insert(company, id);
         }
@@ -73,7 +76,8 @@ public class CompanyRepositoryAdapter implements CompanyRepository {
                 .bind(1, lng)
                 .bind(2, radiusKm * 1000.0)
                 .map((row, metadata) -> mapper.toDomain(toEntity(row)))
-                .all();
+                .all()
+                .onErrorMap(this::translatePersistenceError);
     }
 
     @Override
@@ -82,7 +86,17 @@ public class CompanyRepositoryAdapter implements CompanyRepository {
                         + " FROM repu.empresas WHERE id_empresa = $1")
                 .bind(0, UUID.fromString(id))
                 .map((row, metadata) -> mapper.toDomain(toEntity(row)))
-                .one();
+                .one()
+                .onErrorMap(this::translatePersistenceError);
+    }
+
+    @Override
+    public Mono<Boolean> existsBySlug(String slug) {
+        return databaseClient.sql("SELECT EXISTS (SELECT 1 FROM repu.empresas WHERE slug = $1) AS slug_exists")
+                .bind(0, slug)
+                .map((row, metadata) -> row.get("slug_exists", Boolean.class))
+                .one()
+                .onErrorMap(this::translatePersistenceError);
     }
 
     @Override
@@ -90,7 +104,8 @@ public class CompanyRepositoryAdapter implements CompanyRepository {
         return databaseClient.sql("SELECT " + SELECT_COLUMNS
                         + " FROM repu.empresas ORDER BY fecha_creacion DESC")
                 .map((row, metadata) -> mapper.toDomain(toEntity(row)))
-                .all();
+                .all()
+                .onErrorMap(this::translatePersistenceError);
     }
 
     @Override
@@ -126,7 +141,8 @@ public class CompanyRepositoryAdapter implements CompanyRepository {
         statement = bindNullable(statement, 11, company.getActive(), Boolean.class);
         statement = bindNullable(statement, 13, company.getPhone(), String.class);
         statement = bindNullable(statement, 14, company.getBannerUrl(), String.class);
-        return statement.map((row, metadata) -> mapper.toDomain(toEntity(row))).one();
+        return statement.map((row, metadata) -> mapper.toDomain(toEntity(row))).one()
+                .onErrorMap(this::translatePersistenceError);
     }
 
     private Mono<Company> updateCompany(Company company, UUID id) {
@@ -139,7 +155,8 @@ public class CompanyRepositoryAdapter implements CompanyRepository {
                                              AS public.geography),
                             calificacion_promedio = COALESCE($10, calificacion_promedio),
                             activo = COALESCE($11, activo), telefono_comercial = $12,
-                            banner_url = $13, fecha_actualizacion = CURRENT_TIMESTAMP
+                            banner_url = $13, slug = COALESCE($14, slug),
+                            fecha_actualizacion = CURRENT_TIMESTAMP
                         WHERE id_empresa = $1
                         RETURNING %s
                         """.formatted(SELECT_COLUMNS))
@@ -157,7 +174,53 @@ public class CompanyRepositoryAdapter implements CompanyRepository {
         statement = bindNullable(statement, 10, company.getActive(), Boolean.class);
         statement = bindNullable(statement, 11, company.getPhone(), String.class);
         statement = bindNullable(statement, 12, company.getBannerUrl(), String.class);
-        return statement.map((row, metadata) -> mapper.toDomain(toEntity(row))).one();
+        statement = bindNullable(statement, 13, company.getSlug(), String.class);
+        return statement.map((row, metadata) -> mapper.toDomain(toEntity(row))).one()
+                .onErrorMap(this::translatePersistenceError);
+    }
+
+    private Throwable translatePersistenceError(Throwable error) {
+        R2dbcException databaseError = findR2dbcException(error);
+        if (databaseError == null) {
+            return error;
+        }
+
+        String sqlState = databaseError.getSqlState();
+        if ("23505".equals(sqlState)) {
+            String message = databaseError.getMessage();
+            PersistenceException.Kind kind;
+            if (message != null && (message.contains("uq_empresas_slug") || message.contains("slug"))) {
+                kind = PersistenceException.Kind.DUPLICATE_SLUG;
+            } else if (message != null && (message.contains("empresas_nit_identificacion_key")
+                    || message.contains("nit_identificacion"))) {
+                kind = PersistenceException.Kind.DUPLICATE_TAX_ID;
+            } else {
+                kind = PersistenceException.Kind.DUPLICATE;
+            }
+            return new PersistenceException(kind, error);
+        }
+        if ("23503".equals(sqlState)) {
+            return new PersistenceException(PersistenceException.Kind.INVALID_REFERENCE, error);
+        }
+        if ("23514".equals(sqlState) || "23502".equals(sqlState)
+                || (sqlState != null && sqlState.startsWith("22"))) {
+            return new PersistenceException(PersistenceException.Kind.INVALID_VALUE, error);
+        }
+        if (sqlState != null && sqlState.startsWith("08")) {
+            return new PersistenceException(PersistenceException.Kind.UNAVAILABLE, error);
+        }
+        return error;
+    }
+
+    private R2dbcException findR2dbcException(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof R2dbcException r2dbcException) {
+                return r2dbcException;
+            }
+            current = current.getCause();
+        }
+        return null;
     }
 
     private CompanyEntity toEntity(Row row) {
@@ -188,13 +251,4 @@ public class CompanyRepositoryAdapter implements CompanyRepository {
         return value == null ? statement.bindNull(index, type) : statement.bind(index, value);
     }
 
-    private String createSlug(String name, UUID id) {
-        String normalized = Normalizer.normalize(name, Normalizer.Form.NFD)
-                .replaceAll("\\p{M}", "")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("[^a-z0-9]+", "-")
-                .replaceAll("(^-|-$)", "");
-        String base = normalized.isBlank() ? "company" : normalized;
-        return base.substring(0, Math.min(base.length(), 135)) + "-" + id.toString().substring(0, 8);
-    }
 }

@@ -4,7 +4,6 @@ import co.com.repu.model.product.Product;
 import co.com.repu.usecase.manageproducts.ManageProductUseCase;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.server.ServerRequest;
@@ -39,7 +38,8 @@ public class Handler {
 
         // 2. Validaciones
         if (companyId == null || !UUID_PATTERN.matcher(companyId).matches()) {
-            return ServerResponse.badRequest().bodyValue(new ErrorResponse("CompanyID válido es requerido."));
+            return ServerResponse.badRequest().bodyValue(
+                    new ErrorResponse("INVALID_REQUEST", "CompanyID válido es requerido."));
         }
 
         // 3. Decodificar JSON attributes (URL Encoded -> JSON String)
@@ -49,7 +49,8 @@ public class Handler {
                 attributesJson = URLDecoder.decode(attributesEncoded, StandardCharsets.UTF_8);
                 // Opcional: Validar que sea un JSON válido usando Jackson aquí
             } catch (Exception e) {
-                return ServerResponse.badRequest().bodyValue(new ErrorResponse("Formato de atributos JSON inválido."));
+                return ServerResponse.badRequest().bodyValue(
+                        new ErrorResponse("INVALID_REQUEST", "Formato de atributos JSON inválido."));
             }
         }
 
@@ -110,14 +111,16 @@ public class Handler {
 
         // Validar formato UUID
         if (!UUID_PATTERN.matcher(productId).matches()) {
-            return ServerResponse.badRequest().bodyValue(new ErrorResponse("ID de producto inválido"));
+            return ServerResponse.badRequest()
+                    .bodyValue(new ErrorResponse("INVALID_REQUEST", "ID de producto inválido"));
         }
 
         // Usamos un record local o StatusUpdateDTO global
         return request.bodyToMono(StatusDTO.class)
                 .flatMap(dto -> {
                     if (dto.active() == null) {
-                        return ServerResponse.badRequest().bodyValue(new ErrorResponse("El campo 'active' es requerido"));
+                        return ServerResponse.badRequest().bodyValue(
+                                new ErrorResponse("INVALID_REQUEST", "El campo 'active' es requerido"));
                     }
 
                     log.info("[ReqID: {}] Cambiando estado de producto {} a {}", requestId, productId, dto.active());
@@ -131,20 +134,7 @@ public class Handler {
     // --- Helpers y DTOs Internos ---
 
     private Mono<ServerResponse> handleError(Throwable e, String requestId) {
-        log.error("[ReqID: {}] Error procesando solicitud: {}", requestId, e.getMessage());
-
-        HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR; // 500 por defecto
-
-        // Mapear excepciones a códigos HTTP
-        if (e instanceof IllegalArgumentException || e.getMessage().contains("obligatorios")) {
-            status = HttpStatus.BAD_REQUEST; // 400
-        } else if (e.getMessage().contains("no encontrado")) {
-            status = HttpStatus.NOT_FOUND;   // 404
-        }
-
-        return ServerResponse.status(status)
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(new ErrorResponse(e.getMessage()));
+        return ApiErrorHandler.handle(e, requestId);
     }
 
     private String getRequestId(ServerRequest request) {
@@ -157,7 +147,7 @@ public class Handler {
                 ));
     }
 
-    public record ErrorResponse(String error) {}
+    public record ErrorResponse(String code, String message) {}
 
     public record StatusDTO(Boolean active) {}
 }

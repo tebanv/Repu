@@ -37,8 +37,9 @@ public class SecurityConfig {
                         // 3. Crear empresa solo para ADMIN o DISTRIBUTOR
                         .pathMatchers(HttpMethod.POST, "/api/companies").hasAnyRole("ADMIN", "DISTRIBUIDOR")
 
-                        // 4. Actualizar estado solo ADMIN
-                        .pathMatchers(HttpMethod.PATCH, "/api/companies/*/status").hasRole("ADMIN")
+                        // El distribuidor solo puede modificar su empresa; el caso de uso valida propiedad.
+                        .pathMatchers(HttpMethod.PATCH, "/api/companies/*/status")
+                        .hasAnyRole("ADMIN", "DISTRIBUIDOR")
 
                         // 5. Todo lo demás requiere estar autenticado (al menos token válido)
                         .anyExchange().authenticated()

@@ -7,6 +7,7 @@ import reactor.core.publisher.Mono;
 public interface CompanyRepository {
     Mono<Company> save(Company company, String messageId);
     Mono<Company> findById(String id);
+    Mono<Boolean> existsBySlug(String slug);
     Flux<Company> findAll(); // Más adelante agregaremos filtros (paginación, geo)
     Mono<Company> update(Company company, String messageId);
     /**

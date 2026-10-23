@@ -31,9 +31,9 @@ public class SecurityContextRepository implements ServerSecurityContextRepositor
                 ? authorization.substring(7)
                 : null;
 
-        String cookieValue = exchange.getRequest().getCookies().getFirst("__Host-repo_session") == null
+        String cookieValue = exchange.getRequest().getCookies().getFirst(SessionAuthenticationService.SESSION_COOKIE_NAME) == null
                 ? null
-                : exchange.getRequest().getCookies().getFirst("__Host-repo_session").getValue();
+                : exchange.getRequest().getCookies().getFirst(SessionAuthenticationService.SESSION_COOKIE_NAME).getValue();
 
         String token = bearer != null ? bearer : cookieValue;
         if (token == null || token.isBlank()) {
