@@ -1,7 +1,7 @@
 package co.com.repu.api.security;
 
 import co.com.repu.r2dbc.SessionAuthenticationService;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
@@ -14,10 +14,17 @@ import reactor.core.publisher.Mono;
 import java.util.List;
 
 @Component
-@RequiredArgsConstructor
 public class SecurityContextRepository implements ServerSecurityContextRepository {
 
     private final SessionAuthenticationService sessionAuthenticationService;
+    private final String sessionCookieName;
+
+    public SecurityContextRepository(
+            SessionAuthenticationService sessionAuthenticationService,
+            @Value("${security.session-cookie.name:__Host-repu_session}") String sessionCookieName) {
+        this.sessionAuthenticationService = sessionAuthenticationService;
+        this.sessionCookieName = sessionCookieName;
+    }
 
     @Override
     public Mono<Void> save(ServerWebExchange exchange, SecurityContext context) {
@@ -29,9 +36,9 @@ public class SecurityContextRepository implements ServerSecurityContextRepositor
         String authorization = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
         String token = authorization != null && authorization.startsWith("Bearer ")
                 ? authorization.substring(7)
-                : exchange.getRequest().getCookies().getFirst("__Host-repu_session") == null
+                : exchange.getRequest().getCookies().getFirst(sessionCookieName) == null
                 ? null
-                : exchange.getRequest().getCookies().getFirst("__Host-repu_session").getValue();
+                : exchange.getRequest().getCookies().getFirst(sessionCookieName).getValue();
 
         return sessionAuthenticationService.authenticate(token)
                 .map(principal -> new UsernamePasswordAuthenticationToken(

@@ -3,7 +3,7 @@ package co.com.bancolombia.api.config;
 import co.com.bancolombia.model.auth.gateways.SessionAuthenticationGateway;
 import co.com.bancolombia.model.auth.SessionCredential;
 import co.com.bancolombia.model.order.OrderException;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -19,10 +19,16 @@ import java.util.List;
 import java.util.UUID;
 
 @Component
-@RequiredArgsConstructor
 public class SessionAuthenticationWebFilter implements WebFilter {
-    private static final String SESSION_COOKIE = "__Host-repu_session";
     private final SessionAuthenticationGateway sessionAuthenticationGateway;
+    private final String sessionCookieName;
+
+    public SessionAuthenticationWebFilter(
+            SessionAuthenticationGateway sessionAuthenticationGateway,
+            @Value("${security.session-cookie.name:__Host-repu_session}") String sessionCookieName) {
+        this.sessionAuthenticationGateway = sessionAuthenticationGateway;
+        this.sessionCookieName = sessionCookieName;
+    }
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
@@ -60,7 +66,7 @@ public class SessionAuthenticationWebFilter implements WebFilter {
             }
             return null;
         }
-        var cookie = exchange.getRequest().getCookies().getFirst(SESSION_COOKIE);
+        var cookie = exchange.getRequest().getCookies().getFirst(sessionCookieName);
         return cookie == null ? null : new SessionCredential(cookie.getValue(), SessionCredential.Type.COOKIE);
     }
 

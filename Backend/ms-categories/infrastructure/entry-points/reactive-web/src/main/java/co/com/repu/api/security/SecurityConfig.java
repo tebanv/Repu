@@ -34,11 +34,14 @@ public class SecurityConfig {
                         .pathMatchers("/actuator/**").permitAll()
                         .pathMatchers("/webjars/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
 
-                        // 3. GET público (para que todos vean el menú)
+                        // 3. La consulta del catálogo es pública.
                         .pathMatchers(HttpMethod.GET, "/api/catalog/categories").permitAll()
-                        .pathMatchers(HttpMethod.POST, "/api/catalog/categories").hasAnyRole("ADMIN", "ANALYST", "BUYER")
-                        .pathMatchers(HttpMethod.PATCH, "/api/catalog/categories/*").hasAnyRole("ADMIN", "ANALYST", "BUYER")
-                        .pathMatchers(HttpMethod.PATCH, "/api/catalog/categories/*/status").hasAnyRole("ADMIN", "ANALYST", "BUYER")
+                        // Los roles deben coincidir con los valores emitidos por ms-auth y almacenados en BD.
+                        .pathMatchers(HttpMethod.POST, "/api/catalog/categories").hasAnyRole("ADMIN", "ANALISTA")
+                        .pathMatchers(HttpMethod.PATCH, "/api/catalog/categories/*/status")
+                        .hasAnyRole("ADMIN", "ANALISTA")
+                        .pathMatchers(HttpMethod.PATCH, "/api/catalog/categories/*")
+                        .hasAnyRole("ADMIN", "ANALISTA")
 
                         .anyExchange().authenticated()
                 )

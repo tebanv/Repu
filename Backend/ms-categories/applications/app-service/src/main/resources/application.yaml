@@ -33,6 +33,8 @@ cors:
 security:
   jwt:
     secret: ${JWT_SECRET}
+  session-cookie:
+    name: ${SESSION_COOKIE_NAME:__Host-repu_session}
 auth:
   session:
     base-url: ${AUTH_SESSION_BASE_URL}

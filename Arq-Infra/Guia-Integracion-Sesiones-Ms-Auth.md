@@ -47,6 +47,18 @@ La cookie usa `__Host-repu_session`, `HttpOnly`, `Secure`, `SameSite=Lax` y `Pat
 
 Para compartir la sesión entre portales, exponer las APIs detrás de un host común —por ejemplo, `api.repu.com`— y enrutar desde allí a los microservicios. En llamadas web entre orígenes, usar `credentials: "include"` (o `withCredentials: true`) y configurar CORS con orígenes explícitos y credenciales habilitadas; nunca combinar credenciales con `Access-Control-Allow-Origin: *`. `SameSite=Lax` permite subdominios del mismo sitio HTTPS, pero no convierte la cookie `__Host-` en una cookie compartida entre hosts.
 
+### Desarrollo local sobre HTTP/IP (solo pruebas)
+
+La configuración recomendada sigue siendo HTTPS con `__Host-repu_session`. Para probar desde un navegador contra Traefik en HTTP/IP, configura en el `.env` local (ignorado por Git) los siguientes valores:
+
+```dotenv
+SESSION_COOKIE_NAME=repu_session_dev
+SESSION_COOKIE_SECURE=false
+SESSION_COOKIE_ALLOW_INSECURE_HTTP=true
+```
+
+Este modo usa una cookie sin prefijo `__Host-`; los navegadores exigen `Secure` para ese prefijo y no aceptarían la cookie sobre HTTP. Los valores predeterminados del Compose siguen siendo `__Host-repu_session` y `Secure=true`; `ms-auth` además se niega a arrancar con cookies no seguras salvo que se habilite explícitamente `SESSION_COOKIE_ALLOW_INSECURE_HTTP=true` y el perfil Spring sea `local` o `dev`. No uses este modo en redes públicas, staging ni producción: HTTP expone la cookie de sesión y permite su robo. Para probar con cookie en navegador, abre el frontend y las APIs bajo el mismo host/IP que sirve Traefik; `SameSite=Lax` no permite enviar esa cookie en llamadas cross-site desde `localhost` hacia una IP. Si el frontend corre en otro puerto del mismo host, usa `credentials: "include"` y configura el CORS con el origen exacto (esquema, host y puerto, sin `/` final); los métodos de actualización/eliminación requieren preflight y están permitidos por los servicios que autentican esta sesión. Al volver a HTTPS, elimina estos overrides y reinicia todos los servicios para que todos vuelvan al nombre `__Host-repu_session`.
+
 ## Seguridad y expiración
 
 - No almacenar el token web en `localStorage`, `sessionStorage`, URLs ni telemetría; la cookie es gestionada por el navegador.

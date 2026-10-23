@@ -1,6 +1,5 @@
 package co.repu.api.config;
 
-import co.repu.api.Handler;
 import co.repu.model.users.User;
 import co.repu.model.users.AuthSession;
 import co.repu.usecase.auth.AuthUseCase;
@@ -28,11 +27,14 @@ public class SessionAuthenticationWebFilter implements WebFilter {
 
     private final AuthUseCase authUseCase;
     private final String serviceToken;
+    private final SessionCookieSettings sessionCookieSettings;
 
     public SessionAuthenticationWebFilter(AuthUseCase authUseCase,
-                                          @Value("${security.service-auth.token:}") String serviceToken) {
+                                          @Value("${security.service-auth.token:}") String serviceToken,
+                                          SessionCookieSettings sessionCookieSettings) {
         this.authUseCase = authUseCase;
         this.serviceToken = serviceToken;
+        this.sessionCookieSettings = sessionCookieSettings;
     }
 
     @Override
@@ -89,7 +91,7 @@ public class SessionAuthenticationWebFilter implements WebFilter {
         if (authorization != null && authorization.startsWith("Bearer ")) {
             return authorization.substring(7);
         }
-        var cookie = exchange.getRequest().getCookies().getFirst(Handler.SESSION_COOKIE);
+        var cookie = exchange.getRequest().getCookies().getFirst(sessionCookieSettings.name());
         return cookie == null ? null : cookie.getValue();
     }
 

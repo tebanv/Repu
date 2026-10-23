@@ -46,6 +46,8 @@ security:
   jwt:
     secret: ${JWT_SECRET}
     expiration-minutes: 60
+  session-cookie:
+    name: ${SESSION_COOKIE_NAME:__Host-repu_session}
 logging:
   level:
     org.springframework.security: ${LOGIN_LEVEL_SPRING_SECURITY}

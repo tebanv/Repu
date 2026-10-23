@@ -20,14 +20,16 @@ import java.util.UUID;
 
 @Component
 public class MsAuthSessionAuthenticationAdapter implements SessionAuthenticationGateway {
-    private static final String SESSION_COOKIE = "__Host-repu_session";
     private final WebClient webClient;
+    private final String sessionCookieName;
 
     public MsAuthSessionAuthenticationAdapter(@Value("${auth.session.base-url}") String baseUrl,
                                               @Value("${auth.session.allow-insecure-http:false}") boolean allowInsecureHttp,
                                               @Value("${auth.session.connect-timeout}") Duration connectTimeout,
                                               @Value("${auth.session.response-timeout}") Duration responseTimeout,
-                                              @Value("${auth.session.service-token:}") String serviceToken) {
+                                              @Value("${auth.session.service-token:}") String serviceToken,
+                                              @Value("${security.session-cookie.name:__Host-repu_session}") String sessionCookieName) {
+        this.sessionCookieName = sessionCookieName;
         validateBaseUrl(baseUrl, allowInsecureHttp);
         HttpClient httpClient = HttpClient.create()
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, Math.toIntExact(connectTimeout.toMillis()))
@@ -51,7 +53,7 @@ public class MsAuthSessionAuthenticationAdapter implements SessionAuthentication
         if (credential.type() == SessionCredential.Type.BEARER) {
             request.header(HttpHeaders.AUTHORIZATION, "Bearer " + credential.value());
         } else {
-            request.header(HttpHeaders.COOKIE, SESSION_COOKIE + "=" + credential.value());
+            request.header(HttpHeaders.COOKIE, sessionCookieName + "=" + credential.value());
         }
         return request.retrieve()
                 .onStatus(status -> status.value() == 401,

@@ -13,12 +13,13 @@ import java.util.UUID;
 @Service
 public class SessionAuthenticationService {
 
-    static final String SESSION_COOKIE_NAME = "__Host-repu_session";
-
     private final WebClient webClient;
+    private final String sessionCookieName;
 
     public SessionAuthenticationService(@Value("${auth.session.base-url}") String baseUrl,
-                                        @Value("${auth.session.service-token:}") String serviceToken) {
+                                        @Value("${auth.session.service-token:}") String serviceToken,
+                                        @Value("${security.session-cookie.name:__Host-repu_session}") String sessionCookieName) {
+        this.sessionCookieName = sessionCookieName;
         WebClient.Builder builder = WebClient.builder()
                 .baseUrl(baseUrl);
 
@@ -40,7 +41,7 @@ public class SessionAuthenticationService {
         if (bearer) {
             request.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
         } else {
-            request.header(HttpHeaders.COOKIE, SESSION_COOKIE_NAME + "=" + token);
+            request.header(HttpHeaders.COOKIE, sessionCookieName + "=" + token);
         }
 
         return request.retrieve()
@@ -48,6 +49,10 @@ public class SessionAuthenticationService {
                 .bodyToMono(AuthSessionResponse.class)
                 .map(response -> new SessionPrincipal(response.userId(), response.role()))
                 .onErrorResume(error -> Mono.empty());
+    }
+
+    public String getSessionCookieName() {
+        return sessionCookieName;
     }
 
     public record SessionPrincipal(UUID userId, String role) {

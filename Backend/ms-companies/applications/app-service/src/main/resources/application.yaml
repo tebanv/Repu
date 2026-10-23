@@ -33,12 +33,11 @@ management:
 security:
   jwt:
     secret: ${JWT_SECRET}
+  session-cookie:
+    name: ${SESSION_COOKIE_NAME:__Host-repu_session}
 auth:
   session:
     base-url: ${AUTH_SESSION_BASE_URL}
-    allow-insecure-http: ${AUTH_SESSION_ALLOW_INSECURE_HTTP:false}
-    connect-timeout: ${AUTH_SESSION_CONNECT_TIMEOUT}
-    response-timeout: ${AUTH_SESSION_RESPONSE_TIMEOUT}
     service-token: ${AUTH_SERVICE_TOKEN}
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS}

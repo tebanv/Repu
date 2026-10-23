@@ -32,6 +32,10 @@ cors:
 security:
   service-auth:
     token: ${AUTH_SERVICE_TOKEN}
+  session-cookie:
+    name: ${SESSION_COOKIE_NAME:__Host-repu_session}
+    secure: ${SESSION_COOKIE_SECURE:true}
+    allow-insecure-http: ${SESSION_COOKIE_ALLOW_INSECURE_HTTP:false}
 
 adapters:
   r2dbc:

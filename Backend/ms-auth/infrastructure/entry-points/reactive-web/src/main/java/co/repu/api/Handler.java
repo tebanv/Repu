@@ -10,6 +10,7 @@ import co.repu.api.dto.SystemParamInput;
 import co.repu.api.dto.SystemParamResponse;
 import co.repu.api.dto.UserResponse;
 import co.repu.api.dto.UserSession;
+import co.repu.api.config.SessionCookieSettings;
 import co.repu.model.system.SystemParameter;
 import co.repu.model.users.AuthSession;
 import co.repu.model.users.Session;
@@ -36,12 +37,12 @@ public class Handler {
 
     private static final String HEADER_REQUEST_ID = "X-Request-ID";
     private static final String HEADER_USER_ID = "X-User-Id";
-    public static final String SESSION_COOKIE = "__Host-repu_session";
-
     private final AuthUseCase authUseCase;
+    private final SessionCookieSettings sessionCookieSettings;
 
-    public Handler(AuthUseCase authUseCase) {
+    public Handler(AuthUseCase authUseCase, SessionCookieSettings sessionCookieSettings) {
         this.authUseCase = authUseCase;
+        this.sessionCookieSettings = sessionCookieSettings;
     }
 
     public Mono<ServerResponse> listenLoginUseCase(ServerRequest serverRequest) {
@@ -252,14 +253,14 @@ public class Handler {
         if (authorization != null && authorization.startsWith("Bearer ")) {
             return authorization.substring(7);
         }
-        var cookie = request.cookies().getFirst(SESSION_COOKIE);
+        var cookie = request.cookies().getFirst(sessionCookieSettings.name());
         return cookie == null ? null : cookie.getValue();
     }
 
     private ResponseCookie sessionCookie(String token, long maxAge) {
-        return ResponseCookie.from(SESSION_COOKIE, token)
+        return ResponseCookie.from(sessionCookieSettings.name(), token)
                 .httpOnly(true)
-                .secure(true)
+                .secure(sessionCookieSettings.secure())
                 .sameSite("Lax")
                 .path("/")
                 .maxAge(maxAge)

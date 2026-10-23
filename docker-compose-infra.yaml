@@ -9,6 +9,7 @@ services:
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
     ports:
+      # Plain HTTP only; protect this entrypoint with TLS before exposing it to untrusted networks.
       - "80:80"
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
