@@ -25,7 +25,7 @@ export default function MainLayoutShell({
   const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    // Revalida la sesión local contra Supabase una vez por montaje del
+    // Revalida la sesión local contra el backend una vez por montaje del
     // grupo protegido. Idempotente: llamadas concurrentes comparten vuelo.
     void initializeAuth();
   }, [initializeAuth]);

@@ -2,6 +2,33 @@
 
 This document describes the main folder and file organization for the project, including comments for each section.
 
+## 0. Repository level
+
+```text
+Repu/
+├── front-user/                  # Next.js client (this document's src/)
+├── Backend/                     # 7 Spring Boot microservices (real backend)
+│   ├── ms-auth/                 # Session authority (opaque token, cookie, Redis+PostgreSQL)
+│   ├── ms-users/                # Profile, addresses, password recovery
+│   ├── ms-companies/            # Companies/stores
+│   ├── ms-products/             # Catalog products
+│   ├── ms-categories/           # Catalog categories
+│   ├── ms-orders/               # Cart, checkout, orders, tracking/SSE
+│   └── ms-manage-payment/       # Payments/webhooks
+├── Arq-Infra/                   # Infrastructure and contracts
+│   ├── Repo-DB-2.sql            # Canonical PostgreSQL/PostGIS DDL (schema repu)
+│   ├── Repu.postman_collection.json
+│   ├── Guia-Integracion-Sesiones-Ms-Auth.md
+│   └── Apis_Mall_Virtual_V2.yaml  # Legacy scope checklist, not current contract
+├── docker-compose-infra.yaml    # Traefik + PostgreSQL/PostGIS + Redis
+├── docker-compose-apps.yaml     # Front + 7 microservices
+└── Postman/                     # Additional Postman collection
+```
+
+> Backend decision: [ADR-002](./ADR-002-BACKEND-MICROSERVICES.md). Operational map: [BACKEND.md](./BACKEND.md). The front only talks to `src/services/`; it never imports backend SDKs.
+
+## 1. Frontend (`front-user/src`)
+
 ```text
 src/
 │
@@ -91,7 +118,7 @@ src/
 │
 ├── types/                            # Domain TypeScript contracts and models
 │   ├── common.ts                     # Coordinates, GeoBoundingBox, ActionResult
-│   ├── auth.ts                       # User, UserRole, AuthState, LoginCredentials
+│   ├── auth.ts                       # User, UserRole (comprador|distribuidor|domiciliario|analista|admin), AuthState, LoginCredentials
 │   ├── store.ts                      # Store, StoreCategory, StoreSchedule, StoreDeliveryInfo
 │   ├── product.ts                    # Product, ProductSpecs, ProductCompatibility
 │   ├── cart.ts                       # CartItem, CartSummary, CartNotice, CartActionResult
@@ -101,7 +128,7 @@ src/
 │   └── index.ts                      # Barrel re-export file
 │
 ├── store/                            # Zustand stores for global state management
-│   ├── authStore.ts                  # Store for authentication (user session, login/logout)
+│   ├── authStore.ts                  # Auth session cache (user + isAuthenticated); uses ms-auth cookie, no token persisted
 │   ├── cartStore.ts                  # Persistent cart store (store context, items, immer, hooks)
 │   ├── filterStore.ts                # Store for active category filters
 │   ├── locationStore.ts              # Store for location, permissions, tracking
@@ -111,12 +138,13 @@ src/
 │   └── __tests__/                    # Vitest suites (cartStore, orderStore, authStore, storesStore)
 │
 ├── services/                         # Business logic, interaction with external APIs
-│   ├── api.ts                        # Catálogo real sobre Supabase (RPC get_nearby_stores + stores/products, adaptadores DB→dominio). Puente congelado; objetivo REST Spring
-│   ├── supabaseClient.ts             # Singleton diferido del cliente Supabase (único importador de la lib; se retira al cortar a Spring)
-│   ├── authService.ts                # Auth real Supabase (signIn/signOut/session/signUp/reset + subscribeToAuthChanges, rol real sin traducción). Objetivo Spring Security/JWT
+│   ├── api.ts                        # Catálogo legado sobre Supabase (RPC get_nearby_stores + stores/products). Destino: ms-companies/ms-products/ms-categories
+│   ├── supabaseClient.ts             # Singleton diferido del cliente Supabase (solo catálogo legado; se retira al cortar catálogo)
+│   ├── httpClient.ts                 # Transporte HTTP: fetch relativo, credentials include, X-Request-ID, errores tipados, onUnauthorized
+│   ├── authService.ts                # Auth contra ms-auth (login/logout/register) + ms-users (profile); sin Supabase
 │   ├── geolocationService.ts         # Browser geolocation abstraction
-│   └── __tests__/                    # Vitest suites (authService con cliente mockeado)
-│   # Nota: services/ es el único punto de intercambio Supabase → Spring Boot (ADR-001)
+│   └── __tests__/                    # Vitest suites (authService contra backend, httpClient)
+│   # Nota: services/ es el único punto de intercambio Supabase → microservicios Spring (ADR-002)
 │
 ├── lib/                              # Pure utilities, helpers, constants
 │   ├── analytics.ts                  # Minimal telemetry sink (track, dev-only debug)

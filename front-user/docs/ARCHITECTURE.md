@@ -6,7 +6,7 @@ Este documento describe la arquitectura general del frontend actual, incluyendo 
 
 El diseño se centra en un **flujo de datos unidireccional y reactivo**, gestionado por stores de Zustand y orquestado por componentes contenedores. La UI renderiza estado derivado; la lógica de negocio vive en stores y servicios.
 
-- **Frontend:** Next.js (App Router), React, Zustand para estado global (+ `persist` + `immer`), Mapbox GL JS para mapas, Tailwind CSS, framer-motion. Catálogo y auth leen Supabase como **puente congelado**; checkout/pedidos/tracking siguen mock local. Backend objetivo: Spring Boot en Docker ([ADR-001](./ADR-001-BACKEND-SPRING.md)).
+- **Frontend:** Next.js (App Router), React, Zustand para estado global (+ `persist` + `immer`), Mapbox GL JS para mapas, Tailwind CSS, framer-motion. **Backend real:** siete microservicios Spring Boot en Docker detrás de Traefik ([ADR-002](./ADR-002-BACKEND-MICROSERVICES.md)); auth ya está migrado a `ms-auth`/`ms-users` y el catálogo sigue en Supabase como legado transitorio hasta su corte.
 - **Componentes Principales:**
     - **`MapContainer` (Orquestador):** Componente crucial que inicializa el mapa. Al montar hace `fetchStores`; en `moveend` aplica debounce 600ms + umbral 120m (`MIN_FETCH_DISTANCE`, MapContainer.tsx:78-96). Los cambios de filtro no disparan refetch: van por `applyFilters` en memoria (filtros en cliente).
     - `FilterBanner`: Muestra los filtros de categorías. Su única responsabilidad es notificar al `filterStore` cuando el usuario cambia una selección.
@@ -18,13 +18,15 @@ El diseño se centra en un **flujo de datos unidireccional y reactivo**, gestion
     - `locationStore`: Gestiona el estado de la ubicación del usuario y los permisos, con `startTracking`/`stopTracking`, `watchId` e `isTracking`.
     - `storesStore`: Almacena la lista de tiendas, el estado de carga (`isLoading`), y la tienda actualmente seleccionada. Filtra en cliente en memoria (`masterStores` → `stores` vía `applyFilters`); la API solo filtra por radio.
     - `filterStore`: Mantiene el estado de los filtros activos (ej. qué categorías están seleccionadas). **No contiene lógica de aplicación de filtros**.
-    - `authStore`: Gestiona sesión persistida (key `auth-storage`) revalidada contra Supabase Auth vía `initialize()` (la sesión vigente manda; `onAuthStateChange` para multi-tab/refresh); el guard es client-only en `MainLayoutShell.tsx`, sin middleware. Login real con `signInWithPassword` + `profiles` en `authService` (rol = enum DB sin traducción); JWT custodiado por `supabase-js`, cero tokens en `User`. **Supabase Auth es puente congelado; destino Spring Security/JWT (ADR-001).**
+    - `authStore`: Gestiona sesión persistida (key `auth-storage`) revalidada contra el backend vía `initialize()` (la sesión vigente manda; listener de auth para multi-tab/expiración/401); el guard es client-only en `MainLayoutShell.tsx`, sin middleware. `ms-auth` emite un token opaco en cookie `httpOnly`; `ms-users` entrega el perfil. El `accessToken` del body no se persiste. Ver [AUTHENTICATION.md](./AUTHENTICATION.md) y [ADR-002](./ADR-002-BACKEND-MICROSERVICES.md).
     - `cartStore`: Gestiona el carrito persistente como **fuente única de verdad**. Mantiene contexto de tienda, items, derivados (`itemCount`, `subtotal`), metadatos de persistencia (`lastUpdatedAt`, `version`, persist key `cart-storage`, TTL 24h, cross-tab sync vía `storageSync`) y estado auxiliar de UX (`cartNotice`, `hasHydrated`).
     - `orderStore`: Gestiona pedidos mock (`orders`, `createOrder` mock, `getOrderById`, `updateOrderStatus`/`cancelOrder`/`rateOrder`, selectores `useActiveOrders`/`useActiveOrdersCount`/`useCompletedOrders`, persist `order-storage`). Base de estado de checkout + tracking.
     - `toastStore`: Gestiona feedback transitorio de UI (toasts) para eventos no bloqueantes como agregado al carrito, clamps de cantidad y avisos de expiración.
 - **Capa de Servicios/API:**
-    - `services/supabaseClient.ts`: singleton diferido del cliente Supabase (único importador de `@supabase/supabase-js`; Zero-Coupling).
-    - `services/api.ts`: catálogo real sobre Supabase. `fetchNearbyStores({lat,lng,radius})` llama al RPC `get_nearby_stores` (filtra por radio y ordena por distancia PostGIS, SIN filtrar por categoría); el filtrado por categoría lo aplica `storesStore` en cliente. `location` llega como EWKB hex y el adaptador lo proyecta a `lat/lng`.
+    - `services/supabaseClient.ts`: singleton diferido del cliente Supabase (único importador de `@supabase/supabase-js`; **legado transitorio solo para catálogo**, se retira al cortar ese dominio).
+    - `services/httpClient.ts`: transporte único contra el backend Spring (`fetch` relativo, `credentials: 'include'`, `X-Request-ID`, errores tipados, evento `unauthorized`).
+    - `services/authService.ts`: auth contra `ms-auth` (login/logout/register) + `ms-users` (perfil); normaliza roles y errores de dominio.
+    - `services/api.ts`: catálogo **legado sobre Supabase** mientras se corta el dominio. `fetchNearbyStores({lat,lng,radius})` llama al RPC `get_nearby_stores`; el destino es `ms-companies`/`ms-products`/`ms-categories` con el mismo contrato `Store`/`Product`. El filtrado por categoría se aplica en cliente (`storesStore`). `location` llega como EWKB hex y el adaptador lo proyecta a `lat/lng`.
 
 ## 1.1 Principio clave del carrito
 
@@ -123,21 +125,22 @@ Diseñado para operar a gran escala minimizando consumo de batería en móviles,
 
 ### 8.4 Separación de Client State vs Server Cache (futuro, no implementado)
 - **Zustand (Client Session State):** Gestiona el estado interactivo de la sesión en memoria (carrito activo, órdenes en curso, filtros).
-- **TanStack Query / SWR (Server Cache, futuro):** No implementado — cero TanStack/SWR en `src/`; no existe `GET /orders?status=completed`. El historial es filtrado en memoria (`useCompletedOrders`) sobre persist local `order-storage`.
+- **TanStack Query / SWR (Server Cache, futuro):** No implementado — cero TanStack/SWR en `src/`. El backend `ms-orders` ya expone listado de órdenes, pero el front aún no lo consume; el historial actual es filtrado en memoria (`useCompletedOrders`) sobre persist local `order-storage`.
 
 ---
 
-## 9. Estrategia de Backend (ADR-001, 2026-10-19)
+## 9. Backend real y estrategia de corte (ADR-002, 2026-10-27)
 
-**Decisión:** Spring Boot en Docker es el gateway final; Supabase queda congelado como puente en el punto actual.
+**Decisión:** el backend real son siete microservicios Spring Boot en Docker, orquestados por Traefik, con PostgreSQL/PostGIS (`schema repu`) y Redis. Supabase queda fuera del camino crítico ([ADR-002](./ADR-002-BACKEND-MICROSERVICES.md); [ADR-001](./ADR-001-BACKEND-SPRING.md) se conserva como histórico).
 
-- **Vigente hoy:** catálogo y auth contra Supabase; carrito y pedidos en Zustand local; sin Realtime.
-- **Congelado:** no se añaden features nuevas que dependan de Supabase Auth, Realtime, Edge Functions o Storage; no se amplía el esquema solo en Supabase.
-- **Objetivo:** front → `src/services/` → Spring Boot REST; PostgreSQL + PostGIS en contenedor; Flyway como dueño de migraciones; SSE/STOMP para tracking.
-- **Contrato:** OpenAPI 3.1 derivado de `src/types/` + `DATA_MODEL.md`; `arquitectura/Apis_Mall_Virtual_V1.yaml` es checklist de alcance, no contrato vigente.
-- **Auth:** migrar de `supabase-js` a Spring Security/JWT; idealmente cookie `httpOnly` + refresh y proxy same-origin.
-- **Corte por dominio:** catálogo → auth → pedidos → realtime, sin escrituras duales.
-- **Criterios de salida y plan detallado:** ver [ADR-001](./ADR-001-BACKEND-SPRING.md).
+- **Topología:** Traefik same-origin sirve `front-user` y los micros por `PathPrefix`: `/ms-auth`, `/ms-users`, `/ms-companies`, `/ms-products`, `/ms-categories`, `/ms-orders`, `/ms-manage-payment`.
+- **Autoridad de sesión:** `ms-auth` emite un token opaco (cookie `__Host-repu_session`, `HttpOnly/Secure/SameSite=Lax`), lo guarda como hash en PostgreSQL y lo cachea en Redis. `ms-users` expone el perfil; los demás micros validan la sesión contra `ms-auth` con `X-Auth-Service-Token`.
+- **Vigente hoy en el front:** auth ya usa `ms-auth`/`ms-users` y su smoke se verificó en entorno de pruebas (servidor pendiente); catálogo sigue en Supabase (legado); carrito/pedidos/tracking son locales.
+- **Corte por dominio:** auth → catálogo → pedidos → tracking. Auth ya está migrado (`ms-auth` + `ms-users`) y verificado en entorno de pruebas; sigue catálogo. El catálogo Supabase es de lectura anónima y no bloqueó el cambio.
+- **Contrato:** no hay OpenAPI publicado; la fuente es el código de `Backend/`, `Arq-Infra/Repo-DB-2.sql` y `Arq-Infra/Repu.postman_collection.json`. Ver [BACKEND.md](./BACKEND.md).
+- **Auth:** cookie `httpOnly`; el web ignora el `accessToken` del body. El perfil se obtiene de `GET /ms-users/api/users/profile`.
+- **Producción:** HTTPS es bloqueante; el compose actual de Traefik solo expone HTTP y el navegador descarta la cookie `Secure` fuera de localhost.
+- **Criterios de salida:** ver [ADR-002](./ADR-002-BACKEND-MICROSERVICES.md) §Criterios y [PLAN-LOGIN-MS-AUTH.md](./PLAN-LOGIN-MS-AUTH.md).
 
 ---
 

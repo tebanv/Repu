@@ -388,7 +388,7 @@ Cierre del ciclo de compra.
 - **[HECHO] Validación de Carrito y Contexto:** Resguardo contra carritos vacíos con redirección automática y cálculo financiero por tienda.
 - **[HECHO] Vista de Checkout (`src/app/(main)/checkout/page.tsx`):** Resumen final de costos (Productos + Envío de la tienda + Servicio transparente = Total a pagar).
 - **[HECHO] Formulario de Entrega Inteligente (`DeliveryAddressCard.tsx`):** Sugerencia de dirección por GPS desde `locationStore`, edición libre y notas para el domiciliario (apto, taller, referencias).
-- **[HECHO] Métodos de Pago Colombianos (`PaymentMethodSelector.tsx`):** Efectivo al recibir, Datáfono contra entrega, Transferencia QR Nequi/Bancolombia y Wompi en línea.
+- **[HECHO] Método de pago (UI actual):** solo Wompi en línea, simulado; el tipo `PaymentMethod` admite efectivo/datáfono/Nequi/transferencia para una fase posterior.
 - **[HECHO] Store de Pedidos Persistente (`orderStore.ts`):** Creación de pedido con ID único (`REP-2026-XXXX`), vaciado del carrito (`clearCart`), feedback visual y pantalla de confirmación exitosa.
 - **[HECHO] Acceso Global al Carrito desde el Header (`AppHeader.tsx`):**
   - Botón de carrito con badge reactivo (`itemCount`) en la barra de navegación superior.
@@ -463,9 +463,55 @@ Visualizador de progreso interactivo y animado adaptado a la cadena de suministr
 
 ---
 
-## Estrategia de Integración Backend: Supabase (PostgreSQL + PostGIS) ➔ Spring Boot (AWS Docker)
+## Fase 10: Integración del backend real — Auth primero [AUTH IMPLEMENTADO Y VERIFICADO; SERVIDOR PENDIENTE]
 
-> **Decisión vigente (2026-10-19, [ADR-001](./ADR-001-BACKEND-SPRING.md)):** Supabase se congela como puente en el punto actual. Spring Boot contenerizado en Docker es el gateway final. No se construyen nuevas features sobre Supabase Auth/Realtime/Edge Functions/Storage. El backend real se integra en el entorno local del equipo; el contenido de esta sección queda como contexto histórico y checklist de alcance.
+Objetivo: conectar el front a los microservicios Spring Boot ya presentes en `Backend/`, empezando por autenticación (`ms-auth` + `ms-users`). Auth está migrado en código y verificado en un entorno de pruebas; el catálogo sigue en Supabase como legado transitorio hasta su corte.
+
+- **Decisión y alcance:** [ADR-002](./ADR-002-BACKEND-MICROSERVICES.md).
+- **Contrato verificado:** [BACKEND.md](./BACKEND.md), [AUTHENTICATION.md](./AUTHENTICATION.md).
+- **Plan detallado:** [PLAN-LOGIN-MS-AUTH.md](./PLAN-LOGIN-MS-AUTH.md).
+
+### 10.1 Auth (`ms-auth` + `ms-users`) [VERIFICADO EN ENTORNO DE PRUEBAS]
+
+1. [x] Verificar login → profile → logout → 401 contra la BD `repu` (hecho en entorno de pruebas; servidor pendiente).
+2. [x] `rewrites` dev-only de Next (`AUTH_API_ORIGIN`/`USERS_API_ORIGIN`) y variables de entorno.
+3. [x] `src/services/httpClient.ts` con `credentials: 'include'`, `X-Request-ID`, errores tipados y `onUnauthorized`.
+4. [x] `UserRole` con `analista`; mapeo MAYÚSCULAS → minúsculas.
+5. [x] `authService` contra Spring con las mismas 7 exportaciones; sin imports de Supabase.
+6. [x] `authStore`/`MainLayoutShell` sin cambios de contrato; `initialize()` revalida contra `/ms-users/api/users/profile`.
+7. [ ] `LoginForm` con usuarios reales de la BD Spring o chips retirados (decisión pendiente).
+8. [x] Tests de `httpClient`/`authService` escritos y ejecutados: 68/68, `type-check` y `build` correctos (2026-10-28).
+9. [ ] HTTPS en producción antes de declarar auth listo (cookie `Secure`).
+
+**DoD auth:** login/logout/restauración funcionan contra `ms-auth` en entorno de pruebas; el perfil viene de `ms-users`; no hay `accessToken` en `localStorage`; multi-tab y 401 limpian sesión; docs y CHANGELOG actualizados. Servidor pendiente.
+
+### 10.2 Catálogo [PENDIENTE]
+
+- `api.ts` → `ms-companies`/`ms-products`/`ms-categories`.
+- Adaptar tablas `empresas`/`productos` (ES) y dinero `NUMERIC(15,2)` a `Store`/`Product` (front).
+- Retirar `@supabase/supabase-js` del front al cerrar este corte.
+
+### 10.3 Pedidos y tracking [PENDIENTE]
+
+- `orderStore` mock → `ms-orders` (carrito, checkout, órdenes, tracking).
+- Acordar el mapeo de estados: `estado_orden`/`estado_pago`/`estado_comercio`/`estado_envio` vs `OrderStatus`.
+- Tracking con SSE de `ms-orders`; sin Supabase Realtime.
+
+### 10.4 Criterios de salida de Fase 10
+
+- [x] Auth contra `ms-auth`/`ms-users`, sin Supabase Auth (verificado en entorno de pruebas; servidor pendiente).
+- [ ] Catálogo contra microservicios, sin `@supabase/supabase-js` en `src/`.
+- [ ] Pedidos persistidos en `ms-orders`; `orderStore` deja de ser la fuente transaccional.
+- [ ] Tracking con SSE.
+- [x] `pnpm test`, `pnpm type-check`, `pnpm build` verdes (68/68; 2026-10-28). Smoke de auth en entorno de pruebas; servidor pendiente.
+- [ ] HTTPS en Traefik.
+- [ ] Supabase apagado o reducido a archivo.
+
+---
+
+## Histórico — Estrategia Supabase (2026, superada por ADR-002)
+
+> **Nota histórica:** esta sección describía la transición Supabase → Spring Boot monolito. Quedó superada por [ADR-002](./ADR-002-BACKEND-MICROSERVICES.md) (2026-10-27): el backend real son microservicios Spring ya presentes en `Backend/`, y Supabase quedó fuera del camino crítico. Se conserva solo como contexto de la etapa de validación.
 
 Esta estrategia permitió validar de forma inmediata y a bajo costo el producto con **datos reales de repuestos**, consultas espaciales reales por proximidad (PostGIS) y una base para el posterior desarrollo en Spring Boot / AWS.
 
@@ -547,27 +593,29 @@ Al contratar al desarrollador backend, se le entrega un paquete completo que red
 
 ---
 
-## Corte a Spring Boot (vigente desde 2026-10-19)
+## Corte real a microservicios (vigente desde 2026-10-27)
 
-**Regla:** Supabase no recibe features nuevas. El front se corta por dominio contra Spring Boot; cada corte se hace en `src/services/` sin tocar UI ni stores.
+**Regla:** Supabase no recibe features nuevas. El front se corta por dominio contra los microservicios Spring; cada corte se hace en `src/services/` sin tocar UI ni stores. El orden vigente lo fija [ADR-002](./ADR-002-BACKEND-MICROSERVICES.md): **auth → catálogo → pedidos → tracking**.
 
 ### Orden de corte
 
-1. **Contrato:** OpenAPI 3.1 desde `src/types/` + `DATA_MODEL.md`; cerrar gaps de estados, pagos, dirección, conductor, `stock: 0` e idempotencia.
-2. **Catálogo:** `fetchNearbyStores`, `fetchStoreBySlug`, `fetchProductsByStore` contra REST.
-3. **Auth:** `authService` contra Spring Security/JWT (cookie `httpOnly` + refresh recomendado); migrar `profiles` y retirar `auth.users`.
-4. **Pedidos:** `orderService` + endpoints; reemplazar `orderStore` mock como fuente transaccional.
-5. **Realtime:** SSE o STOMP/WebSocket; `subscribeToOrderTracking` en `services/`.
-6. **Retiro de Supabase:** limpiar SDK, claves, migraciones `0010/0011` y documentación transitoria.
+1. **Auth (hecho):** `authService` contra `ms-auth`/`ms-users`; cookie `httpOnly`, perfil y sesión; sin Supabase Auth. Detalle en [PLAN-LOGIN-MS-AUTH.md](./PLAN-LOGIN-MS-AUTH.md).
+2. **Catálogo:** `api.ts` contra `ms-companies`/`ms-products`/`ms-categories`; adaptar el esquema `repu` y el dinero `NUMERIC(15,2)`.
+3. **Pedidos:** `ms-orders` (carrito, checkout, órdenes); reemplazar `orderStore` mock como fuente transaccional.
+4. **Tracking:** SSE de `ms-orders`; `subscribeToOrderTracking` en `src/services/`.
+5. **Retiro de Supabase:** limpiar SDK, claves, migraciones y documentación transitoria.
 
 ### Criterios de salida (DoD)
 
-- [ ] Front sin imports de `@supabase/supabase-js` ni claves `NEXT_PUBLIC_SUPABASE_*` (salvo flag transitorio documentado).
-- [ ] Catálogo, auth, pedidos y tracking funcionando contra Spring.
-- [ ] Flyway es el único dueño del esquema; RLS/triggers de Supabase retirados o adaptados.
-- [ ] `pnpm test`, `pnpm type-check` y `pnpm build` verdes + smoke test de los flujos críticos.
+- [x] Auth contra `ms-auth`/`ms-users`, sin Supabase Auth (verificado en entorno de pruebas; servidor pendiente).
+- [ ] Catálogo contra microservicios, sin `@supabase/supabase-js` en `src/`.
+- [ ] Pedidos persistidos en `ms-orders`; `orderStore` deja de ser la fuente transaccional.
+- [ ] Tracking con SSE, sin Supabase Realtime.
+- [x] `pnpm test`, `pnpm type-check` y `pnpm build` verdes (68/68; 2026-10-28).
+- [ ] Smoke de flujos críticos en el servidor (auth verificado en entorno de pruebas).
+- [ ] HTTPS en Traefik (cookie `Secure`).
 - [ ] Supabase apagado o reducido a archivo.
 
-> Detalle completo, contexto y alternativas en [ADR-001](./ADR-001-BACKEND-SPRING.md).
+> Detalle completo, topología y riesgos en [ADR-002](./ADR-002-BACKEND-MICROSERVICES.md), [BACKEND.md](./BACKEND.md) y [AUTHENTICATION.md](./AUTHENTICATION.md).
 
 

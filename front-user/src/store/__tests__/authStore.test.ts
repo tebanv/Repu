@@ -6,8 +6,8 @@ import {
   getCurrentUser,
 } from '@/services/authService';
 
-// El store no habla con Supabase directamente: se mockea el servicio de
-// dominio (contrato con `authService.ts`), no el SDK.
+// El store no habla con el backend directamente: se mockea el servicio de
+// dominio (contrato con `authService.ts`), no el transporte HTTP.
 vi.mock('@/services/authService', () => ({
   login: vi.fn(),
   logout: vi.fn(),
@@ -36,7 +36,7 @@ beforeEach(() => {
   resetAuth();
 });
 
-describe('authStore — sesión Supabase (servicio mockeado)', () => {
+describe('authStore — sesión del backend (servicio mockeado)', () => {
   it('login válido autentica con rol real sin exponer password', async () => {
     mockLogin.mockResolvedValue({
       id: 'uuid-1',

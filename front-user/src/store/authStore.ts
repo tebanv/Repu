@@ -18,7 +18,7 @@ export interface AuthStoreState {
   login: (credentials: LoginCredentials) => Promise<boolean>;
   logout: () => Promise<void>;
   clearError: () => void;
-  // Reconcilia la sesión Supabase vigente con el estado local. Idempotente:
+  // Reconcilia la sesión del backend con el estado local. Idempotente:
   // llamadas concurrentes comparten la misma promesa en vuelo.
   initialize: () => Promise<void>;
 }
@@ -70,7 +70,7 @@ const useAuthStore = create<AuthStoreState>()(
           await logoutService();
         } catch {
           // Red caída o sesión ya inválida: la limpieza local ocurre igual.
-          // Sin JWT válido el usuario queda fuera de todos modos.
+          // La cookie la expira el backend; si no, el próximo 401 la invalida.
         }
         set({
           user: null,
@@ -84,7 +84,7 @@ const useAuthStore = create<AuthStoreState>()(
       initialize: async () => {
         if (initializeInFlight) return initializeInFlight;
         initializeInFlight = (async () => {
-          // Si persist ya rehidrató sesión local, se revalida contra Supabase:
+          // Si persist ya rehidrató sesión local, se revalida contra el backend:
           // la sesión vigente manda sobre `auth-storage` (fuente: servidor).
           set({ isLoading: true });
           try {
@@ -108,8 +108,8 @@ const useAuthStore = create<AuthStoreState>()(
           } finally {
             initializeInFlight = null;
           }
-          // Suscripción única: propaga login/logout en otra pestaña y
-          // expiración/refresh del token sin polling.
+          // Suscripción única: propaga login/logout en otra pestaña,
+          // expiración de sesión y 401 sin polling.
           if (!authSubscriptionStarted && typeof window !== 'undefined') {
             authSubscriptionStarted = true;
             try {
@@ -117,6 +117,7 @@ const useAuthStore = create<AuthStoreState>()(
                 useAuthStore.setState({
                   user,
                   isAuthenticated: Boolean(user),
+                  isLoading: false,
                 });
               });
             } catch {

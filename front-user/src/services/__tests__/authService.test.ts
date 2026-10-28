@@ -1,73 +1,82 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-// Cliente Supabase fake: solo cubre los métodos que usa `authService.ts`.
-// Zero-Coupling en tests: se mockea el singleton, nunca el SDK real.
-const { mockAuth, mockClient } = vi.hoisted(() => {
-  const mockAuth = {
-    signInWithPassword: vi.fn(),
-    signOut: vi.fn(),
-    getSession: vi.fn(),
-    signUp: vi.fn(),
-    resetPasswordForEmail: vi.fn(),
-    onAuthStateChange: vi.fn(),
-  };
-  const mockClient = { auth: mockAuth, from: vi.fn() };
-  return { mockAuth, mockClient };
-});
-
-vi.mock('@/services/supabaseClient', () => ({
-  getSupabase: () => mockClient,
-  isSupabaseConfigured: () => true,
-}));
-
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  getCurrentUser,
   login,
   logout,
-  getCurrentUser,
-  verifyToken,
   register,
   requestPasswordReset,
   subscribeToAuthChanges,
+  verifyToken,
 } from '../authService';
 
-// Configura la cadena `from().select().eq().maybeSingle()` con el resultado dado.
-function mockProfile(data: unknown, error: unknown = null): void {
-  const maybeSingle = vi.fn(() => Promise.resolve({ data, error }));
-  const eq = vi.fn(() => ({ maybeSingle }));
-  const select = vi.fn(() => ({ eq }));
-  mockClient.from.mockReturnValue({ select });
+function fakeResponse(
+  body: unknown,
+  status = 200,
+  contentType: string | null = 'application/json',
+): Response {
+  const headers = new Headers();
+  if (contentType) headers.set('content-type', contentType);
+
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers,
+    json: async () => body,
+    text: async () => (typeof body === 'string' ? body : JSON.stringify(body)),
+  } as unknown as Response;
 }
+
+const LOGIN_OK = {
+  authenticated: true,
+  userId: 'uuid-1',
+  role: 'COMPRADOR',
+  activeCompanyId: null,
+  accessToken: 'opaque-token',
+  expiresInSeconds: 604800,
+};
 
 const PROFILE = {
   id: 'uuid-1',
   email: 'usuario@demo.com',
-  name: 'Usuario Test',
+  role: 'COMPRADOR',
+  firstName: 'Usuario',
+  lastName: 'Test',
   phone: null,
-  avatar_url: null,
-  role: 'comprador',
+  profileAttributes: {},
 };
 
+let fetchMock: ReturnType<typeof vi.fn>;
+
 beforeEach(() => {
-  vi.clearAllMocks();
-  mockAuth.onAuthStateChange.mockReturnValue({
-    data: { subscription: { unsubscribe: vi.fn() } },
-  });
+  fetchMock = vi.fn();
+  vi.stubGlobal('fetch', fetchMock);
 });
 
-describe('authService — Supabase real (cliente mockeado)', () => {
-  it('login ok retorna User con rol real directo y email normalizado', async () => {
-    mockAuth.signInWithPassword.mockResolvedValue({
-      data: { user: { id: 'uuid-1' } },
-      error: null,
-    });
-    mockProfile(PROFILE);
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
+describe('authService — backend Spring (fetch mockeado)', () => {
+  it('login hace POST a ms-auth y completa el User con ms-users/profile', async () => {
+    fetchMock
+      .mockResolvedValueOnce(fakeResponse(LOGIN_OK))
+      .mockResolvedValueOnce(fakeResponse(PROFILE));
 
     const user = await login('  Usuario@Demo.com ', 'secret');
 
-    expect(mockAuth.signInWithPassword).toHaveBeenCalledWith({
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [loginUrl, loginInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(loginUrl).toBe('/ms-auth/api/auth/login');
+    expect(JSON.parse(String(loginInit.body))).toEqual({
       email: 'usuario@demo.com',
       password: 'secret',
     });
+
+    const [profileUrl, profileInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(profileUrl).toBe('/ms-users/api/users/profile');
+    expect(profileInit.credentials).toBe('include');
+
     expect(user).toEqual({
       id: 'uuid-1',
       email: 'usuario@demo.com',
@@ -76,121 +85,140 @@ describe('authService — Supabase real (cliente mockeado)', () => {
       avatar: null,
     });
     expect(user).not.toHaveProperty('password');
+    expect(user).not.toHaveProperty('accessToken');
   });
 
-  it('login degrada rol desconocido a comprador en vez de romper', async () => {
-    mockAuth.signInWithPassword.mockResolvedValue({
-      data: { user: { id: 'uuid-1' } },
-      error: null,
+  it('mapea ANALISTA a analista y rol desconocido a comprador', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    fetchMock
+      .mockResolvedValueOnce(fakeResponse({ ...LOGIN_OK, role: 'ANALISTA' }))
+      .mockResolvedValueOnce(fakeResponse({ ...PROFILE, role: 'ANALISTA' }));
+
+    await expect(login('analista@repu.com', 'secret')).resolves.toMatchObject({
+      role: 'analista',
     });
-    mockProfile({ ...PROFILE, role: 'superadmin' });
 
-    const user = await login('usuario@demo.com', 'secret');
-    expect(user.role).toBe('comprador');
+    fetchMock
+      .mockResolvedValueOnce(fakeResponse(LOGIN_OK))
+      .mockResolvedValueOnce(fakeResponse({ ...PROFILE, role: 'SUPERADMIN' }));
+
+    await expect(login('raro@repu.com', 'secret')).resolves.toMatchObject({
+      role: 'comprador',
+    });
+    expect(warn).toHaveBeenCalled();
   });
 
-  it('login sin credenciales exige campos sin llamar a red', async () => {
+  it('login sin credenciales falla sin llamar a red', async () => {
     await expect(login('', '')).rejects.toThrow('Email y contraseña son requeridos');
-    expect(mockAuth.signInWithPassword).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('login inválido normaliza a Credenciales inválidas', async () => {
-    mockAuth.signInWithPassword.mockResolvedValue({
-      data: { user: null },
-      error: { message: 'Invalid login credentials' },
-    });
+  it('login 401 normaliza a Credenciales inválidas', async () => {
+    fetchMock.mockResolvedValue(fakeResponse({ message: 'Usuario inactivo' }, 401));
 
     await expect(login('a@a.com', 'mala')).rejects.toThrow('Credenciales inválidas');
   });
 
-  it('logout delega en signOut', async () => {
-    mockAuth.signOut.mockResolvedValue({ error: null });
+  it('logout hace POST a ms-auth', async () => {
+    fetchMock.mockResolvedValue(fakeResponse(undefined, 204, null));
+
     await logout();
-    expect(mockAuth.signOut).toHaveBeenCalled();
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/ms-auth/api/auth/logout');
+    expect(init.method).toBe('POST');
   });
 
-  it('getCurrentUser sin sesión retorna null', async () => {
-    mockAuth.getSession.mockResolvedValue({ data: { session: null } });
+  it('getCurrentUser devuelve null en 401 y el perfil en 200', async () => {
+    fetchMock.mockResolvedValueOnce(fakeResponse({ message: 'Sesión inválida' }, 401));
     await expect(getCurrentUser()).resolves.toBeNull();
-    expect(mockClient.from).not.toHaveBeenCalled();
-  });
 
-  it('getCurrentUser con sesión retorna el perfil', async () => {
-    mockAuth.getSession.mockResolvedValue({
-      data: { session: { user: { id: 'uuid-1' } } },
+    fetchMock.mockResolvedValueOnce(fakeResponse(PROFILE));
+    await expect(getCurrentUser()).resolves.toMatchObject({
+      id: 'uuid-1',
+      email: 'usuario@demo.com',
+      role: 'comprador',
     });
-    mockProfile({ ...PROFILE, role: 'admin' });
-
-    const user = await getCurrentUser();
-    expect(user?.role).toBe('admin');
   });
 
   it('verifyToken refleja la sesión vigente', async () => {
-    mockAuth.getSession.mockResolvedValue({ data: { session: { user: { id: 'x' } } } });
+    fetchMock.mockResolvedValueOnce(fakeResponse(PROFILE));
     await expect(verifyToken()).resolves.toBe(true);
-    mockAuth.getSession.mockResolvedValue({ data: { session: null } });
+
+    fetchMock.mockResolvedValueOnce(fakeResponse({ message: 'Sesión inválida' }, 401));
     await expect(verifyToken()).resolves.toBe(false);
   });
 
-  it('requestPasswordReset normaliza email y retorna true', async () => {
-    mockAuth.resetPasswordForEmail.mockResolvedValue({ error: null });
-
-    await expect(requestPasswordReset('  USER@demo.COM ')).resolves.toBe(true);
-    expect(mockAuth.resetPasswordForEmail).toHaveBeenCalledWith('user@demo.com');
-  });
-
-  it('register crea en Auth con name para el trigger 0010 y retorna perfil', async () => {
-    mockAuth.signUp.mockResolvedValue({
-      data: { user: { id: 'uuid-9' } },
-      error: null,
-    });
-    mockProfile({ ...PROFILE, id: 'uuid-9' });
+  it('register envía firstName/lastName/role y no inicia sesión', async () => {
+    fetchMock.mockResolvedValue(
+      fakeResponse(
+        {
+          id: 'uuid-9',
+          name: 'Nuevo',
+          email: 'nuevo@demo.com',
+          role: 'COMPRADOR',
+          status: true,
+        },
+        201,
+      ),
+    );
 
     const user = await register({
-      email: 'nuevo@demo.com',
-      password: 'secret123',
+      email: 'Nuevo@Demo.com',
+      password: 'Secret123*',
       name: 'Nuevo',
+      lastName: 'Usuario',
+      phone: '+573100000000',
     });
 
-    expect(mockAuth.signUp).toHaveBeenCalledWith({
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/ms-auth/api/auth/register');
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      firstName: 'Nuevo',
+      lastName: 'Usuario',
       email: 'nuevo@demo.com',
-      password: 'secret123',
-      options: { data: { name: 'Nuevo' } },
+      phone: '+573100000000',
+      role: 'COMPRADOR',
     });
-    expect(user.id).toBe('uuid-9');
+    expect(user).toEqual({
+      id: 'uuid-9',
+      email: 'nuevo@demo.com',
+      name: 'Nuevo Usuario',
+      role: 'comprador',
+      avatar: null,
+    });
   });
 
-  it('subscribeToAuthChanges propaga SIGNED_OUT como null', async () => {
-    let cb: (event: string, session: unknown) => void = () => {};
-    mockAuth.onAuthStateChange.mockImplementation((fn: typeof cb) => {
-      cb = fn;
-      return { data: { subscription: { unsubscribe: vi.fn() } } };
-    });
-    const listener = vi.fn();
-    const unsub = subscribeToAuthChanges(listener);
+  it('register rechaza roles que no son de autorregistro', async () => {
+    await expect(
+      register({
+        email: 'admin@repu.com',
+        password: 'Secret123*',
+        role: 'admin',
+      }),
+    ).rejects.toThrow('Rol no permitido para autorregistro');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 
-    cb('SIGNED_OUT', null);
-    await new Promise((r) => setTimeout(r, 0));
+  it('requestPasswordReset llama a ms-users y retorna true', async () => {
+    fetchMock.mockResolvedValue(fakeResponse({ message: 'Si existe...' }, 202));
+
+    await expect(requestPasswordReset('  USER@demo.COM ')).resolves.toBe(true);
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/ms-users/api/users/password-recovery');
+    expect(JSON.parse(String(init.body))).toEqual({ email: 'user@demo.com' });
+  });
+
+  it('subscribeToAuthChanges emite null ante un 401 global', async () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribeToAuthChanges(listener);
+
+    fetchMock.mockResolvedValue(fakeResponse({ message: 'Sesión inválida' }, 401));
+    await getCurrentUser();
 
     expect(listener).toHaveBeenCalledWith(null);
-    expect(typeof unsub).toBe('function');
-  });
-
-  it('subscribeToAuthChanges resuelve perfil en SIGNED_IN', async () => {
-    let cb: (event: string, session: unknown) => void = () => {};
-    mockAuth.onAuthStateChange.mockImplementation((fn: typeof cb) => {
-      cb = fn;
-      return { data: { subscription: { unsubscribe: vi.fn() } } };
-    });
-    mockProfile(PROFILE);
-    const listener = vi.fn();
-    subscribeToAuthChanges(listener);
-
-    cb('SIGNED_IN', { user: { id: 'uuid-1' } });
-    await new Promise((r) => setTimeout(r, 0));
-
-    expect(listener).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'uuid-1', role: 'comprador' }),
-    );
+    unsubscribe();
   });
 });

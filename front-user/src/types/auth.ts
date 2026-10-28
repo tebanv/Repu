@@ -1,10 +1,9 @@
 // Modelos de autenticación y sesión
 
-// Rol real compartido con la DB (`user_role` en 0001_enums.sql).
-// Sin capa de traducción: el front usa el mismo vocabulario que
-// `profiles.role` (DATA_MODEL.md §3.1). 'demo' no es un rol, es un
-// atajo UX del LoginForm contra usuarios seed con rol 'comprador'.
-export type UserRole = 'comprador' | 'distribuidor' | 'domiciliario' | 'admin';
+// Rol real del backend (`usuarios.rol_sistema` en el schema `repu`).
+// El backend usa MAYÚSCULAS; `authService` normaliza a este vocabulario.
+// 'demo' no es un rol, es un atajo UX del LoginForm contra usuarios seed.
+export type UserRole = 'comprador' | 'distribuidor' | 'domiciliario' | 'analista' | 'admin';
 
 export interface User {
   id: string;

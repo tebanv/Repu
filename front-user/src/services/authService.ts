@@ -1,152 +1,351 @@
-import { getSupabase } from './supabaseClient';
+import { httpClient, HttpError, onUnauthorized } from './httpClient';
 import type { User, UserRole } from '@/types';
 
-// Fila cruda de `profiles` (snake_case, solo capa services).
-// Contrato DB: docs/DATA_MODEL.md §3.1 + migración 0002_profiles.sql.
-interface ProfileRow {
-  id: string;
-  email: string;
-  name: string;
-  phone: string | null;
-  avatar_url: string | null;
-  role: string | null;
+/**
+ * Servicio de autenticación del front contra el backend real.
+ *
+ * Contrato:
+ * - `ms-auth` emite/revoca la sesión (cookie HttpOnly `__Host-repu_session`).
+ * - `ms-users` entrega el perfil del usuario autenticado.
+ *
+ * La UI y el store nunca ven cookies, tokens ni detalles de red: solo `User`
+ * y errores de dominio. El `accessToken` del body se ignora deliberadamente.
+ */
+
+interface LoginResponse {
+  authenticated: boolean;
+  userId: string;
+  role: string;
+  activeCompanyId?: string | null;
+  accessToken?: string;
+  expiresInSeconds?: number;
 }
 
-// Vocabulario único front↔DB (sin traducción). Si la DB trajera un rol
-// desconocido (migración futura), se degrada a 'comprador' en vez de romper UI.
-const VALID_ROLES: readonly UserRole[] = [
+interface ProfileResponse {
+  id: string;
+  email: string;
+  role?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  phone?: string | null;
+  profileAttributes?: Record<string, unknown> | null;
+}
+
+interface RegisterResponse {
+  id: string;
+  name?: string | null;
+  email: string;
+  role?: string | null;
+  status?: boolean;
+  createdAt?: string;
+}
+
+export interface RegisterUserInput {
+  email: string;
+  password: string;
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  role?: UserRole;
+  profileAttributes?: Record<string, unknown>;
+}
+
+const ROLE_MAP: Record<string, UserRole> = {
+  COMPRADOR: 'comprador',
+  DISTRIBUIDOR: 'distribuidor',
+  DOMICILIARIO: 'domiciliario',
+  ANALISTA: 'analista',
+  ADMIN: 'admin',
+};
+
+const SELF_REGISTRATION_ROLES = new Set<UserRole>([
   'comprador',
   'distribuidor',
   'domiciliario',
-  'admin',
-];
+]);
 
-// Fila `profiles` → `User`. Asignación directa: mismo vocabulario, sin mapeo.
-function mapProfileRow(row: ProfileRow): User {
-  const role: UserRole = VALID_ROLES.includes(row.role as UserRole)
-    ? (row.role as UserRole)
-    : 'comprador';
+/** Mapea el rol MAYÚSCULAS del backend al vocabulario del front. */
+function mapRole(raw: string | null | undefined): UserRole {
+  const key = (raw ?? '').trim().toUpperCase();
+  const role = ROLE_MAP[key];
+  if (role) return role;
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn(`[authService] Rol desconocido "${raw ?? ''}"; se degrada a comprador.`);
+  }
+  return 'comprador';
+}
+
+function displayName(profile: ProfileResponse): string {
+  const fullName = [profile.firstName, profile.lastName]
+    .filter((part): part is string => Boolean(part && part.trim()))
+    .join(' ')
+    .trim();
+  return fullName || profile.email;
+}
+
+function avatarFrom(profile: ProfileResponse): string | null {
+  const avatar = profile.profileAttributes?.avatar;
+  return typeof avatar === 'string' && avatar.trim() ? avatar : null;
+}
+
+function toUser(profile: ProfileResponse): User {
   return {
-    id: String(row.id),
-    email: row.email,
-    name: row.name,
-    role,
-    avatar: row.avatar_url ?? null,
+    id: String(profile.id),
+    email: profile.email,
+    name: displayName(profile),
+    role: mapRole(profile.role),
+    avatar: avatarFrom(profile),
   };
 }
 
-// Lee el perfil del usuario autenticado. Requiere la policy
-// `profiles_owner` (0007_rls.sql) y el trigger 0010 (auto-creación al signUp).
-async function fetchProfile(userId: string): Promise<User> {
-  const { data, error } = await getSupabase()
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .maybeSingle();
-  if (error) throw new Error(`Perfil no disponible: ${error.message}`);
-  if (!data) {
-    throw new Error(
-      'Perfil no encontrado. Si acabas de registrarte, falta aplicar la migración 0010_handle_new_user.',
-    );
+async function fetchProfile(): Promise<User> {
+  const profile = await httpClient.get<ProfileResponse>('/ms-users/api/users/profile');
+  return toUser(profile);
+}
+
+/** Notifica a otras pestañas sin exponer detalles de sesión. */
+function broadcastAuthEvent(type: 'login' | 'logout' | 'unauthorized'): void {
+  if (typeof window === 'undefined' || !('BroadcastChannel' in window)) return;
+  try {
+    const channel = new BroadcastChannel('repu-auth');
+    channel.postMessage({ type });
+    channel.close();
+  } catch {
+    // BroadcastChannel puede fallar en navegadores antiguos; el fallback
+    // `storage` de `subscribeToAuthChanges` cubre ese caso.
   }
-  return mapProfileRow(data as ProfileRow);
 }
 
 /**
- * Inicia sesión con email y password contra Supabase Auth.
- * Normaliza errores a mensajes de UI sin filtrar si el email existe.
+ * Inicia sesión contra `ms-auth` y completa el `User` con `ms-users/profile`.
+ * Errores normalizados: 401 → credenciales inválidas; resto → servicio no disponible.
  */
 export const login = async (email?: string, password?: string): Promise<User> => {
-  if (!email || !password) {
+  if (!email?.trim() || !password) {
     throw new Error('Email y contraseña son requeridos');
   }
-  const { data, error } = await getSupabase().auth.signInWithPassword({
-    email: email.trim().toLowerCase(),
-    password,
-  });
-  if (error || !data.user) {
-    throw new Error('Credenciales inválidas');
+
+  try {
+    const session = await httpClient.post<LoginResponse>(
+      '/ms-auth/api/auth/login',
+      { email: email.trim().toLowerCase(), password },
+      { skipUnauthorizedNotification: true },
+    );
+
+    if (!session.authenticated) {
+      throw new Error('Credenciales inválidas');
+    }
+
+    const user = await fetchProfile();
+    broadcastAuthEvent('login');
+    return user;
+  } catch (error) {
+    if (error instanceof HttpError) {
+      if (error.status === 401) {
+        throw new Error('Credenciales inválidas');
+      }
+      if (error.status === 400 && error.message) {
+        throw new Error(error.message);
+      }
+    }
+    if (error instanceof Error && error.message === 'Credenciales inválidas') {
+      throw error;
+    }
+    throw new Error('Servicio no disponible');
   }
-  return fetchProfile(data.user.id);
 };
 
 /**
- * Cierra la sesión en Supabase (limpia su token). El store limpia además
- * `user/isAuthenticated`; la key `auth-storage` permanece (no se borra).
+ * Cierra la sesión en el servidor y notifica a otras pestañas.
+ * El store limpia su estado local aunque esta llamada falle.
  */
 export const logout = async (): Promise<void> => {
-  await getSupabase().auth.signOut();
+  try {
+    await httpClient.post<void>('/ms-auth/api/auth/logout');
+  } finally {
+    broadcastAuthEvent('logout');
+  }
 };
 
 /**
- * Indica si hay sesión Supabase vigente. El argumento legacy se ignora:
- * la validez la determina el cliente (JWT custodiado por supabase-js,
- * nunca en `auth-storage` ni en `User`).
+ * `true` si hay una sesión vigente. El argumento legacy se ignora: la
+ * validez la determina el perfil resuelto contra el backend.
  */
 export const verifyToken = async (_token?: string | null): Promise<boolean> => {
-  const { data } = await getSupabase().auth.getSession();
-  return Boolean(data.session);
+  void _token;
+  return Boolean(await getCurrentUser());
 };
 
-/**
- * Retorna el usuario actual desde la sesión vigente, o `null` sin sesión.
- * El argumento legacy se ignora (compat con firmas mock anteriores).
- */
+/** Retorna el usuario autenticado o `null` si no hay sesión válida. */
 export const getCurrentUser = async (_token?: string | null): Promise<User | null> => {
-  const { data } = await getSupabase().auth.getSession();
-  const userId = data.session?.user.id;
-  if (!userId) return null;
-  return fetchProfile(userId);
-};
-
-/**
- * Registra un usuario en Supabase Auth. El trigger 0010 crea su fila en
- * `profiles` con rol 'comprador'. Requiere `email` + `password`; `name`
- * viaja en `options.data` para el trigger.
- */
-export const register = async (
-  userData: Partial<User> & { email: string; password: string },
-): Promise<User> => {
-  const { data, error } = await getSupabase().auth.signUp({
-    email: userData.email.trim().toLowerCase(),
-    password: userData.password,
-    options: { data: { name: userData.name ?? userData.email.split('@')[0] } },
-  });
-  if (error || !data.user) {
-    throw new Error(error?.message ?? 'No se pudo registrar el usuario');
+  void _token;
+  try {
+    return await fetchProfile();
+  } catch (error) {
+    if (error instanceof HttpError && error.status === 401) {
+      return null;
+    }
+    throw error;
   }
-  return fetchProfile(data.user.id);
 };
 
 /**
- * Suscribe al store a los cambios de sesión Supabase (login/logout en otra
- * pestaña, expiración/refresh de token). Zero-Coupling: el store no importa
- * `@supabase/supabase-js`; solo recibe `User | null` de dominio.
- * Retorna función para desuscribirse.
+ * Registra una cuenta en `ms-auth`.
+ * No inicia sesión: el backend responde 201 sin cookie. El llamador debe
+ * hacer `login` después si quiere dejar al usuario autenticado.
+ */
+export const register = async (userData: RegisterUserInput): Promise<User> => {
+  const email = userData.email?.trim().toLowerCase();
+  if (!email || !userData.password) {
+    throw new Error('Email y contraseña son requeridos');
+  }
+
+  const firstName = (userData.firstName ?? userData.name ?? email.split('@')[0]).trim();
+  const lastName = (userData.lastName ?? '').trim();
+  const role = (userData.role ?? 'comprador') as UserRole;
+
+  if (!SELF_REGISTRATION_ROLES.has(role)) {
+    throw new Error('Rol no permitido para autorregistro');
+  }
+
+  try {
+    const response = await httpClient.post<RegisterResponse>(
+      '/ms-auth/api/auth/register',
+      {
+        firstName,
+        lastName,
+        email,
+        password: userData.password,
+        phone: userData.phone,
+        role: role.toUpperCase(),
+        profileAttributes: userData.profileAttributes,
+      },
+      { skipUnauthorizedNotification: true },
+    );
+
+    const nameFromResponse = response.name?.trim();
+    const fullName = [firstName, lastName].filter(Boolean).join(' ').trim();
+
+    return {
+      id: String(response.id),
+      email: response.email,
+      name: fullName || nameFromResponse || email,
+      role: mapRole(response.role),
+      avatar: null,
+    };
+  } catch (error) {
+    if (error instanceof HttpError) {
+      throw new Error(error.message || 'No se pudo registrar el usuario');
+    }
+    throw new Error('Servicio no disponible');
+  }
+};
+
+/**
+ * Solicita recuperación de contraseña en `ms-users`.
+ * La respuesta es siempre genérica para no revelar si el correo existe.
+ */
+export const requestPasswordReset = async (email: string): Promise<boolean> => {
+  const normalizedEmail = email?.trim().toLowerCase();
+  if (!normalizedEmail) {
+    throw new Error('El correo es obligatorio');
+  }
+
+  try {
+    await httpClient.post(
+      '/ms-users/api/users/password-recovery',
+      { email: normalizedEmail },
+      { skipUnauthorizedNotification: true },
+    );
+    return true;
+  } catch {
+    throw new Error('No se pudo solicitar la recuperación');
+  }
+};
+
+/**
+ * Mantiene la UI sincronizada sin polling:
+ * - `BroadcastChannel('repu-auth')` para login/logout en otras pestañas.
+ * - `onUnauthorized` para 401 de cualquier endpoint autenticado.
+ * - `visibilitychange` para revalidar al volver a la pestaña (máx. 1/min).
+ * - `storage` como fallback si no hay BroadcastChannel.
+ *
+ * Retorna la función de limpieza; el store la usa una sola vez.
  */
 export const subscribeToAuthChanges = (
   listener: (user: User | null) => void,
 ): (() => void) => {
-  const { data } = getSupabase().auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_OUT' || !session?.user) {
-      listener(null);
-      return;
-    }
-    try {
-      listener(await fetchProfile(session.user.id));
-    } catch {
-      listener(null);
-    }
-  });
-  return () => data.subscription.unsubscribe();
-};
+  let closed = false;
+  let lastVisibilityCheck = 0;
+  let channel: BroadcastChannel | null = null;
 
-/**
- * Envía el email de recuperación vía Supabase Auth. Mensaje genérico
- * para no revelar si el email existe (anti-enumeración).
- */
-export const requestPasswordReset = async (email: string): Promise<boolean> => {
-  const { error } = await getSupabase().auth.resetPasswordForEmail(email.trim().toLowerCase());
-  if (error) throw new Error('No se pudo solicitar la recuperación');
-  return true;
+  const emit = (user: User | null) => {
+    if (!closed) listener(user);
+  };
+
+  const refresh = async () => {
+    try {
+      emit(await getCurrentUser());
+    } catch {
+      emit(null);
+    }
+  };
+
+  const unsubscribeUnauthorized = onUnauthorized(() => {
+    emit(null);
+    broadcastAuthEvent('unauthorized');
+  });
+
+  if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+    try {
+      channel = new BroadcastChannel('repu-auth');
+      channel.onmessage = (event: MessageEvent) => {
+        const type = (event.data as { type?: string } | null)?.type;
+        if (type === 'logout' || type === 'unauthorized') {
+          emit(null);
+          return;
+        }
+        if (type === 'login') {
+          void refresh();
+        }
+      };
+    } catch {
+      channel = null;
+    }
+  }
+
+  const onVisibilityChange = () => {
+    if (typeof document === 'undefined' || document.visibilityState !== 'visible') return;
+    const now = Date.now();
+    if (now - lastVisibilityCheck < 60_000) return;
+    lastVisibilityCheck = now;
+    void refresh();
+  };
+
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === 'auth-storage') {
+      void refresh();
+    }
+  };
+
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', onVisibilityChange);
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('storage', onStorage);
+  }
+
+  return () => {
+    closed = true;
+    unsubscribeUnauthorized();
+    channel?.close();
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    }
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('storage', onStorage);
+    }
+  };
 };

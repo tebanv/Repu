@@ -22,7 +22,7 @@ Cuando un agente de IA o desarrollador sea instruido para actualizar, complement
 ## 1. Reglas Generales de Desarrollo y Buenas Prácticas
 
 1. **Revisar Siempre los Archivos de Contexto `.md`:**
-   - Antes de responder, sugerir código o implementar cambios, consulta obligatoriamente los archivos de documentación clave: `PROJECT_GUIDE.md`, `FOLDER_STRUCTURE.md`, `ARCHITECTURE.md`, `DATAFLOW.md`, `ROADMAP.md`, `APP_FLOW.md`, etc.
+   - Antes de responder, sugerir código o implementar cambios, consulta obligatoriamente los archivos de documentación clave: `PROJECT_GUIDE.md`, `FOLDER_STRUCTURE.md`, `ARCHITECTURE.md`, `DATAFLOW.md`, `ROADMAP.md`, `APP_FLOW.md`, `BACKEND.md`, `ADR-002-BACKEND-MICROSERVICES.md`, `AUTHENTICATION.md`, etc.
    - Sigue la estructura de carpetas, convenciones de nomenclatura y decisiones arquitectónicas ya documentadas.
    - Si tienes dudas sobre un requerimiento o flujo, consulta primero los archivos de documentación antes de asumir o preguntar al usuario.
 
@@ -46,10 +46,10 @@ Cuando un agente de IA o desarrollador sea instruido para actualizar, complement
 6. **Mantenimiento Obligatorio de la Documentación:**
    - **Si creas nuevos componentes, servicios o stores, documenta su propósito y ubicación en los archivos `.md` correspondientes.**
    - Mantén actualizados los archivos de documentación y enlaza los cambios relevantes en el `README.md`.
-   - Cada cambio relevante debe registrarse en `docs/CHANGELOG.md` y actualizar el estado de las fases en `docs/ROADMAP.md`. Si se altera la arquitectura o el flujo de datos, sincronizar `docs/ARCHITECTURE.md` y `docs/DATAFLOW.md`.
+   - Cada cambio relevante debe registrarse en `docs/CHANGELOG.md` y actualizar el estado de las fases en `docs/ROADMAP.md`. Si se altera la arquitectura, el backend o el flujo de datos, sincronizar `docs/ARCHITECTURE.md`, `docs/BACKEND.md`, `docs/AUTHENTICATION.md` y `docs/DATAFLOW.md`.
 
 7. **Seguridad y Secretos:**
-   - Nunca subas tokens, contraseñas, claves privadas ni datos sensibles. Utiliza variables de entorno (`.env.local`) y mantén al día `.env.example` (hoy inexistente en el repo; al crearlo, primera entrada `NEXT_PUBLIC_MAPBOX_TOKEN=`, único secreto en uso).
+   - Nunca subas tokens, contraseñas, claves privadas ni datos sensibles. Utiliza variables de entorno (`.env.local`) y mantén al día `.env.example` (primera entrada `NEXT_PUBLIC_MAPBOX_TOKEN=`; `AUTH_API_ORIGIN` y `USERS_API_ORIGIN` son variables de servidor, no `NEXT_PUBLIC`).
 
 8. **Facilitar el Testing y la Extensibilidad:**
    - Prefiere servicios y hooks reutilizables para lógica compleja. Escribe código modular, fácil de testear y con bajo acoplamiento.
@@ -69,11 +69,16 @@ Cuando un agente de IA o desarrollador sea instruido para actualizar, complement
 3. **Retorno Tipado Estricto:**
    - Toda función en `src/services/` debe recibir y retornar tipos e interfaces de dominio estrictamente definidos en `src/types/` (`Store`, `Product`, `Order`, etc.).
 4. **Independencia del Proveedor:**
-   - El frontend debe poder cambiar entre mocks locales en memoria, Supabase BaaS o un backend en Spring Boot / AWS modificando únicamente la capa `src/services/` y variables de entorno, sin alterar ningún componente de UI ni store de Zustand. (Estado actual: catálogo y auth sobre Supabase como puente congelado; pedidos/carrito locales. Spring Boot es el destino final, no una migración opcional.)
-5. **Backend objetivo Spring Boot (ADR-001, 2026-10-19):**
-   - Spring Boot en Docker es el gateway final. Supabase queda congelado como puente: no añadir features nuevas que dependan de Supabase Auth, Realtime, Edge Functions o Storage, ni cambios de esquema que solo existan en Supabase.
-   - Todo acceso a datos pasa por `src/services/`; el contrato se deriva de `src/types/` + `docs/DATA_MODEL.md`. El legacy `arquitectura/` es checklist de alcance, no contrato vigente.
-   - El corte es por dominio (catálogo → auth → pedidos → realtime) y sin escrituras duales. Ver `docs/ADR-001-BACKEND-SPRING.md`.
+   - El frontend debe poder cambiar entre mocks locales en memoria, Supabase legado o los microservicios Spring reales modificando únicamente la capa `src/services/` y variables de entorno, sin alterar componentes de UI ni stores de Zustand. (Estado actual: auth ya usa `ms-auth`/`ms-users`; catálogo todavía en Supabase; pedidos/carrito locales. El corte es obligatorio, no opcional.)
+5. **Backend real de microservicios (ADR-002, 2026-10-27):**
+   - El backend real son siete microservicios Spring Boot en Docker (`ms-auth`, `ms-users`, `ms-companies`, `ms-products`, `ms-categories`, `ms-orders`, `ms-manage-payment`) detrás de Traefik. Supabase queda **fuera del camino crítico**: no añadir features nuevas sobre Supabase Auth, Realtime, Edge Functions, Storage ni cambios de esquema. Auth ya está migrado a `ms-auth`; el catálogo sigue en Supabase como legado transitorio hasta su corte.
+   - Todo acceso a datos pasa por `src/services/`; el contrato se deriva del código de `Backend/` + `Arq-Infra/Repo-DB-2.sql` + `Arq-Infra/Repu.postman_collection.json`, no del legacy `arquitectura/`.
+   - El corte es por dominio, **auth → catálogo → pedidos → tracking**, sin escrituras duales. Ver `docs/ADR-002-BACKEND-MICROSERVICES.md` y `docs/BACKEND.md`.
+6. **Sesión y contrato de auth (verificado):**
+   - `ms-auth` es la única autoridad de sesión. El web usa la cookie `HttpOnly` `__Host-repu_session`; **nunca** lee, persiste ni registra el `accessToken` del body.
+   - El perfil se obtiene de `GET /ms-users/api/users/profile`; `/ms-auth/api/auth/session` es introspección servicio-a-servicio y exige `X-Auth-Service-Token`.
+   - El esquema `repu` está en español y usa `NUMERIC(15,2)`; los adaptadores de `src/services/` traducen a `Store`/`Product`/`Order` y al dinero entero COP del front. No mover esa traducción a UI/stores.
+   - Los estados de orden del backend están dimensionados (`estado_orden`, `estado_pago`, `estado_comercio`, `estado_envio`) y no coinciden aún con `OrderStatus`; el mapeo se cierra antes del corte de pedidos.
 
 ---
 
@@ -101,7 +106,7 @@ Todo desarrollo debe evaluarse bajo cuatro heurísticas fundamentales de arquite
 * **Streams Continuos de Alta Frecuencia vs Estado de Negocio:**
    - Si un dato cambia continuamente (ej. telemetría GPS a 1Hz de repartidores, animaciones, gestos de arrastre), debe tratarse como un **stream de renderizado visual** (manejado en capas WebGL/Canvas de Mapbox con `requestAnimationFrame` / `easeTo` o referencias directas).
    - **Nunca mutar el store de estado global (Zustand) ni enviar escrituras a la base de datos a alta frecuencia** (ej. 60 mutaciones por minuto) por datos que solo necesita la animación de la pantalla actual. El store de negocio y PostgreSQL solo registran hitos discretos de estado y snapshots periódicos (cada 15-30s).
-   - (Las cifras anteriores — 1Hz, 60 mutaciones/min, 15-30s — son criterios orientativos de diseño, no comportamiento implementado: hoy no hay tracking de repartidores en vivo.)
+   - (Las cifras anteriores — 1Hz, 60 mutaciones/min, 15-30s — son criterios orientativos de diseño, no comportamiento implementado: el front aún no consume el tracking de `ms-orders`; el backend ya expone SSE y `posiciones_actuales_envio`.)
 * **Ciclo de Vida y Liberación de Sensores de Hardware:**
   - Ante denegación de permisos (`PERMISSION_DENIED`), invocar inmediatamente `navigator.geolocation.clearWatch()` para apagar la antena GPS.
   - En zonas de sombra (sótanos/túneles), preservar las últimas coordenadas conocidas y pasar a escucha pasiva con guardas anti-re-renders para no saturar el CPU con ráfagas de errores repetitivos.
@@ -112,7 +117,7 @@ Todo desarrollo debe evaluarse bajo cuatro heurísticas fundamentales de arquite
 > **Pregunta clave:** *¿Esta consulta a la base de datos o API de mapas es estrictamente necesaria en este instante, o genera sobrecostos y tráfico redundante?*
 
 * **Prevención de Tráfico y Consultas Masivas:**
-   - Prohibido el *polling* descontrolado por HTTP; preferir eventos reactivos bajo demanda frente a polling (WebSocket como dirección futura, hoy inexistente: solo fetch mock con `setTimeout`).
+   - Prohibido el *polling* descontrolado por HTTP; preferir eventos reactivos bajo demanda. El backend ya expone SSE en `ms-orders` (tracking); el front aún no lo consume. Mientras no exista integración, no introducir polling como sustituto.
    - Al interactuar con el mapa o catálogo, aplicar *debounce* y validar umbrales mínimos de desplazamiento geográfico (*thresholds*) antes de disparar peticiones a la API.
    - Reutilizar instancias de mapas y capas vectoriales cacheadas (`dark-v11`).
 * **Separación de Responsabilidades en Datos:**

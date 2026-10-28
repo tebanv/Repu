@@ -18,7 +18,7 @@ El token es opaco, aleatorio y funciona como credencial de sesión. `ms-auth` gu
 |---|---|
 | `POST /api/auth/login` | Iniciar sesión; emite la cookie y devuelve el token para clientes nativos. |
 | `POST /api/auth/register` | Registrar una cuenta. |
-| `GET /api/auth/session` | Validar la cookie o el Bearer actual; responde `{ "userId": "...", "role": "..." }`. Devuelve `401` si la sesión no es válida o expiró. |
+| `GET /api/auth/session` | Validar la cookie o el Bearer actual; responde `{ "userId": "...", "role": "..." }`. Devuelve `401` si la sesión no es válida o expiró. Exige `X-Auth-Service-Token` (introspección servicio-a-servicio; no es un endpoint de navegador). |
 | `POST /api/auth/logout` | Revocar la sesión presentada y expirar la cookie. |
 | `POST /api/auth/logout-all` | Revocar todas las sesiones del usuario autenticado. |
 | `GET /api/auth/sessions` | Listar las sesiones activas del usuario autenticado para la gestión de dispositivos. **No usar para validar una solicitud.** |
@@ -64,5 +64,6 @@ Este modo usa una cookie sin prefijo `__Host-`; los navegadores exigen `Secure` 
 - No almacenar el token web en `localStorage`, `sessionStorage`, URLs ni telemetría; la cookie es gestionada por el navegador.
 - En móvil, proteger el token en el almacén seguro del sistema operativo y enviarlo únicamente por HTTPS.
 - No registrar `Cookie`, `Set-Cookie`, `Authorization` ni el token en trazas o logs.
-- Las sesiones expiran en 8 horas para `ADMIN` y `ANALISTA`, y en 7 días para los demás roles. El backend intenta renovar la sesión al acercarse a la expiración; hoy la cookie solo se emite en login, por lo que su `Max-Age` del navegador no se extiende automáticamente con esa renovación.
+- Las sesiones expiran en 8 horas para `ADMIN` y `ANALISTA`, y en 7 días para los demás roles. El backend renueva la sesión de forma deslizante cuando quedan menos de 30 minutos (extiende `expira_en` y el TTL de Redis); la cookie solo se emite en login, por lo que su `Max-Age` del navegador no se extiende automáticamente con esa renovación.
+- `ms-users` valida la cookie/Bearer directamente contra `sesiones_usuario` en PostgreSQL, no llamando a `ms-auth`; los demás microservicios usan `GET /api/auth/session` con `X-Auth-Service-Token`. Vigilar la desincronización Redis/DB tras un logout.
 - Actualmente no hay un endpoint ni un flujo de `refresh_token`. Para cerrar sesión, llamar a `/api/auth/logout`; para revocar todos los dispositivos, llamar a `/api/auth/logout-all`.

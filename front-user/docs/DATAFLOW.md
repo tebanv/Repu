@@ -2,7 +2,7 @@
 
 Este documento describe el flujo de datos actualizado para reflejar la implementación de la **estrategia híbrida de filtrado** del mapa y la nueva base del **carrito persistente**.
 
-> **Estado de backend (2026-10-19, [ADR-001](./ADR-001-BACKEND-SPRING.md)):** catálogo y auth leen Supabase como **puente congelado**; pedidos/tracking siguen locales. El gateway final es Spring Boot. Los flujos descritos siguen vigentes; solo cambiará la implementación de `src/services/`.
+> **Estado de backend (2026-10-28, [ADR-002](./ADR-002-BACKEND-MICROSERVICES.md)):** el backend real son microservicios Spring Boot. Auth ya está migrado en el front a `ms-auth`/`ms-users` y su smoke se verificó en entorno de pruebas (servidor pendiente); catálogo sigue en Supabase como legado transitorio y carrito/pedidos/tracking son locales. Los flujos de mapa/carrito descritos aquí no cambian; solo cambiará la implementación de `src/services/`.
 
 El cambio principal es la introducción de una **Lista Maestra (`masterStores`)**: La API descarga todas las tiendas cercanas por ubicación, y el filtrado por categoría ocurre **en el cliente** (memoria) para una experiencia de usuario instantánea.
 
@@ -18,7 +18,7 @@ La API filtra **solo por radio** (distancia Haversine aproximada en `src/service
     * Un `useEffect` separado reacciona a cambios de `activeFilters` y llama a la acción síncrona `applyFilters` (sin HTTP).
     * El `useEffect` de carga detecta una nueva ubicación válida (o un movimiento significativo del mapa) y llama a la acción `storesStore.fetchStores({ location, filters })`.
 4.  **Llamada a la API (Sin Filtrar)**:
-    * La acción llama a `fetchNearbyStores({ lat, lng, radius = 5000 })` en `src/services/api.ts` (Supabase real: RPC `get_nearby_stores` con `user_lat/user_lng/radius_m`; `location` EWKB → `lat/lng` en el adaptador).
+    * La acción llama a `fetchNearbyStores({ lat, lng, radius = 5000 })` en `src/services/api.ts` (**legado Supabase** mientras se corta catálogo: RPC `get_nearby_stores` con `user_lat/user_lng/radius_m`; `location` EWKB → `lat/lng` en el adaptador). El destino es `ms-companies`/`ms-products`.
     * **Diferencia Clave:** la BD devuelve **TODAS** las tiendas en el radio, independientemente de la categoría. No filtra nada.
 5.  **Procesamiento en el Store (Atómico)**:
     * `storesStore` recibe los datos crudos.
@@ -124,7 +124,7 @@ El carrito sigue un flujo separado del mapa, pero con la misma filosofía: **fue
 
 ## 7. Flujo de Datos Multi-Pedido y Simulación Local de Seguimiento
 
-> Estado real: no hay telemetría en tiempo real. Sin WebSocket/SWR/TanStack, sin Supabase Realtime, sin stream GPS y sin backend de pedidos en el front (`createOrder` es mock; el catálogo/auth sí leen Supabase como puente). El estado vive en Zustand `persist` (`order-storage`) + sync multi-tab; la posición del repartidor solo cambia vía `updateDriverCoordinates` manual y el mapa la interpola de forma estática según `status`. Realtime/SWR/WebSocket/streaming quedan como trabajo futuro hacia Spring Boot (SSE/STOMP).
+> Estado real: no hay telemetría en tiempo real. Sin WebSocket/SWR/TanStack, sin Supabase Realtime, sin stream GPS y sin backend de pedidos conectado en el front (`createOrder` es mock local; el catálogo del código actual todavía usa Supabase como legado; auth ya usa `ms-auth`). El backend sí expone carrito/órdenes/tracking/SSE en `ms-orders`, pero el front aún no los consume. El estado vive en Zustand `persist` (`order-storage`) + sync multi-tab; la posición del repartidor solo cambia vía `updateDriverCoordinates` manual y el mapa la interpola de forma estática según `status`. El corte a `ms-orders` es trabajo futuro.
 
 ```text
 [Checkout / API] ──(createOrder)──▶ [orderStore: orders[]]
@@ -177,4 +177,30 @@ El carrito sigue un flujo separado del mapa, pero con la misma filosofía: **fue
 
 ### 7.5 Rutas reales del flujo
 `(auth)/login`, `(main)/` (mapa), `(main)/store/[slug]` (catálogo), `(main)/checkout`, `(main)/order/[id]` (tracking). Producto = modal, carrito = drawer; no existen `/orders` ni `/profile`.
+
+## 8. Flujo de autenticación implementado (`ms-auth`, 2026-10-27)
+
+```text
+[LoginForm] ──login()──▶ [authStore] ──▶ [authService] ──▶ [httpClient]
+                                                              │ credentials: include
+                                                              ▼
+                                              POST /ms-auth/api/auth/login
+                                                              │ 200 + Set-Cookie HttpOnly
+                                                              ▼
+                                              GET /ms-users/api/users/profile
+                                                              │ {id,email,role,firstName,lastName,...}
+                                                              ▼
+                                              User + isAuthenticated en auth-storage
+                                                              │
+                                                              ▼
+                                              [MainLayoutShell] guard client-side
+```
+
+- La cookie `__Host-repu_session` es la fuente de verdad; `auth-storage` solo cachea `user` + `isAuthenticated`.
+- Cualquier `401` de un endpoint autenticado emite `unauthorized`; el store limpia y el guard redirige a `/login`.
+- `logout` llama `POST /ms-auth/api/auth/logout` y limpia local aunque falle la red.
+- `BroadcastChannel('repu-auth')` sincroniza login/logout/expiración entre pestañas.
+- El `accessToken` del body no se lee ni se persiste en web.
+
+El detalle de contrato, cookie, roles y plan de migración está en [AUTHENTICATION.md](./AUTHENTICATION.md) y [PLAN-LOGIN-MS-AUTH.md](./PLAN-LOGIN-MS-AUTH.md).
 

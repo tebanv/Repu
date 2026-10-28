@@ -19,8 +19,10 @@ import { useAuthField } from './AuthFieldContext';
 
 type Phase = 'idle' | 'loading' | 'success';
 
-/** Accesos rápidos de desarrollo (usuarios seed en Supabase Auth, rol 'comprador').
- * Deben crearse en el proyecto Supabase (signUp o panel Auth); no son mocks. */
+/** Accesos rápidos de desarrollo.
+ * LEGADO: apuntan a seeds de Supabase Auth y no existen en la BD Spring.
+ * Pendiente (paso 7 del plan de auth): reemplazarlos por usuarios reales de
+ * `repu.usuarios` o retirarlos con aprobación explícita. */
 const DEMO_USERS = [
   { label: 'Admin', email: 'admin@mallvirtual.com', password: 'admin123' },
   { label: 'Usuario', email: 'usuario@demo.com', password: 'user123' },
@@ -50,7 +52,7 @@ export default function LoginForm() {
 
   useEffect(() => {
     // Revalida sesión vigente al entrar a /login: evita redirect con
-    // `auth-storage` rancio si el token Supabase ya expiró.
+    // `auth-storage` rancio si la cookie del backend ya expiró.
     void initializeAuth();
   }, [initializeAuth]);
 

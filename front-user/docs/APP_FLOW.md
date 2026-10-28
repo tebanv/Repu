@@ -87,8 +87,8 @@
 └─────────────────────────────────────────────────────────────────────────────┘
                                       ↓
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│              FASE 4: SEGUIMIENTO ✅ IMPLEMENTADO (SIMULACIÓN LOCAL;         │
-│              sin backend/realtime/push/notificaciones)                      │
+│              FASE 4: SEGUIMIENTO ✅ IMPLEMENTADO EN EL FRONT (SIMULACIÓN   │
+│              LOCAL; el backend ya expone ms-orders + SSE, aún no cableado) │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  18. Pedido creado en `orderStore` (mock local, sin notificar a tienda)      │
@@ -162,7 +162,7 @@ Transiciones manuales reales (`OrderTimeline`): `PAGADO→PREPARANDO`, `ACEPTADO
 
 ## Modelo de Datos Principal
 
-> Nota: modelo objetivo simplificado; el implementado está en `src/types/order.ts` (pedido sin `orderNumber`/`userId`/`driverId` — el `id` con formato `REP-YYYY-XXXX` hace de número —, `items: CartItem[]`, `breakdown` sin `discount`, `stateHistory` en vez de `timeline`, `rating { storeRating, driverRating, comments?, submittedAt }`, `estimatedDeliveryMinutes: number`, `deliveryLocation` dentro de `deliveryAddress.coordinates`; `DriverInfo { name, phone, vehicleType, vehiclePlate, rating, avatar? }` sin `id`/`isOnline`/coords — las coords van en `driverCoordinates`).
+> Nota: modelo objetivo simplificado; el implementado en el front está en `src/types/order.ts` (pedido sin `orderNumber`/`userId`/`driverId` — el `id` con formato `REP-YYYY-XXXX` hace de número —, `items: CartItem[]`, `breakdown` sin `discount`, `stateHistory` en vez de `timeline`, `rating { storeRating, driverRating, comments?, submittedAt }`, `estimatedDeliveryMinutes: number`, `deliveryLocation` dentro de `deliveryAddress.coordinates`; `DriverInfo { name, phone, vehicleType, vehiclePlate, rating, avatar? }` sin `id`/`isOnline`/coords — las coords van en `driverCoordinates`). **El backend real usa la tabla `ordenes` con `estado_orden`/`estado_pago`/`estado_comercio`/`estado_envio` y dinero `NUMERIC(15,2)`; el mapeo aún no está implementado (ver `DATA_MODEL.md` §6).**
 
 ### Cliente
 ```typescript
@@ -297,7 +297,9 @@ Transiciones manuales reales (`OrderTimeline`): `PAGADO→PREPARANDO`, `ACEPTADO
 | Servicio | Propósito | Estado real |
 |----------|-----------|-----------|
 | **Mapbox** | Mapas, geocoding, rutas | ✅ Implementado |
-| **Supabase** | PostgreSQL/PostGIS + Auth (puente congelado) | Catálogo y auth integrados; sin Realtime. Backend final Spring Boot ([ADR-001](./ADR-001-BACKEND-SPRING.md)) |
+| **Spring Boot (`ms-auth` / `ms-users`)** | Autenticación y perfil/sesiones | Front migrado; smoke verificado en entorno de pruebas; servidor pendiente |
+| **Spring Boot (catálogo/pedidos)** | `ms-companies`, `ms-products`, `ms-categories`, `ms-orders`, `ms-manage-payment` | Backend implementado; front aún no los consume |
+| **Supabase** | Catálogo legado (PostgreSQL/PostGIS) | Solo catálogo hasta su corte; auth sale de Supabase con `ms-auth` |
 | **Pasarela de pago** | Wompi en línea (simulado en UI, sin PSE/tarjetas/Nequi reales) | Simulado |
 | **Push Notifications** | Alertas de estado del pedido | Pendiente (futuro) |
 | **SMS/WhatsApp** | Notificaciones críticas | Pendiente (futuro) |
@@ -307,7 +309,7 @@ Transiciones manuales reales (`OrderTimeline`): `PAGADO→PREPARANDO`, `ACEPTADO
 
 ## Arquitectura de Tiempo Real
 
-Estado real: catálogo y auth contra Supabase (puente congelado); carrito, pedidos y tracking en Zustand `persist` (`cart-storage`, `order-storage`; `auth-storage` solo caché de UI) + sincronización cross-tab (`lib/storageSync.ts`). Coordenadas del repartidor solo vía `updateDriverCoordinates` manual. Realtime Supabase/WebSocket es futuro; el destino es Spring Boot (SSE/STOMP), no Supabase Realtime. Ver [ADR-001](./ADR-001-BACKEND-SPRING.md).
+Estado real: el backend ya expone auth (`ms-auth`/`ms-users`) y pedidos/tracking (`ms-orders`, incluido SSE). El front ya consume auth; aún no consume pedidos/tracking. El catálogo sigue en Supabase como legado; carrito, pedidos y tracking viven en Zustand `persist` (`cart-storage`, `order-storage`; `auth-storage` solo caché de UI) + sincronización cross-tab (`lib/storageSync.ts`). Coordenadas del repartidor solo vía `updateDriverCoordinates` manual. El destino es el corte a `ms-orders` (SSE), no Supabase Realtime. Ver [ADR-002](./ADR-002-BACKEND-MICROSERVICES.md) y [BACKEND.md](./BACKEND.md).
 
 ```
 ┌─────────────┐     persist + cross-tab sync      ┌─────────────┐
@@ -348,7 +350,7 @@ Estado real: catálogo y auth contra Supabase (puente congelado); carrito, pedid
 
 ### 📋 Fases Posteriores
 - Pagos reales (Wompi productivo, PSE/tarjetas/Nequi)
-- Realtime Supabase + repartidor vivo
+- SSE de `ms-orders` + repartidor vivo
 - Notificaciones (push/SMS)
 - Historial `/orders` y perfil `/profile`
 
@@ -363,8 +365,8 @@ Estado real: catálogo y auth contra Supabase (puente congelado); carrito, pedid
 | Mapas | Mapbox GL JS | Personalización, rendimiento |
 | Estilos | Tailwind CSS | Rapidez, consistencia |
 | Animaciones | Framer Motion | Declarativo, performante |
-| Base de datos | PostgreSQL + PostGIS (Supabase como puente; Spring Boot final) | PostGIS, RLS, auth integrada |
-| Tiempo real | Spring SSE/STOMP (futuro) | Backend propio; sin acoplar a Supabase Realtime |
+| Base de datos | PostgreSQL + PostGIS (schema `repu` del backend; Supabase solo legado de catálogo) | PostGIS, integridad relacional, soft delete y auditoría |
+| Tiempo real | SSE de `ms-orders` (backend disponible; front pendiente) | Backend propio; sin acoplar a Supabase Realtime |
 
 ---
 

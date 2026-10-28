@@ -1,6 +1,8 @@
 # ADR-001 — Backend final Spring Boot; Supabase congelado como puente
 
-- **Estado:** Aceptada
+> **Actualización 2026-10-27:** esta decisión se conserva como **histórica**. El backend real ya está en `Backend/` como siete microservicios Spring Boot y Supabase quedó fuera del camino crítico. El alcance vigente lo fija [ADR-002](./ADR-002-BACKEND-MICROSERVICES.md); este documento mantiene el contexto de por qué se congeló Supabase y qué criterios de salida siguen siendo válidos. Las referencias a `arquitectura/` corresponden al material que hoy vive en `Arq-Infra/` (`Repo-DB-2.sql`, `Apis_Mall_Virtual_V2.yaml`).
+
+- **Estado:** Aceptada; sustituida en alcance por [ADR-002](./ADR-002-BACKEND-MICROSERVICES.md) (2026-10-27)
 - **Fecha:** 2026-10-19
 - **Ámbito:** `front-user` + contrato de backend
 - **Relacionados:** [ARCHITECTURE.md](./ARCHITECTURE.md), [ROADMAP.md](./ROADMAP.md), [DATA_MODEL.md](./DATA_MODEL.md), [AUTHENTICATION.md](./AUTHENTICATION.md), [DATAFLOW.md](./DATAFLOW.md)

@@ -8,6 +8,88 @@
   3. Verificar que `.env.local` vuelve a estar ignorado (`git check-ignore front-user/.env.local`).
 - No cerrar este pendiente sin completar los 3 pasos.
 
+## 2026-10-28 — Verificación de auth, suite ejecutada y estado real del backend
+
+### Contexto
+- El código de auth ya estaba migrado a `ms-auth`/`ms-users`, pero la documentación seguía marcando la ejecución de tests y el smoke de auth como pendientes.
+- Se levantó una instancia de pruebas con contenedores reales (`ms-auth`, `ms-users`, PostgreSQL/PostGIS y Redis) y se aplicó el DDL `Arq-Infra/Repo-DB-2.sql`.
+
+### Verificación ejecutada
+- `pnpm test`: **68/68 tests en 8 archivos**.
+- `pnpm type-check`: **0 errores**.
+- `pnpm build`: **correcto**.
+- Smoke de auth contra la instancia de pruebas: registro `201`; login correcto `200` + cookie de sesión (perfil dev: `repu_session_dev`); login incorrecto `401`; perfil `200`; logout `204`; perfil después del logout `401`.
+- Esquema `repu` aplicado y consultado: **27 tablas**. `Repo-DB-2.sql` sigue sin seed de usuarios.
+
+### Pendiente
+- Repetir el smoke de auth en el servidor desplegado.
+- Reemplazar o retirar los chips demo del `LoginForm` (siguen apuntando a seeds de Supabase).
+- HTTPS/TLS en Traefik para la cookie `Secure` en producción.
+- Cortes de catálogo, pedidos y tracking; OpenAPI del backend.
+- QA manual de UI/multi-tab y smoke en servidor.
+
+### Sin cambios de código
+- No se tocó `src/` ni `Backend/`; esta entrada registra verificación y actualización documental.
+
+### Archivos impactados
+- `docs/CHANGELOG.md`, `docs/AUTHENTICATION.md`, `docs/PLAN-LOGIN-MS-AUTH.md`, `docs/TESTING.md`, `docs/BACKEND.md`, `docs/ROADMAP.md`, `docs/ADR-002-BACKEND-MICROSERVICES.md`, `docs/ARCHITECTURE.md`, `docs/PROJECT_GUIDE.md`, `docs/APP_FLOW.md`, `docs/DATAFLOW.md`, `docs/FOLDER_STRUCTURE.md`, `README.md`.
+
+## 2026-10-27 — Corte de auth del front a `ms-auth`/`ms-users`
+
+### Contexto
+- El backend real ya estaba en `Backend/` y la documentación se alineó en el mismo día (ADR-002).
+- Faltaba ejecutar el primer corte: reemplazar Supabase Auth en el front por `ms-auth` (sesión) + `ms-users` (perfil).
+
+### Cambios implementados
+1. **`src/services/httpClient.ts` (nuevo):** `fetch` relativo con `credentials: 'include'`, `X-Request-ID`, `cache: 'no-store'`, parseo de `{message}`/`{error}`, `HttpError` tipado por status y emisor global `onUnauthorized`. Los endpoints públicos pueden optar por no emitir el evento (`skipUnauthorizedNotification`).
+2. **`src/services/authService.ts` (reescrito):** mismas 7 exportaciones; `login` = `POST /ms-auth/api/auth/login` + `GET /ms-users/api/users/profile`; `logout`, `getCurrentUser`, `verifyToken`, `register` (sin iniciar sesión), `requestPasswordReset` (`ms-users`) y `subscribeToAuthChanges` (`BroadcastChannel` + `onUnauthorized` + `visibilitychange` + fallback `storage`). Sin imports de Supabase.
+3. **`src/types/auth.ts`:** `UserRole` incluye `analista`; el servicio mapea MAYÚSCULAS del backend → minúsculas y degrada roles desconocidos a `comprador` con warn en dev.
+4. **`src/store/authStore.ts`:** comentarios actualizados y el listener de auth ahora también pone `isLoading=false` al recibir `null`; el contrato público (`login`, `logout`, `initialize`, `partialize`) no cambia.
+5. **`next.config.js` + `.env.example`:** `rewrites` dev-only de `/ms-auth` y `/ms-users` hacia `AUTH_API_ORIGIN`/`USERS_API_ORIGIN` (vars de servidor); en producción Traefik mantiene same-origin.
+6. **Tests:** `httpClient.test.ts` nuevo (8) y `authService.test.ts` reescrito (11) contra `fetch` mockeado. Total escrito: 68 tests en 8 archivos. `authStore.test.ts` conserva sus aserciones.
+
+### Pendiente / limitaciones
+- **No se ejecutaron** `pnpm test`, `pnpm type-check`, `pnpm build` ni el smoke de Postman: el entorno de esta sesión no tiene Node/pnpm ni Docker.
+- **Chips demo del `LoginForm`** siguen apuntando a seeds de Supabase; deben reemplazarse por usuarios de `repu.usuarios` o retirarse con aprobación.
+- **HTTPS en producción** sigue siendo bloqueante para la cookie `Secure`.
+- `supabaseClient.ts` se conserva solo para el catálogo (`api.ts`).
+
+### Archivos impactados
+- `src/services/httpClient.ts` (nuevo), `src/services/authService.ts`, `src/services/__tests__/httpClient.test.ts` (nuevo), `src/services/__tests__/authService.test.ts`
+- `src/types/auth.ts`, `src/store/authStore.ts`, `src/store/__tests__/authStore.test.ts`
+- `src/components/layout/MainLayoutShell.tsx`, `src/components/auth/LoginForm.tsx` (comentarios)
+- `next.config.js`, `.env.example`
+- `docs/AUTHENTICATION.md`, `docs/PLAN-LOGIN-MS-AUTH.md`, `docs/ADR-002-BACKEND-MICROSERVICES.md`, `docs/BACKEND.md`, `docs/ARCHITECTURE.md`, `docs/DATAFLOW.md`, `docs/APP_FLOW.md`, `docs/PROJECT_GUIDE.md`, `docs/ROADMAP.md`, `docs/TESTING.md`, `docs/AI_GUIDELINES.md`, `docs/CHANGELOG.md`, `README.md`, `AGENTS.md`
+
+## 2026-10-27 — Documentación alineada al backend real: microservicios Spring y corte de auth a `ms-auth`
+
+### Contexto
+- Se hizo pull del backend real (`Backend/`): siete microservicios Spring Boot WebFlux + Traefik + PostgreSQL/PostGIS + Redis.
+- ADR-001 describía Spring como monolito futuro y Supabase como puente vigente; esa narrativa ya no refleja el repositorio y podía inducir a construir sobre Supabase.
+
+### Decisión
+- Nuevo `ADR-002-BACKEND-MICROSERVICES.md`: el backend real es el gateway; Supabase queda fuera del camino crítico y su código es legado transitorio solo para catálogo.
+- El corte por dominio pasa a **auth → catálogo → pedidos → tracking**. Auth primero se justifica porque `ms-auth` ya está implementado y el catálogo Supabase es de lectura anónima.
+- `ms-auth` es la única autoridad de sesión (token opaco, cookie `HttpOnly`); `ms-users` es la fuente del perfil. El web nunca lee/persiste el `accessToken`.
+- Se documenta el bloqueante de producción: Traefik del compose solo expone HTTP y la cookie `Secure` no persiste sin TLS.
+
+### Cambios documentales
+- Nuevos: `docs/ADR-002-BACKEND-MICROSERVICES.md`, `docs/BACKEND.md`.
+- Reescritos: `docs/AUTHENTICATION.md`, `docs/DATA_MODEL.md`, `docs/PLAN-LOGIN-MS-AUTH.md`.
+- Actualizados: `docs/ADR-001-BACKEND-SPRING.md` (marcado histórico), `docs/ARCHITECTURE.md`, `docs/APP_FLOW.md`, `docs/DATAFLOW.md`, `docs/FOLDER_STRUCTURE.md`, `docs/PROJECT_GUIDE.md`, `docs/ROADMAP.md` (Fase 10), `docs/TESTING.md`, `docs/AI_GUIDELINES.md`, `README.md`, `AGENTS.md`.
+- Nuevo histórico: `docs/legacy/DATA_MODEL-SUPABASE.md` (modelo inglés anterior, preservado).
+- `docs/DATA_MODEL.md` pasa a documentar el esquema real `repu` de `Arq-Infra/Repo-DB-2.sql` (tablas en español, FKs, `NUMERIC(15,2)`, roles en MAYÚSCULAS).
+
+### Sin cambios de código
+- No se tocó `src/` ni `Backend/`; el front sigue operando con Supabase Auth/catálogo hasta ejecutar `PLAN-LOGIN-MS-AUTH.md`.
+- Tests actuales al momento de esta entrada: 61/61; el corte de auth se registra en la entrada siguiente (68 tests escritos).
+
+### Riesgos registrados
+- HTTPS en producción (cookie `Secure`) es bloqueante.
+- Falta OpenAPI del backend.
+- Roles, dinero y estados de orden difieren entre backend y front; los adaptadores viven en `src/services/`.
+- No hay seed de usuarios en `Repo-DB-2.sql`; los chips demo actuales no funcionan contra `ms-auth`.
+
 ## 2026-10-19 — Decisión de backend: Supabase congelado como puente y Spring Boot como gateway final
 
 ### Contexto
