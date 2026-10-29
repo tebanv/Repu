@@ -256,6 +256,8 @@ Migraciones SQL numeradas (`supabase/migrations/`) generadas **desde este docume
 Ningún SQL vive fuera de migraciones; ningún cambio de esquema sin actualizar este doc.
 `0009` es solo seed de catálogo Medellín/Envigado, idempotente, sin usuarios ni pedidos.
 
+> **Nota 2026-10-28:** el directorio `supabase/migrations/` ya no está presente en el workspace (tampoco figura en el índice de git). Esta serie se conserva solo como referencia histórica; el DDL canónico vigente es `Arq-Infra/Repo-DB-2.sql`.
+
 ## 9. Auditoría del legado (2026-09-16, preservada como justificación)
 
 Revisión de `arquitectura/` (backend externo, sin mirar desde su entrega) contra la

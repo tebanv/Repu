@@ -154,7 +154,7 @@ El carrito sigue un flujo separado del mapa, pero con la misma filosofía: **fue
 
 ### 7.1 Creación y Concurrencia de Pedidos
 1. Al confirmar una compra en `/checkout`, se crea un nuevo objeto `Order` (id `REP-YYYY-XXXX`, delay mock 600ms) y se prepende al arreglo `orders` en `orderStore` (tope de 20: `[newOrder, ...state.orders].slice(0, 20)`).
-2. `paymentStatus` es `PAID` si el método es `wompi`, si no `CREADO`/`PENDING`; el estado inicial del pedido es `CREADO` y se ejecuta `clearCart()` tras la compra.
+2. `paymentStatus` es `PAID` si el método es `wompi` y `PENDING` en el resto; el `status` inicial es `PAGADO` para `wompi` y `CREADO` para los demás. Se ejecuta `clearCart()` tras la compra.
 3. El selector atómico `useActiveOrdersCount()` en `AppHeader` incrementa el contador inmediatamente (retorna un primitivo `number`) sin re-evaluar las propiedades internas de las demás órdenes.
 4. Si el usuario realiza una segunda compra en otra tienda diferente, ambas órdenes coexisten en `orders: Order[]` con sus propios estados, repartidores y tiempos estimados independientes.
 

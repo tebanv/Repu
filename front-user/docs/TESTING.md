@@ -41,7 +41,8 @@ Config: `vitest.config.mts` (extensión `.mts` para carga ESM sin warnings) con 
 - [x] `logout` limpia estado local incluso si `POST logout` falla o devuelve 401; la cookie la expira el backend.
 - [x] `register` crea cuenta y **no** inicia sesión; validación de rol autorregistro y password.
 - [x] `requestPasswordReset` → `202` genérico; no revela existencia del correo.
-- [ ] `subscribeToAuthChanges`: login/logout/`unauthorized` por `BroadcastChannel`; fallback `storage`; listener `null` pone `isLoading=false`.
+- [x] `subscribeToAuthChanges` (parcial): `authService.test.ts` cubre la emisión de `null` ante un `401` global.
+- [ ] `subscribeToAuthChanges` (pendiente): login/logout/`unauthorized` por `BroadcastChannel`, fallback `storage` y listener `null` → `isLoading=false` en `authStore`.
 - [x] `authStore.initialize()`: con sesión hidrata; sin sesión descarta `auth-storage`; `hasHydrated=true` al terminar.
 - [x] Smoke de API en entorno de pruebas: registro `201`, login OK `200`, login KO `401`, perfil `200`, logout `204` y perfil posterior `401`.
 - [ ] Repetir el smoke de API en el servidor desplegado.

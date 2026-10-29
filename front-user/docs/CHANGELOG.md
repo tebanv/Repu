@@ -8,6 +8,22 @@
   3. Verificar que `.env.local` vuelve a estar ignorado (`git check-ignore front-user/.env.local`).
 - No cerrar este pendiente sin completar los 3 pasos.
 
+## 2026-10-28 — Corrección de erratas documentales: `paymentStatus` y cobertura de `subscribeToAuthChanges`
+
+### Contexto
+- Revisión de consistencia de `docs/` detectó dos desajustes entre la documentación y el código: una redacción ambigua sobre `paymentStatus` en `DATAFLOW.md` y un checkbox obsoleto en `TESTING.md` que subestimaba la cobertura real de auth.
+
+### Cambios implementados
+1. **`docs/DATAFLOW.md` §7.1:** se separó `status` de `paymentStatus`. Ahora indica que `paymentStatus` es `PAID` solo para `wompi` y `PENDING` en el resto, mientras el `status` inicial es `PAGADO` para `wompi` y `CREADO` para los demás. Coincide con `src/store/orderStore.ts:85-87`.
+2. **`docs/TESTING.md` §3.1:** `subscribeToAuthChanges` pasa a cobertura parcial `[x]` por el test de `401` global (`src/services/__tests__/authService.test.ts:214`); queda como pendiente explícito la cobertura de `BroadcastChannel`, el fallback `storage` y el listener `null` → `isLoading=false` en `authStore`.
+3. **`docs/legacy/DATA_MODEL-SUPABASE.md` §8:** nota que aclara que `supabase/migrations/` ya no existe en el workspace ni en el índice de git; la serie queda como referencia histórica y el DDL canónico es `Arq-Infra/Repo-DB-2.sql`.
+
+### Sin cambios de código
+- No se tocó `src/`; los cambios son exclusivamente documentales.
+
+### Archivos impactados
+- `docs/DATAFLOW.md`, `docs/TESTING.md`, `docs/legacy/DATA_MODEL-SUPABASE.md`, `docs/CHANGELOG.md`.
+
 ## 2026-10-28 — Verificación de auth, suite ejecutada y estado real del backend
 
 ### Contexto
