@@ -58,6 +58,11 @@ Cuando un agente de IA o desarrollador sea instruido para actualizar, complement
    - Este proyecto utiliza **exclusivamente `pnpm`** (`pnpm dev`, `pnpm build`, `pnpm type-check`, `pnpm lint`, `pnpm add`, `pnpm install`).
    - **Nunca utilices `npm` ni `yarn`.**
 
+10. **Prohibido Publicar (`git push`) sin Solicitud Explícita:**
+    - **Nunca ejecutes `git push`** —ni `--force` ni `--force-with-lease`— si el usuario no lo pidió de forma explícita e inequívoca en la conversación.
+    - Un commit local **no** autoriza publicar. Un “ok”, un “listo” o una aprobación genérica tampoco autorizan un push; debe existir una instrucción clara como “haz push”, “súbelo” o “publícalo”.
+    - Si consideras necesario publicar para completar una tarea, **propónlo y espera confirmación** antes de ejecutarlo. No lo asumas por dejar el repositorio limpio ni por haber actualizado documentación.
+
 ---
 
 ## 2. Regla de Oro de Abstracción en Frontend (Zero-Coupling Contract)

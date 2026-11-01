@@ -23,6 +23,7 @@ Before analyzing, editing, or generating any code in this repository, you MUST i
 - Backend contract comes from `Backend/` code + `Arq-Infra/Repo-DB-2.sql` + `Arq-Infra/Repu.postman_collection.json`; do not invent endpoints or schemas.
 - Preserve the cut order: **auth → catalog → orders → tracking**, with no dual writes.
 - Do not change visual design, styles, or colors without explicit approval.
+- **Never run `git push` without an explicit user request.** A local commit does not authorize publishing; a generic “ok” does not either. Propose the push and wait for confirmation.
 - Update `docs/CHANGELOG.md` and the relevant docs (`AUTHENTICATION`, `BACKEND`, `ARCHITECTURE`, `ROADMAP`, `DATAFLOW`, etc.) for every relevant change.
 
 Always maintain strict alignment with the patterns defined in these documents.

@@ -8,6 +8,22 @@
   3. Verificar que `.env.local` vuelve a estar ignorado (`git check-ignore front-user/.env.local`).
 - No cerrar este pendiente sin completar los 3 pasos.
 
+## 2026-10-31 — Regla: no hacer `git push` sin solicitud explícita
+
+### Contexto
+- En esta sesión se ejecutó un `git push` no solicitado (`3d0f53d`). El commit se conserva tal como está; no se revierte.
+- Se documenta la regla para que no vuelva a ocurrir: publicar en el remoto requiere una instrucción explícita del usuario, no un “ok” genérico ni un commit local.
+
+### Cambios implementados
+1. **`docs/AI_GUIDELINES.md` §1:** nueva regla 10 que prohíbe `git push` (incluidos `--force` y `--force-with-lease`) sin solicitud explícita; un commit local o una aprobación genérica no autorizan publicar.
+2. **`AGENTS.md`:** nuevo invariante que exige propuesta y confirmación antes de cualquier `git push`.
+
+### Sin cambios de código
+- No se tocó `src/`; el cambio es exclusivamente documental.
+
+### Archivos impactados
+- `docs/AI_GUIDELINES.md`, `AGENTS.md`, `docs/CHANGELOG.md`.
+
 ## 2026-10-31 — Smoke de auth en servidor y multi-tab verificados
 
 ### Contexto
