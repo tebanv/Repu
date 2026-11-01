@@ -1,6 +1,6 @@
 # Plan — Integración de auth `front-user` ↔ `ms-auth` / `ms-users`
 
-- **Estado:** Implementación de código completa; smoke verificado en entorno de pruebas (2026-10-28); smoke en servidor y chips demo pendientes
+- **Estado:** Implementación de código completa; smoke verificado en entorno de pruebas (2026-10-28) y en servidor (2026-10-31, HTTP con cookie dev); chips demo y QA puntual pendientes
 - **Base:** [ADR-002](./ADR-002-BACKEND-MICROSERVICES.md) (Decisión, Consecuencias y Plan de corte), [AUTHENTICATION.md](./AUTHENTICATION.md), [BACKEND.md](./BACKEND.md)
 - **Contrato:** verificado contra el código de `Backend/ms-auth` + `Backend/ms-users` y `Arq-Infra/Repu.postman_collection.json` (no hay OpenAPI)
 
@@ -34,7 +34,7 @@
 
 ## 1. Gaps contrato ↔ front
 
-> **Estado 2026-10-28:** los gaps de implementación de esta tabla ya se resolvieron en el corte de auth (§2.1). Se conservan como diagnóstico histórico; los pendientes reales son el smoke en servidor y los chips demo.
+> **Estado 2026-10-31:** los gaps de implementación de esta tabla ya se resolvieron en el corte de auth (§2.1). Se conservan como diagnóstico histórico; los pendientes reales son los chips demo, TLS/HTTPS y QA puntual (borrado manual de cookie, ANALISTA, inactivo).
 
 | Endpoint / campo / flujo | Incompatibilidad | Sev. |
 |---|---|---|
@@ -65,11 +65,11 @@
 7. **CORS con credentials → evitarlo con same-origin.** Si se necesita cross-origin en dev, `CORS_ALLOWED_ORIGINS_*` debe tener el origen exacto (`http://localhost:3000`), sin espacios, y el fetch debe usar `credentials: 'include'`.
 8. **Registro sin sesión.** `register` crea la cuenta; el flujo debe hacer login inmediatamente después (o mostrar “cuenta creada, inicia sesión”). No inventar una cookie en registro.
 
-## 2.1 Estado de ejecución (2026-10-28)
+## 2.1 Estado de ejecución (actualizado 2026-10-31)
 
 | Paso | Estado |
 |---|---|
-| 0. Smoke test de auth | Hecho en entorno de pruebas con contenedores reales (login OK/KO, profile, logout, 401); servidor pendiente |
+| 0. Smoke test de auth | Hecho en entorno de pruebas con contenedores reales (2026-10-28) y en servidor (2026-10-31): login OK/KO, profile, logout, 401; cookie dev sobre HTTP |
 | 1. `rewrites` + `.env.example` | Hecho |
 | 2. `httpClient.ts` | Hecho + tests escritos y ejecutados |
 | 3. `UserRole` + `analista` | Hecho |
@@ -78,15 +78,15 @@
 | 6. `MainLayoutShell` | Sin cambios funcionales; comentario actualizado |
 | 7. `LoginForm` chips demo | **Pendiente de decisión** (seeds Spring o retirar) |
 | 8. `src/proxy.ts` | No iniciado (opcional) |
-| 9. Docs | Hecho |
+| 9. Docs | Hecho; actualizado 2026-10-31 |
 | 10. Limpieza | Hecho en auth; `supabaseClient.ts` queda solo para catálogo |
-| Tests | Ejecutados: 68/68; `type-check` y `build` correctos |
+| Tests | Ejecutados 2026-10-28: 68/68; conteos reverificados 2026-10-31; `type-check` y `build` correctos |
 
 ## 3. Plan por pasos
 
 | # | Archivo(s) | Cambio | Hecho cuando |
 |---|---|---|---|
-| 0 | — | Verificar login → profile → logout → 401 con un usuario real de la BD `repu`. Hecho en entorno de pruebas con `curl`; confirmar también en el servidor desplegado | Smoke verde en entorno de pruebas; servidor pendiente |
+| 0 | — | Verificar login → profile → logout → 401 con un usuario real de la BD `repu`. Hecho en entorno de pruebas con `curl` y en servidor (2026-10-31, cookie dev sobre HTTP) | Smoke verde en entorno de pruebas y servidor; TLS pendiente |
 | 1 | `next.config.js`, `.env.example` | `rewrites` dev-only hacia `AUTH_API_ORIGIN`/`USERS_API_ORIGIN` (vars de servidor, no `NEXT_PUBLIC`). Documentar las vars | `curl localhost:3000/ms-auth/api/auth/login` responde y reenvía `Set-Cookie` |
 | 2 | `src/services/httpClient.ts` (nuevo) | `fetch` relativo con `credentials: 'include'`, `X-Request-ID` (`crypto.randomUUID`), parseo de `{message}`, errores tipados por status y emisor `onUnauthorized` | Tests unitarios con `fetch` mockeado (200/401/5xx/red) |
 | 3 | `src/types/auth.ts` | Añadir `'analista'` a `UserRole`. Nada más | `pnpm type-check` verde |
@@ -104,19 +104,23 @@
 
 **Ejecutado el 2026-10-28:** `pnpm test` 68/68, `pnpm type-check` sin errores y `pnpm build` correcto.
 
-**Smoke de API verificado en entorno de pruebas:** registro `201`, login correcto `200` + cookie, login incorrecto `401`, perfil `200`, logout `204` y perfil posterior `401`. En el servidor desplegado sigue pendiente.
+**Smoke de API/UI verificado en entorno de pruebas y en servidor (2026-10-31):** registro `201`, login correcto `200` + cookie, login incorrecto `401`, perfil `200`, logout `204` y perfil posterior `401`. En navegador: login OK/KO, cookie presente, perfil `200`, redirect a `/` y `auth-storage` sin `accessToken`.
 
-**QA manual pendiente en navegador:**
+**QA manual verificado en servidor (2026-10-31):**
 
 - login OK y KO en la UI;
-- recarga conserva la sesión;
-- logout limpia la cookie (DevTools);
-- dos pestañas: el logout se propaga;
+- la sesión persiste entre pestañas;
+- logout limpia la cookie y se propaga entre pestañas;
+- el `accessToken` no aparece en `localStorage`.
+
+**QA manual pendiente:**
+
 - borrar la cookie a mano → siguiente acción → `/login`;
-- usuario `ANALISTA` → rol `analista`;
-- comprobar que el `accessToken` no aparece en `localStorage`;
-- registro crea cuenta y el login posterior funciona;
-- recuperación de contraseña responde `202` genérico.
+- usuario `ANALISTA` → rol `analista` en UI;
+- usuario inactivo → `401`;
+- registro desde UI y login posterior;
+- recuperación de contraseña desde UI (`202` genérico);
+- chips demo (siguen apuntando a Supabase).
 
 ## 5. Riesgos y prerequisitos del backend
 

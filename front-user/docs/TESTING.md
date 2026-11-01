@@ -2,7 +2,7 @@
 
 Fuente única para pruebas del cliente. `ROADMAP.md` solo resume el DoD por fase y apunta aquí para el detalle.
 
-> Estado: runner instalado (Vitest 5 + jsdom). Comandos con `pnpm` exclusivo (nunca `npm`/`yarn`). **Suite ejecutada: 68/68 tests en 8 archivos** (61 previos − 12 de auth Supabase + 11 de auth Spring + 8 de `httpClient`), con `pnpm type-check` sin errores y `pnpm build` correcto (2026-10-28). Al cortar auth se reescribieron los tests de `authService` y se añadió `httpClient`; los tests de stores conservan su contrato. El QA manual de UI/multi-tab y el smoke en el servidor desplegado siguen pendientes. Ver [ADR-002](./ADR-002-BACKEND-MICROSERVICES.md) y [PLAN-LOGIN-MS-AUTH.md](./PLAN-LOGIN-MS-AUTH.md).
+> Estado: runner instalado (Vitest 5 + jsdom). Comandos con `pnpm` exclusivo (nunca `npm`/`yarn`). **Suite ejecutada: 68/68 tests en 8 archivos** (61 previos − 12 de auth Supabase + 11 de auth Spring + 8 de `httpClient`), con `pnpm type-check` sin errores y `pnpm build` correcto (2026-10-28). Al cortar auth se reescribieron los tests de `authService` y se añadió `httpClient`; los tests de stores conservan su contrato. Los conteos se reverificaron contra los archivos el 2026-10-31 (68 tests en 8 archivos); la suite no se re-ejecutó ese día. El smoke de servidor y el QA de login/logout/multi-tab quedaron verificados el 2026-10-31; quedan QA puntual (cookie manual, ANALISTA, inactivo), chips demo y TLS. Ver [ADR-002](./ADR-002-BACKEND-MICROSERVICES.md) y [PLAN-LOGIN-MS-AUTH.md](./PLAN-LOGIN-MS-AUTH.md).
 
 ## 1. Comandos
 
@@ -24,10 +24,11 @@ Config: `vitest.config.mts` (extensión `.mts` para carga ESM sin warnings) con 
 - Dinero en enteros COP (`Math.round`); cantidades mínimo 1.
 - Códigos de resultado (`CartActionResult.code`) se asertan explícitos: `ITEM_ADDED`, `QUANTITY_CLAMPED`, `STORE_CONFLICT`, etc. (nota: `EXPIRED_CART` es `CartNotice`, no `CartActionResult.code`).
 - Aislamiento: `localStorage.clear()` + reset de store entre tests; TTL con aritmética real de `Date` (sin `vi.useFakeTimers`).
+- Cookies: no validar `Set-Cookie` desde `response.headers` en JavaScript (es un *forbidden response header*); usar DevTools → Application → Cookies o `curl -i`.
 
 ## 3. Matriz unitaria — código actual
 
-> Cobertura Fase A (2026-09-16) + P1 (2026-10-12) + corte auth (2026-10-27) + ejecución (2026-10-28): §3.1 auth (`ms-auth`/`ms-users`, tests ejecutados), §3.2 híbrido, §3.3 carrito y §3.4 pedidos en `src/store/__tests__/` + `src/services/__tests__/` (68 tests ejecutados). §3.5 ubicación y §3.6 toasts siguen como especificación sin test (sin cambios recientes, riesgo bajo).
+> Cobertura Fase A (2026-09-16) + P1 (2026-10-12) + corte auth (2026-10-27) + ejecución (2026-10-28) + smoke de servidor (2026-10-31): §3.1 auth (`ms-auth`/`ms-users`, tests ejecutados), §3.2 híbrido, §3.3 carrito y §3.4 pedidos en `src/store/__tests__/` + `src/services/__tests__/` (68 tests ejecutados). §3.5 ubicación y §3.6 toasts siguen como especificación sin test (sin cambios recientes, riesgo bajo).
 
 ### 3.1 Auth — `ms-auth`/`ms-users` (implementado; tests ejecutados)
 
@@ -45,9 +46,11 @@ Config: `vitest.config.mts` (extensión `.mts` para carga ESM sin warnings) con 
 - [ ] `subscribeToAuthChanges` (pendiente): login/logout/`unauthorized` por `BroadcastChannel`, fallback `storage` y listener `null` → `isLoading=false` en `authStore`.
 - [x] `authStore.initialize()`: con sesión hidrata; sin sesión descarta `auth-storage`; `hasHydrated=true` al terminar.
 - [x] Smoke de API en entorno de pruebas: registro `201`, login OK `200`, login KO `401`, perfil `200`, logout `204` y perfil posterior `401`.
-- [ ] Repetir el smoke de API en el servidor desplegado.
-- [ ] `MainLayoutShell`: espera `hasHydrated + !isLoading`; redirige ante `401`/logout multi-tab.
-- [ ] `LoginForm`: sesión activa → `/`; chips demo apuntan a usuarios reales de Spring o se retiran.
+- [x] Smoke de API/UI en servidor (2026-10-31): cookie `repu_session_dev`, perfil `200`, login OK/KO, logout `204`, perfil posterior `401`, redirect y `auth-storage` sin token.
+- [x] `MainLayoutShell`: espera `hasHydrated + !isLoading`; logout multi-tab redirige a `/login` (verificado en servidor, 2026-10-31).
+- [ ] `MainLayoutShell`: 401 por expiración/borrado de cookie → `/login` (pendiente).
+- [x] `LoginForm`: login OK/KO y sesión activa → `/` (verificado en servidor, 2026-10-31).
+- [ ] `LoginForm`: chips demo apuntan a usuarios reales de Spring o se retiran.
 
 #### Legado Supabase (tests retirados)
 
@@ -110,7 +113,9 @@ La cobertura anterior de `authService` contra Supabase (12 tests) fue reemplazad
 
 - [ ] Safari iOS: agregar producto → CTA `Ver carrito` sin bloque azul; scroll con barra dinámica mantiene posición (guardrail: no animar `transform` en nodo `fixed`).
 - [ ] Chrome iOS + desktop: mismo flujo, layout intacto.
-- [x] Multi-tab: `enableCrossTabSync` (`src/lib/storageSync.ts`) rehidrata `cart-storage` ante `storage` event — verificado con tests para `cart-storage`; `order-storage` usa el mismo helper (suscripción en `orderStore`) sin test directo. Pendiente QA en 2 pestañas reales.
+- [x] Multi-tab carrito (unit): `enableCrossTabSync` (`src/lib/storageSync.ts`) rehidrata `cart-storage` ante `storage` event — verificado con tests para `cart-storage`; `order-storage` usa el mismo helper (suscripción en `orderStore`) sin test directo.
+- [ ] Multi-tab carrito (QA real): pendiente probar la sincronización en 2 pestañas reales.
+- [x] Multi-tab auth: la sesión persiste entre pestañas y el logout se propaga (verificado en servidor, 2026-10-31).
 - [x] Carrito expirado: `merge` vacía + `cartNotice EXPIRED_CART` + `track('cart_expired', {reason})` — cubierto en `cartStore.test.ts` (TTL + rehidratación corrupta).
 - [ ] Sin GPS: denegar permiso → mapa navegable en `DEFAULT_LOCATION` + cápsula `[ 📍 Permitir ubicación ]` visible; modal minimizable no bloquea `StoresLayer`.
 - [ ] Login autofill (Chrome): carga fresca con credenciales guardadas → label flotado; vaciar+blur → label al centro.
@@ -129,7 +134,8 @@ Se migró lo útil y se eliminó el archivo para evitar doble fuente:
 - [x] Multi-tab sync + evento `cart_expired` (A2) — `storageSync.ts` + `analytics.ts`, con tests.
 - [ ] QUIRK conocido: `stock: 0` se normaliza a “sin límite” (igual que `null`) en vez de agotado. Test lo documenta (`cartStore.test.ts`). Decidir regla de agotado antes del backend real (ver §3.3: `stock 0` → `ITEM_ADDED`, no `INVALID_PRODUCT`).
 - [ ] `pnpm lint` roto a nivel entorno (pre-existente, no de Fase A): `eslint-config-next@15.2.2` no soporta TS 7.0 (`typescript-eslint does not support TS 7.0`).Resolver al margen: subir eslint-config-next o fijar TS soportado.
-- [x] Auth migrado a `ms-auth`/`ms-users`; tests de `authService`/`httpClient` ejecutados. Smoke de API verificado en entorno de pruebas (registro, login OK/KO, perfil, logout, 401 posterior); servidor desplegado pendiente.
-- [ ] Repetir el smoke de auth en el servidor y completar QA manual de UI/multi-tab.
+- [x] Auth migrado a `ms-auth`/`ms-users`; tests de `authService`/`httpClient` ejecutados. Smoke de API verificado en entorno de pruebas y en servidor (2026-10-31).
+- [x] Smoke de auth en servidor y QA de login/logout/multi-tab (2026-10-31).
+- [ ] QA pendiente: borrado manual de cookie, ANALISTA en UI, usuario inactivo y chips demo.
 - [ ] Al conectar los microservicios Spring restantes (ADR-002): tests de adaptadores REST (`httpClient.ts`, `api.ts`, futuro `orderService.ts`) con mocks de red; UI/stores no se tocan (Zero-Coupling). No se planifican tests de Supabase Realtime: el tracking va por SSE de `ms-orders`.
 - [ ] Futuro E2E (Playwright) solo para checkout→tracking cuando haya backend real.

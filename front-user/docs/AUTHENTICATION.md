@@ -1,8 +1,8 @@
 # Autenticación y sesiones — `front-user` ↔ `ms-auth` / `ms-users`
 
-Documento normativo del sistema de autenticación del cliente. Describe el contrato real del backend Spring y la implementación del front. El front ya usa `ms-auth`/`ms-users` para login y perfil; el smoke se verificó en un entorno de pruebas con contenedores reales y queda pendiente repetirlo en el servidor desplegado. La limpieza de los chips demo sigue pendiente. `authService` ya no importa Supabase.
+Documento normativo del sistema de autenticación del cliente. Describe el contrato real del backend Spring y la implementación del front. El front ya usa `ms-auth`/`ms-users` para login y perfil; el smoke de login/perfil/logout se verificó en un entorno de pruebas con contenedores reales (2026-10-28) y en el servidor desplegado (2026-10-31, HTTP con cookie `repu_session_dev`; TLS y `__Host-` siguen pendientes). La limpieza de los chips demo sigue pendiente. `authService` ya no importa Supabase.
 
-- **Backend revisado:** `Backend/ms-auth`, `Backend/ms-users` (contrato leído del código y Postman; smoke verificado contra contenedores reales, 2026-10-28; servidor pendiente)
+- **Backend revisado:** `Backend/ms-auth`, `Backend/ms-users` (contrato leído del código y Postman; smoke verificado contra contenedores reales el 2026-10-28 y en servidor el 2026-10-31 con cookie dev sobre HTTP; TLS pendiente)
 - **Plan de ejecución:** [PLAN-LOGIN-MS-AUTH.md](./PLAN-LOGIN-MS-AUTH.md)
 - **Referencia operativa:** [BACKEND.md](./BACKEND.md)
 
@@ -10,15 +10,15 @@ Documento normativo del sistema de autenticación del cliente. Describe el contr
 
 | Pieza | Estado |
 |---|---|
-| `ms-auth` (login, registro, logout, sesiones) | **Implementado en el backend**; smoke verificado en entorno de pruebas; servidor pendiente |
-| `ms-users` (perfil, direcciones, recuperación) | **Implementado en el backend**; smoke verificado en entorno de pruebas; servidor pendiente |
-| Cookie `__Host-repu_session` | Implementada; requiere HTTPS en producción |
-| `authService.ts` del front | **Migrado a `ms-auth`/`ms-users`** mediante `httpClient`; smoke verificado en entorno de pruebas; servidor pendiente |
-| `authStore` / `MainLayoutShell` | Contrato reutilizado; conectado a `ms-auth` sin cambios funcionales |
-| Migración de login | **Implementada y verificada en entorno de pruebas**; servidor pendiente |
+| `ms-auth` (login, registro, logout, sesiones) | **Implementado en el backend**; smoke verificado en entorno de pruebas (2026-10-28) y en servidor (2026-10-31, cookie dev sobre HTTP; TLS pendiente) |
+| `ms-users` (perfil, direcciones, recuperación) | **Implementado en el backend**; smoke verificado en entorno de pruebas (2026-10-28) y en servidor (2026-10-31, cookie dev sobre HTTP; TLS pendiente) |
+| Cookie `__Host-repu_session` | Implementada; requiere HTTPS en producción. El smoke de servidor usó `repu_session_dev` sin `Secure` por HTTP |
+| `authService.ts` del front | **Migrado a `ms-auth`/`ms-users`** mediante `httpClient`; smoke verificado en entorno de pruebas (2026-10-28) y en servidor (2026-10-31) |
+| `authStore` / `MainLayoutShell` | Contrato reutilizado; conectado a `ms-auth` sin cambios funcionales; logout multi-tab y persistencia entre pestañas verificados en servidor (2026-10-31) |
+| Migración de login | **Implementada y verificada en entorno de pruebas (2026-10-28) y en servidor (2026-10-31)** |
 | Supabase Auth | **Sin uso en auth**; el paquete se retira cuando también se corte el catálogo |
 
-> El código de auth ya apunta al backend Spring y el flujo se verificó contra contenedores reales. Lo que falta es repetir el smoke en el servidor desplegado, reemplazar los chips demo y completar el QA de UI/multi-tab. El catálogo todavía usa Supabase hasta su corte.
+> El código de auth ya apunta al backend Spring y el flujo se verificó contra contenedores reales y en el servidor desplegado (2026-10-31, HTTP con cookie dev). Quedan los chips demo, TLS/HTTPS y QA puntual (borrado manual de cookie, ANALISTA, usuario inactivo). El catálogo todavía usa Supabase hasta su corte.
 
 ## 2. Arquitectura
 
@@ -262,18 +262,19 @@ async rewrites() {
 
 ## 9. Testing
 
-La suite se ejecutó el **2026-10-28**: **68/68 tests en 8 archivos** (61 previos − 12 de auth Supabase + 11 de auth Spring + 8 de `httpClient`), con `pnpm type-check` sin errores y `pnpm build` correcto. El smoke de API se verificó contra contenedores reales; el QA de UI/multi-tab y el smoke en el servidor desplegado siguen pendientes.
+La suite se ejecutó el **2026-10-28**: **68/68 tests en 8 archivos** (61 previos − 12 de auth Supabase + 11 de auth Spring + 8 de `httpClient`), con `pnpm type-check` sin errores y `pnpm build` correcto. Los conteos se reverificaron contra los archivos el 2026-10-31 (68 tests en 8 archivos); la suite no se re-ejecutó ese día. El smoke de API se verificó contra contenedores reales y en el servidor; el QA de UI/multi-tab quedó verificado en servidor el 2026-10-31.
 
 - **`httpClient.test.ts` (nuevo):** 200, 401, 5xx, 204, `{message}`/`{error}`, `X-Request-ID`, `credentials: include`, `skipUnauthorizedNotification`, error de red.
 - **`authService.test.ts` (reescrito):** login+profile, 401, logout, perfil `null`, `ANALISTA`/rol desconocido, registro sin sesión, recuperación y `unauthorized`.
 - **`authStore.test.ts`:** se conserva; solo cambian comentarios/nombres, no las aserciones públicas.
 - **API verificada en entorno de pruebas:** registro `201`, login correcto `200` + cookie, login incorrecto `401`, perfil `200`, logout `204` y perfil posterior `401`.
-- **Manual pendiente:** login OK/KO en UI, recarga conserva sesión, logout limpia cookie, dos pestañas propagan logout, borrar cookie a mano → `/login`, `ANALISTA` se ve como `analista`, `accessToken` no aparece en `localStorage`.
-- **Servidor pendiente:** repetir el smoke de login/perfil/logout contra el despliegue real.
+- **API/UI verificadas en servidor (2026-10-31):** registro `201`, login `200` + `Set-Cookie: repu_session_dev`, perfil `200`, logout `204`, perfil posterior `401`; en navegador, login OK/KO, cookie presente, redirect a `/`, `auth-storage` sin `accessToken`, logout y propagación multi-tab, y sesión persistente entre pestañas.
+- **QA pendiente:** borrar la cookie a mano → `/login`, `ANALISTA` → `analista` en UI, usuario inactivo → `401`, chips demo y validación de producción con `__Host-`/TLS.
+- **Nota de método:** `Set-Cookie` no es legible desde `response.headers` en JavaScript; validar en DevTools → Cookies o con `curl -i`.
 
 ## 10. Checklist de migración
 
-- [x] Verificar login → profile → logout → 401 contra una instancia real (hecho con `curl` en entorno de pruebas; servidor pendiente).
+- [x] Verificar login → profile → logout → 401 contra una instancia real (hecho con `curl` en entorno de pruebas y en servidor el 2026-10-31).
 - [x] `rewrites` + `.env.example` (`AUTH_API_ORIGIN`, `USERS_API_ORIGIN`).
 - [x] `httpClient.ts` + tests escritos y ejecutados.
 - [x] `UserRole` con `analista` + mapeo de roles.
@@ -284,7 +285,9 @@ La suite se ejecutó el **2026-10-28**: **68/68 tests en 8 archivos** (61 previo
 - [x] Docs y CHANGELOG actualizados.
 - [x] `supabaseClient.ts` se conserva solo para catálogo hasta su corte.
 - [ ] HTTPS en producción antes de declarar auth listo.
-- [ ] Repetir el smoke de auth en el servidor desplegado.
+- [x] Repetir el smoke de auth en el servidor desplegado (2026-10-31; cookie dev sobre HTTP).
+- [x] QA UI: login OK/KO, logout y propagación multi-tab, sesión persistente entre pestañas.
+- [ ] QA pendiente: borrado manual de cookie, `ANALISTA` en UI y usuario inactivo.
 
 ## 11. Legado Supabase
 

@@ -135,8 +135,8 @@ Diseñado para operar a gran escala minimizando consumo de batería en móviles,
 
 - **Topología:** Traefik same-origin sirve `front-user` y los micros por `PathPrefix`: `/ms-auth`, `/ms-users`, `/ms-companies`, `/ms-products`, `/ms-categories`, `/ms-orders`, `/ms-manage-payment`.
 - **Autoridad de sesión:** `ms-auth` emite un token opaco (cookie `__Host-repu_session`, `HttpOnly/Secure/SameSite=Lax`), lo guarda como hash en PostgreSQL y lo cachea en Redis. `ms-users` expone el perfil; los demás micros validan la sesión contra `ms-auth` con `X-Auth-Service-Token`.
-- **Vigente hoy en el front:** auth ya usa `ms-auth`/`ms-users` y su smoke se verificó en entorno de pruebas (servidor pendiente); catálogo sigue en Supabase (legado); carrito/pedidos/tracking son locales.
-- **Corte por dominio:** auth → catálogo → pedidos → tracking. Auth ya está migrado (`ms-auth` + `ms-users`) y verificado en entorno de pruebas; sigue catálogo. El catálogo Supabase es de lectura anónima y no bloqueó el cambio.
+- **Vigente hoy en el front:** auth ya usa `ms-auth`/`ms-users` y su smoke se verificó en entorno de pruebas y en servidor (2026-10-31, cookie dev sobre HTTP; TLS pendiente); catálogo sigue en Supabase (legado); carrito/pedidos/tracking son locales.
+- **Corte por dominio:** auth → catálogo → pedidos → tracking. Auth ya está migrado (`ms-auth` + `ms-users`) y verificado en entorno de pruebas y en servidor; sigue catálogo. El catálogo Supabase es de lectura anónima y no bloqueó el cambio.
 - **Contrato:** no hay OpenAPI publicado; la fuente es el código de `Backend/`, `Arq-Infra/Repo-DB-2.sql` y `Arq-Infra/Repu.postman_collection.json`. Ver [BACKEND.md](./BACKEND.md).
 - **Auth:** cookie `httpOnly`; el web ignora el `accessToken` del body. El perfil se obtiene de `GET /ms-users/api/users/profile`.
 - **Producción:** HTTPS es bloqueante; el compose actual de Traefik solo expone HTTP y el navegador descarta la cookie `Secure` fuera de localhost.

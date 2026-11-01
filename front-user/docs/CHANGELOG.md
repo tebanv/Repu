@@ -8,6 +8,31 @@
   3. Verificar que `.env.local` vuelve a estar ignorado (`git check-ignore front-user/.env.local`).
 - No cerrar este pendiente sin completar los 3 pasos.
 
+## 2026-10-31 — Smoke de auth en servidor y multi-tab verificados
+
+### Contexto
+- Se desplegó el front actual (auth contra `ms-auth`/`ms-users`) en el servidor `167.86.88.151` y se probó el flujo real en navegador, no solo contra contenedores locales.
+- El servidor sigue en HTTP y usa la cookie dev `repu_session_dev` (`HttpOnly`, `SameSite=Lax`, sin `Secure`). TLS y `__Host-repu_session` siguen pendientes para producción.
+
+### Verificación ejecutada
+- **API:** registro `201`; login `200` + `Set-Cookie: repu_session_dev`; perfil `200`; logout `204`; perfil posterior `401`.
+- **UI:** login OK y KO; cookie presente; perfil `200`; redirect a `/`; `auth-storage` con `user` + `isAuthenticated` y sin `accessToken`.
+- **Multi-tab:** la sesión persiste entre pestañas y el logout se propaga a las pestañas abiertas.
+- **Nota de método:** `Set-Cookie` no es legible desde `response.headers` en JavaScript (es un *forbidden response header*); se validó en DevTools → Cookies y con `curl -i`.
+- Conteos de la suite reverificados contra los archivos: **68 tests en 8 archivos**. La suite no se re-ejecutó el 2026-10-31; el resultado 68/68 sigue siendo el del 2026-10-28.
+
+### Pendiente
+- QA puntual: borrar la cookie a mano → `/login`, `ANALISTA` → `analista` en UI y usuario inactivo → `401`.
+- Chips demo del `LoginForm` (siguen apuntando a Supabase).
+- HTTPS/TLS en Traefik y cookie `__Host-repu_session` con `Secure`.
+- Limpieza del usuario de prueba creado vía API (`prueba.auth.01@repu.test`; sin credenciales en docs).
+
+### Sin cambios de código
+- No se tocó `src/`; los cambios son exclusivamente documentales.
+
+### Archivos impactados
+- `README.md`, `docs/AUTHENTICATION.md`, `docs/PLAN-LOGIN-MS-AUTH.md`, `docs/TESTING.md`, `docs/ADR-002-BACKEND-MICROSERVICES.md`, `docs/BACKEND.md`, `docs/ROADMAP.md`, `docs/PROJECT_GUIDE.md`, `docs/ARCHITECTURE.md`, `docs/APP_FLOW.md`, `docs/DATAFLOW.md`, `docs/DATA_MODEL.md`, `docs/CHANGELOG.md`.
+
 ## 2026-10-28 — Corrección de erratas documentales: `paymentStatus` y cobertura de `subscribeToAuthChanges`
 
 ### Contexto

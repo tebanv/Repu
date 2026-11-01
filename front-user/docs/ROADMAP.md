@@ -463,17 +463,17 @@ Visualizador de progreso interactivo y animado adaptado a la cadena de suministr
 
 ---
 
-## Fase 10: Integración del backend real — Auth primero [AUTH IMPLEMENTADO Y VERIFICADO; SERVIDOR PENDIENTE]
+## Fase 10: Integración del backend real — Auth primero [AUTH IMPLEMENTADO Y VERIFICADO EN SERVIDOR]
 
-Objetivo: conectar el front a los microservicios Spring Boot ya presentes en `Backend/`, empezando por autenticación (`ms-auth` + `ms-users`). Auth está migrado en código y verificado en un entorno de pruebas; el catálogo sigue en Supabase como legado transitorio hasta su corte.
+Objetivo: conectar el front a los microservicios Spring Boot ya presentes en `Backend/`, empezando por autenticación (`ms-auth` + `ms-users`). Auth está migrado en código y verificado en entorno de pruebas y en servidor (2026-10-31, HTTP con cookie dev); el catálogo sigue en Supabase como legado transitorio hasta su corte.
 
 - **Decisión y alcance:** [ADR-002](./ADR-002-BACKEND-MICROSERVICES.md).
 - **Contrato verificado:** [BACKEND.md](./BACKEND.md), [AUTHENTICATION.md](./AUTHENTICATION.md).
 - **Plan detallado:** [PLAN-LOGIN-MS-AUTH.md](./PLAN-LOGIN-MS-AUTH.md).
 
-### 10.1 Auth (`ms-auth` + `ms-users`) [VERIFICADO EN ENTORNO DE PRUEBAS]
+### 10.1 Auth (`ms-auth` + `ms-users`) [VERIFICADO EN SERVIDOR]
 
-1. [x] Verificar login → profile → logout → 401 contra la BD `repu` (hecho en entorno de pruebas; servidor pendiente).
+1. [x] Verificar login → profile → logout → 401 contra la BD `repu` (hecho en entorno de pruebas y en servidor el 2026-10-31).
 2. [x] `rewrites` dev-only de Next (`AUTH_API_ORIGIN`/`USERS_API_ORIGIN`) y variables de entorno.
 3. [x] `src/services/httpClient.ts` con `credentials: 'include'`, `X-Request-ID`, errores tipados y `onUnauthorized`.
 4. [x] `UserRole` con `analista`; mapeo MAYÚSCULAS → minúsculas.
@@ -483,7 +483,7 @@ Objetivo: conectar el front a los microservicios Spring Boot ya presentes en `Ba
 8. [x] Tests de `httpClient`/`authService` escritos y ejecutados: 68/68, `type-check` y `build` correctos (2026-10-28).
 9. [ ] HTTPS en producción antes de declarar auth listo (cookie `Secure`).
 
-**DoD auth:** login/logout/restauración funcionan contra `ms-auth` en entorno de pruebas; el perfil viene de `ms-users`; no hay `accessToken` en `localStorage`; multi-tab y 401 limpian sesión; docs y CHANGELOG actualizados. Servidor pendiente.
+**DoD auth:** login/logout/restauración funcionan contra `ms-auth` en entorno de pruebas y en servidor (2026-10-31, cookie dev sobre HTTP); el perfil viene de `ms-users`; no hay `accessToken` en `localStorage`; multi-tab verificado y 401 por expiración/borrado de cookie pendiente de QA; docs y CHANGELOG actualizados. TLS pendiente.
 
 ### 10.2 Catálogo [PENDIENTE]
 
@@ -499,11 +499,11 @@ Objetivo: conectar el front a los microservicios Spring Boot ya presentes en `Ba
 
 ### 10.4 Criterios de salida de Fase 10
 
-- [x] Auth contra `ms-auth`/`ms-users`, sin Supabase Auth (verificado en entorno de pruebas; servidor pendiente).
+- [x] Auth contra `ms-auth`/`ms-users`, sin Supabase Auth (verificado en entorno de pruebas y en servidor el 2026-10-31).
 - [ ] Catálogo contra microservicios, sin `@supabase/supabase-js` en `src/`.
 - [ ] Pedidos persistidos en `ms-orders`; `orderStore` deja de ser la fuente transaccional.
 - [ ] Tracking con SSE.
-- [x] `pnpm test`, `pnpm type-check`, `pnpm build` verdes (68/68; 2026-10-28). Smoke de auth en entorno de pruebas; servidor pendiente.
+- [x] `pnpm test`, `pnpm type-check`, `pnpm build` verdes (68/68; 2026-10-28). Smoke de auth en entorno de pruebas y servidor (2026-10-31); TLS pendiente.
 - [ ] HTTPS en Traefik.
 - [ ] Supabase apagado o reducido a archivo.
 
@@ -599,7 +599,7 @@ Al contratar al desarrollador backend, se le entrega un paquete completo que red
 
 ### Orden de corte
 
-1. **Auth (hecho):** `authService` contra `ms-auth`/`ms-users`; cookie `httpOnly`, perfil y sesión; sin Supabase Auth. Detalle en [PLAN-LOGIN-MS-AUTH.md](./PLAN-LOGIN-MS-AUTH.md).
+1. **Auth (hecho):** `authService` contra `ms-auth`/`ms-users`; cookie `httpOnly`, perfil y sesión; sin Supabase Auth. Verificado en servidor el 2026-10-31 (cookie dev sobre HTTP; TLS pendiente). Detalle en [PLAN-LOGIN-MS-AUTH.md](./PLAN-LOGIN-MS-AUTH.md).
 2. **Catálogo:** `api.ts` contra `ms-companies`/`ms-products`/`ms-categories`; adaptar el esquema `repu` y el dinero `NUMERIC(15,2)`.
 3. **Pedidos:** `ms-orders` (carrito, checkout, órdenes); reemplazar `orderStore` mock como fuente transaccional.
 4. **Tracking:** SSE de `ms-orders`; `subscribeToOrderTracking` en `src/services/`.
@@ -607,12 +607,12 @@ Al contratar al desarrollador backend, se le entrega un paquete completo que red
 
 ### Criterios de salida (DoD)
 
-- [x] Auth contra `ms-auth`/`ms-users`, sin Supabase Auth (verificado en entorno de pruebas; servidor pendiente).
+- [x] Auth contra `ms-auth`/`ms-users`, sin Supabase Auth (verificado en entorno de pruebas y en servidor el 2026-10-31).
 - [ ] Catálogo contra microservicios, sin `@supabase/supabase-js` en `src/`.
 - [ ] Pedidos persistidos en `ms-orders`; `orderStore` deja de ser la fuente transaccional.
 - [ ] Tracking con SSE, sin Supabase Realtime.
 - [x] `pnpm test`, `pnpm type-check` y `pnpm build` verdes (68/68; 2026-10-28).
-- [ ] Smoke de flujos críticos en el servidor (auth verificado en entorno de pruebas).
+- [ ] Smoke de flujos críticos en el servidor (auth verificado el 2026-10-31; catálogo/pedidos/tracking pendientes).
 - [ ] HTTPS en Traefik (cookie `Secure`).
 - [ ] Supabase apagado o reducido a archivo.
 

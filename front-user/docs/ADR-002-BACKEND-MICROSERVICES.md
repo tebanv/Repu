@@ -71,10 +71,10 @@ Mantener la narrativa de ADR-001 (“Spring es futuro, Supabase es el backend ac
 - [x] `subscribeToAuthChanges` usa `BroadcastChannel` + evento `unauthorized` + `visibilitychange`; no hay polling.
 - [x] `UserRole` incluye `analista`; el mapeo MAYÚSCULAS → minúsculas es explícito y tolerante a roles desconocidos.
 - [x] El `accessToken` no aparece en `localStorage`, `sessionStorage`, URLs ni logs.
-- [x] El guard `MainLayoutShell` redirige a `/login` ante `401`, logout y expiración.
+- [x] El guard `MainLayoutShell` redirige a `/login` ante `401`, logout y expiración (logout multi-tab verificado el 2026-10-31; 401 por expiración/borrado de cookie pendiente de QA).
 - [x] `pnpm test`, `pnpm type-check` y `pnpm build` verdes; tests de `httpClient` y `authService` ejecutados (68/68; 2026-10-28).
 - [x] Smoke de auth en entorno de pruebas: registro, login OK/KO, perfil, logout y `401` posterior.
-- [ ] Repetir el smoke de auth en el servidor desplegado.
+- [x] Smoke de auth en el servidor desplegado (2026-10-31, HTTP con cookie `repu_session_dev`; TLS/`__Host-` pendientes).
 - [x] Documentación actualizada (`AUTHENTICATION.md`, `CHANGELOG.md`, `ROADMAP.md`, `TESTING.md`).
 - [x] Supabase Auth deja de ser necesario para el front (el catálogo puede seguir en Supabase hasta su corte).
 

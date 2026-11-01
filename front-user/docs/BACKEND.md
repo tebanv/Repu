@@ -142,7 +142,7 @@ docker ps
 docker logs -f repu_ms_auth
 ```
 
-> **Verificación 2026-10-28:** el stack de auth (`ms-auth` + `ms-users`) se levantó con los servicios de Docker Compose y se validó registro, login OK/KO, perfil, logout y `401` posterior. El smoke en el servidor desplegado sigue pendiente.
+> **Verificación 2026-10-28 / 2026-10-31:** el stack de auth (`ms-auth` + `ms-users`) se levantó con Docker Compose y se validó registro, login OK/KO, perfil, logout y `401` posterior. El 2026-10-31 se repitió el smoke en el servidor desplegado (HTTP con cookie `repu_session_dev`): login UI OK/KO, perfil, logout, `401` posterior y multi-tab. TLS/`__Host-` siguen pendientes.
 
 Para desarrollo del front con `pnpm dev`, el navegador debe hablar con el mismo host que Traefik o usar los `rewrites` de Next.js; una cookie `__Host-`/`SameSite=Lax` no viaja de `localhost` a una IP distinta.
 
@@ -152,7 +152,7 @@ La colección `Arq-Infra/Repu.postman_collection.json` contiene login, registro,
 
 | Dominio | Backend | Front hoy | Estado |
 |---|---|---|---|
-| Auth | `ms-auth` + `ms-users` | Migrado (`httpClient` + `authService`) | **Verificado en entorno de pruebas; servidor pendiente** |
+| Auth | `ms-auth` + `ms-users` | Migrado (`httpClient` + `authService`) | **Verificado en entorno de pruebas y en servidor (2026-10-31, cookie dev sobre HTTP); TLS pendiente** |
 | Perfil/direcciones | `ms-users` | No implementado | Pendiente |
 | Catálogo | `ms-products`/`ms-categories`/`ms-companies` | Supabase (`api.ts`) | Pendiente; lectura anónima temporal |
 | Carrito | `ms-orders` | `cartStore` local con `persist` | Pendiente; el carrito local sigue siendo UX |

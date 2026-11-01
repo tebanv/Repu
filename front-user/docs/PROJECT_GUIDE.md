@@ -14,13 +14,13 @@ Este repositorio (`front-user`) es **la aplicación del cliente final**. Según 
 
 | Área | Estado |
 |---|---|
-| Login con persistencia de sesión | Funcional contra `ms-auth`/`ms-users` (cookie `httpOnly`); smoke verificado en entorno de pruebas; servidor pendiente |
+| Login con persistencia de sesión | Funcional contra `ms-auth`/`ms-users` (cookie `httpOnly`); smoke verificado en entorno de pruebas y en servidor (2026-10-31; cookie dev sobre HTTP) |
 | Mapa + geolocalización + filtros | Funcional |
 | Página de tienda / catálogo | Funcional |
 | Carrito global persistente | Funcional e integrado en la UI |
 | Checkout | Funcional (mock): `app/(main)/checkout/page.tsx` + 4 componentes `components/checkout/` + `orderStore.createOrder`; el CTA del drawer navega a `/checkout` |
 | Pedidos y tracking | Funcional (mock, sin realtime): `app/(main)/order/[id]/page.tsx` + 7 componentes `components/tracking/` + `orderStore` (`createOrder`/`getOrderById`, máx. 20 órdenes) |
-| Backend real | **Microservicios Spring Boot en Docker (ADR-002).** Auth migrado y verificado en entorno de pruebas (`ms-auth`/`ms-users`); catálogo/pedidos/tracking aún no conectados en el front. Supabase queda como legado transitorio del catálogo. |
+| Backend real | **Microservicios Spring Boot en Docker (ADR-002).** Auth migrado y verificado en entorno de pruebas y en servidor el 2026-10-31 (`ms-auth`/`ms-users`, cookie dev sobre HTTP); catálogo/pedidos/tracking aún no conectados en el front. Supabase queda como legado transitorio del catálogo. |
 
 ---
 
@@ -97,7 +97,7 @@ Reglas de oro:
 
 - **`(auth)`** y **`(main)`** son route groups de Next.js: no afectan la URL, solo organizan layouts.
 - `src/app/(main)/layout.tsx` monta el **guard de sesión real en `components/layout/MainLayoutShell.tsx`** (doble capa): espera la rehidratación, si no hay sesión redirige a `/login`; mientras verifica muestra un spinner ("Verificando credenciales..."). Este shell también monta el `ToastViewport` global y escucha `cartNotice` para avisar automáticamente si el carrito expiró al reabrir la app.
-- **`authStore`** (Zustand + `persist`, key `auth-storage`): guarda `user` e `isAuthenticated` en localStorage como caché de UI; la fuente de verdad es la sesión del servidor, revalidada por `initialize()` al montar (la sesión vigente manda; sin sesión se descarta la local). **Implementado:** `login()` delega en `authService` contra `ms-auth` y completa el `User` con `ms-users/profile`; la cookie `__Host-repu_session` es la credencial y el `accessToken` no se persiste. Acciones reales: `login`, `logout` (async), `clearError`, `setHasHydrated`, `initialize` (+ `useAuthHasHydrated`); no existe `updateUser`. `UserRole`: `comprador|distribuidor|domiciliario|analista|admin` (backend en MAYÚSCULAS); `'demo'` no es rol. Smoke verificado en entorno de pruebas; pendiente: servidor y chips demo contra usuarios de la BD Spring.
+- **`authStore`** (Zustand + `persist`, key `auth-storage`): guarda `user` e `isAuthenticated` en localStorage como caché de UI; la fuente de verdad es la sesión del servidor, revalidada por `initialize()` al montar (la sesión vigente manda; sin sesión se descarta la local). **Implementado:** `login()` delega en `authService` contra `ms-auth` y completa el `User` con `ms-users/profile`; la cookie `__Host-repu_session` (prod; `repu_session_dev` en dev HTTP) es la credencial y el `accessToken` no se persiste. Acciones reales: `login`, `logout` (async), `clearError`, `setHasHydrated`, `initialize` (+ `useAuthHasHydrated`); no existe `updateUser`. `UserRole`: `comprador|distribuidor|domiciliario|analista|admin` (backend en MAYÚSCULAS); `'demo'` no es rol. Smoke verificado en entorno de pruebas y en servidor (2026-10-31); pendiente: chips demo y TLS.
 
 > Nota de producción: el guard client-side sigue siendo aceptable para el prototipo, pero el corte a `ms-auth` ya usa cookie `httpOnly`; el guard server-side (`src/proxy.ts`) queda como mejora opcional. Sin HTTPS, la cookie `Secure` no persiste en producción.
 
@@ -219,7 +219,7 @@ useCartHasHydrated()      → fin de rehidratación
 | Servicio | Qué hace hoy | Destino |
 |---|---|---|
 | `services/api.ts` | Supabase (legado): `fetchNearbyStores` por RPC `get_nearby_stores`, tablas `stores`/`products` (adaptadores EWKB→lat/lng) | `ms-companies`/`ms-products`/`ms-categories` REST; SSE de `ms-orders` para tracking |
-| `services/authService.ts` | `ms-auth` (login/logout/register) + `ms-users` (profile); cookie `httpOnly`, sin token en JS. Tests ejecutados (68/68); smoke verificado en entorno de pruebas | Smoke en servidor y ajuste de chips demo |
+| `services/authService.ts` | `ms-auth` (login/logout/register) + `ms-users` (profile); cookie `httpOnly`, sin token en JS. Tests ejecutados (68/68); smoke verificado en entorno de pruebas y en servidor (2026-10-31) | Ajuste de chips demo y TLS |
 | `services/httpClient.ts` | Implementado: `fetch` relativo, `credentials: 'include'`, `X-Request-ID`, errores tipados, `onUnauthorized` | Crecer con los demás dominios |
 | `services/geolocationService.ts` | Wrapper de `navigator.geolocation` (promise) | Sin cambios |
 | `data/products.ts` | ~20 productos con specs, compatibilidad y stock | Sin consumidores; no usar como fuente |
@@ -254,7 +254,7 @@ useCartHasHydrated()      → fin de rehidratación
    - `order/[id]`, mapa/header/timeline/DriverCard/RatingModal de seguimiento. `ms-orders` ya expone órdenes/tracking/SSE, pero el front no los consume. Destino: reemplazar el mock por `ms-orders` + SSE.
 5. **Otras pantallas del diseño**: `/product/[id]`, `/cart`, `/orders`, `/profile` — siguen inexistentes (no hay pages), mantener.
 6. **Fotos reales de producto** en catálogo, modal y carrito.
-7. **Backend real (decisión 2026-10-27):** los microservicios Spring Boot ya están en `Backend/` ([ADR-002](./ADR-002-BACKEND-MICROSERVICES.md)). **Auth migrado y verificado en entorno de pruebas** (`ms-auth`/`ms-users`); siguen catálogo, pedidos y tracking. El contrato verificado está en `BACKEND.md`; el esquema canónico es `Arq-Infra/Repo-DB-2.sql`; falta OpenAPI 3.1 del backend.
+7. **Backend real (decisión 2026-10-27):** los microservicios Spring Boot ya están en `Backend/` ([ADR-002](./ADR-002-BACKEND-MICROSERVICES.md)). **Auth migrado y verificado en entorno de pruebas y en servidor el 2026-10-31** (`ms-auth`/`ms-users`, cookie dev sobre HTTP); siguen catálogo, pedidos y tracking. El contrato verificado está en `BACKEND.md`; el esquema canónico es `Arq-Infra/Repo-DB-2.sql`; falta OpenAPI 3.1 del backend.
 
 ---
 
@@ -271,7 +271,7 @@ useCartHasHydrated()      → fin de rehidratación
 
 1. **Los mocks siguen siendo el riesgo principal, pero ya hay pruebas.** La suite Vitest de 68 tests se ejecutó completa (68/68; cart/auth/stores/order/analytics/storageSync + `authService` contra backend + `httpClient`): ampliar cobertura, no montarla desde cero. Con el backend real ya en el repo, el riesgo se desplaza a la convivencia temporal con el catálogo Supabase y a los dominios pendientes; [ADR-002](./ADR-002-BACKEND-MICROSERVICES.md) fija el corte por dominio y los criterios de salida.
 2. **El riesgo de "UI sobre supuestos".** Catálogo, precios y stock vienen de Supabase, pero el backend real usa tablas en español (`empresas`, `productos`, `ordenes`) y `NUMERIC(15,2)`; el front usa `Store`/`Product`/`Order` con enteros COP. Cuanto más se construya sin adaptar el contrato, más cara la migración.
-3. **Auth migrado y verificado en entorno de pruebas**: el front ya usa `ms-auth`/`ms-users` con cookie `httpOnly`; los tests están ejecutados y el smoke de API pasó. Faltan el smoke en servidor y los chips demo. El riesgo restante es la convivencia temporal con el catálogo Supabase, no la autoridad de sesión.
+3. **Auth migrado y verificado en entorno de pruebas y en servidor (2026-10-31)**: el front ya usa `ms-auth`/`ms-users` con cookie `httpOnly`; los tests están ejecutados y el smoke de API/UI pasó, incluido multi-tab. Faltan los chips demo y TLS. El riesgo restante es la convivencia temporal con el catálogo Supabase, no la autoridad de sesión.
 4. **Multi-tab ya resuelto**: `lib/storageSync.ts` sincroniza el carrito entre pestañas; con `ms-auth` se añade `BroadcastChannel` para auth.
 5. **Orquestación concentrada en `MapContainer`**: funciona, pero mezcla init de Mapbox, debounce, umbrales y refs. Cuando llegue búsqueda por dirección, clustering o tracking en vivo, ese archivo va a pedir refactor a hooks/testeables.
 6. **Detalles de pulido**: branding acotado (header y metadata ya dicen "Repu"; "Mall Virtual" solo sobrevive en emails mock y nombres legacy), tildes faltantes en textos del drawer; el CTA de checkout ya navega.
@@ -280,7 +280,7 @@ useCartHasHydrated()      → fin de rehidratación
 
 No daría un giro radical: **la arquitectura está bien orientada y el problema no es de diseño sino de orden de prioridades**. Mi orden sería:
 
-1. **Validar y cerrar auth**: el código ya usa `ms-auth`/`ms-users` con cookie `httpOnly`; los tests están ejecutados y el smoke de API pasó en entorno de pruebas. Faltan el smoke en servidor, los chips demo y HTTPS. Es el primer corte del ADR-002 y desbloquea el resto.
+1. **Validar y cerrar auth**: el código ya usa `ms-auth`/`ms-users` con cookie `httpOnly`; los tests están ejecutados y el smoke de API/UI pasó en entorno de pruebas y en servidor (2026-10-31). Faltan los chips demo, HTTPS y QA puntual (cookie manual, ANALISTA, inactivo). Es el primer corte del ADR-002 y desbloquea el resto.
 2. **Alinear el contrato de datos con el backend real**: `Repo-DB-2.sql`, roles en MAYÚSCULAS, `NUMERIC(15,2)` y estados de orden por dimensión. Crear adaptadores en `src/services/` para que el switch no rompa UI.
 3. **Cortar catálogo** a `ms-companies`/`ms-products`/`ms-categories` y retirar Supabase del front.
 4. **Checkout con validación server-side** (`ms-orders`) — sin esto, el carrito local "se miente" sobre stock y precios.

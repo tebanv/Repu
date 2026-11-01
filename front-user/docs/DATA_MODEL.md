@@ -199,7 +199,7 @@ Diferencias clave:
 
 ## 9. Siguientes pasos
 
-1. Cerrar el corte de auth usando solo `usuarios`, `sesiones_usuario` y `direcciones_usuario` (vía `ms-users`).
+1. Auth verificado en servidor (2026-10-31, cookie dev sobre HTTP); quedan QA puntual y TLS. Siguiente: catálogo, usando `usuarios`, `sesiones_usuario` y `direcciones_usuario` (vía `ms-users`).
 2. Formalizar el mapeo de roles y la conversión monetaria en `src/services/`.
 3. Antes del corte de catálogo, mapear `empresas`/`productos` (ES) → `Store`/`Product` (front).
 4. Antes del corte de pedidos, acordar el mapeo de estados y el reemplazo de `orderStore` por `ms-orders`.

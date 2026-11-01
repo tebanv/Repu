@@ -297,7 +297,7 @@ Transiciones manuales reales (`OrderTimeline`): `PAGADO→PREPARANDO`, `ACEPTADO
 | Servicio | Propósito | Estado real |
 |----------|-----------|-----------|
 | **Mapbox** | Mapas, geocoding, rutas | ✅ Implementado |
-| **Spring Boot (`ms-auth` / `ms-users`)** | Autenticación y perfil/sesiones | Front migrado; smoke verificado en entorno de pruebas; servidor pendiente |
+| **Spring Boot (`ms-auth` / `ms-users`)** | Autenticación y perfil/sesiones | Front migrado; smoke verificado en entorno de pruebas y en servidor (2026-10-31); TLS pendiente |
 | **Spring Boot (catálogo/pedidos)** | `ms-companies`, `ms-products`, `ms-categories`, `ms-orders`, `ms-manage-payment` | Backend implementado; front aún no los consume |
 | **Supabase** | Catálogo legado (PostgreSQL/PostGIS) | Solo catálogo hasta su corte; auth sale de Supabase con `ms-auth` |
 | **Pasarela de pago** | Wompi en línea (simulado en UI, sin PSE/tarjetas/Nequi reales) | Simulado |

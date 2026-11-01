@@ -2,7 +2,7 @@
 
 Este documento describe el flujo de datos actualizado para reflejar la implementación de la **estrategia híbrida de filtrado** del mapa y la nueva base del **carrito persistente**.
 
-> **Estado de backend (2026-10-28, [ADR-002](./ADR-002-BACKEND-MICROSERVICES.md)):** el backend real son microservicios Spring Boot. Auth ya está migrado en el front a `ms-auth`/`ms-users` y su smoke se verificó en entorno de pruebas (servidor pendiente); catálogo sigue en Supabase como legado transitorio y carrito/pedidos/tracking son locales. Los flujos de mapa/carrito descritos aquí no cambian; solo cambiará la implementación de `src/services/`.
+> **Estado de backend (2026-10-31, [ADR-002](./ADR-002-BACKEND-MICROSERVICES.md)):** el backend real son microservicios Spring Boot. Auth ya está migrado en el front a `ms-auth`/`ms-users` y su smoke se verificó en entorno de pruebas y en servidor (2026-10-31, HTTP con cookie dev; TLS pendiente); catálogo sigue en Supabase como legado transitorio y carrito/pedidos/tracking son locales. Los flujos de mapa/carrito descritos aquí no cambian; solo cambiará la implementación de `src/services/`.
 
 El cambio principal es la introducción de una **Lista Maestra (`masterStores`)**: La API descarga todas las tiendas cercanas por ubicación, y el filtrado por categoría ocurre **en el cliente** (memoria) para una experiencia de usuario instantánea.
 

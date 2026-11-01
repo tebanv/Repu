@@ -10,7 +10,7 @@ Este README es el punto de encuentro de la documentación del front. El backend 
 
 `front-user` es la aplicación del cliente final. Permite actualmente:
 
-- autenticación contra `ms-auth`/`ms-users` con cookie `HttpOnly` y sesión persistida (smoke verificado en entorno de pruebas; servidor pendiente)
+- autenticación contra `ms-auth`/`ms-users` con cookie `HttpOnly` y sesión persistida (smoke de login/perfil/logout verificado en servidor el 2026-10-31; cookie dev sobre HTTP; TLS pendiente)
 - exploración de tiendas en mapa
 - filtrado de tiendas por categoría
 - navegación al catálogo de una tienda
@@ -28,7 +28,7 @@ Estado actual del producto:
 | Carrito global | Persistente e integrado |
 | Checkout | Mock (Wompi simulado) |
 | Tracking | Mock local, sin realtime |
-| Auth | Migrado a `ms-auth`/`ms-users` y verificado en entorno de pruebas; smoke en servidor pendiente |
+| Auth | Migrado a `ms-auth`/`ms-users` y verificado en servidor el 2026-10-31 (login, perfil, logout y multi-tab); cookie dev sobre HTTP; TLS pendiente |
 | Backend | Microservicios Spring Boot reales (`Backend/`), ver [BACKEND.md](docs/BACKEND.md) |
 
 Para la visión funcional completa revisa [docs/APP_FLOW.md](docs/APP_FLOW.md).
@@ -106,9 +106,9 @@ Para decisiones técnicas y organización general revisa [docs/ARCHITECTURE.md](
 
 ### Autenticación
 
-- backend implementado: `ms-auth` (login/logout/sesiones) + `ms-users` (perfil); smoke verificado en entorno de pruebas; servidor pendiente
+- backend implementado: `ms-auth` (login/logout/sesiones) + `ms-users` (perfil); smoke verificado en entorno de pruebas (2026-10-28) y en servidor (2026-10-31, HTTP con cookie `repu_session_dev`)
 - front migrado: `httpClient` + `authService` contra `ms-auth`/`ms-users`; tests ejecutados (68/68), `type-check` y `build` correctos
-- cookie `__Host-repu_session` (`HttpOnly/Secure/SameSite=Lax`); el web ignora `accessToken`
+- cookie `__Host-repu_session` en producción (`HttpOnly/Secure/SameSite=Lax`); el smoke de servidor usó `repu_session_dev` sin `Secure` por HTTP; el web ignora `accessToken`
 - chips demo aún apuntan a seeds de Supabase: reemplazar por usuarios Spring o retirar (decisión pendiente)
 - guard client-side en `MainLayoutShell` con gate de rehidratación
 - **bloqueante de producción:** HTTPS en Traefik para que la cookie `Secure` persista
@@ -254,6 +254,6 @@ Ver reglas completas en [docs/AI_GUIDELINES.md](docs/AI_GUIDELINES.md).
 
 ## 10. Estado documental
 
-- **Última actualización:** 2026-10-28 (verificación de auth, suite ejecutada y estado real del backend).
+- **Última actualización:** 2026-10-31 (smoke de auth verificado en servidor y multi-tab; suite del 2026-10-28).
 - **Fuentes de verdad:** código de `Backend/`, `Arq-Infra/Repo-DB-2.sql`, `Arq-Infra/Repu.postman_collection.json`.
-- **Pendiente:** OpenAPI 3.1 del backend, TLS en Traefik, smoke de auth en servidor, chips demo y cortes de catálogo/pedidos/tracking.
+- **Pendiente:** OpenAPI 3.1 del backend, TLS en Traefik, chips demo, QA restante de auth (borrado manual de cookie, `ANALISTA`, usuario inactivo) y cortes de catálogo/pedidos/tracking.
