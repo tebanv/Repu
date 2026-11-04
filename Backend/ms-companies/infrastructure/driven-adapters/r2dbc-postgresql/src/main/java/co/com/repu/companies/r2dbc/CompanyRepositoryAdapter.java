@@ -91,6 +91,16 @@ public class CompanyRepositoryAdapter implements CompanyRepository {
     }
 
     @Override
+    public Mono<Company> findBySlug(String slug) {
+        return databaseClient.sql("SELECT " + SELECT_COLUMNS
+                        + " FROM repu.empresas WHERE slug = $1")
+                .bind(0, slug)
+                .map((row, metadata) -> mapper.toDomain(toEntity(row)))
+                .one()
+                .onErrorMap(this::translatePersistenceError);
+    }
+
+    @Override
     public Mono<Boolean> existsBySlug(String slug) {
         return databaseClient.sql("SELECT EXISTS (SELECT 1 FROM repu.empresas WHERE slug = $1) AS slug_exists")
                 .bind(0, slug)

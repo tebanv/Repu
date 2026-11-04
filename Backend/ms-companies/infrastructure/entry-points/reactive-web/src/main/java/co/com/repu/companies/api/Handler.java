@@ -90,6 +90,29 @@ public class Handler {
     }
 
     /**
+     * GET /companies/{slug}
+     * Consulta pública de una tienda por su slug.
+     */
+    public Mono<ServerResponse> getCompanyBySlug(ServerRequest request) {
+        String messageId = getRequestId(request);
+        String slug = request.pathVariable("slug");
+
+        try {
+            CompanySlug.normalize(slug);
+        } catch (IllegalArgumentException e) {
+            return ServerResponse.badRequest()
+                    .bodyValue(Map.of("error", "Invalid company slug."));
+        }
+
+        return manageCompanyUseCase.getCompanyBySlug(slug)
+                .flatMap(company -> ServerResponse.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(toResponse(company)))
+                .switchIfEmpty(ServerResponse.notFound().build())
+                .doOnError(e -> log.error("Error fetching company by slug: {}, messageId: {}", slug, messageId));
+    }
+
+    /**
      * POST /companies
      * Crea empresa. Valida campos obligatorios.
      */
