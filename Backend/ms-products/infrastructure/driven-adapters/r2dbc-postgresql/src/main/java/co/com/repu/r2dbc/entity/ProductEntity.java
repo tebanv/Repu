@@ -32,6 +32,9 @@ public class ProductEntity implements Persistable<UUID> {
     @Column("nombre")
     private String name;
 
+    @Column("marca")
+    private String brand;
+
     @Column("sku_referencia")
     private String sku;
 

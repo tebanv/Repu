@@ -82,6 +82,7 @@ public class ProductRepositoryAdapter implements ProductRepository {
                         .companyId(row.get("id_empresa", UUID.class))
                         .categoryId(row.get("id_categoria", UUID.class))
                         .name(row.get("nombre", String.class))
+                        .brand(row.get("marca", String.class))
                         .sku(row.get("sku_referencia", String.class))
                         .description(row.get("descripcion_corta", String.class))
                         .price(row.get("precio_base", java.math.BigDecimal.class))

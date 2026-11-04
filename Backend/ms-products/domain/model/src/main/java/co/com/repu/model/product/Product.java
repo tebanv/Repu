@@ -15,7 +15,8 @@ public class Product {
     private String companyId;
     private String categoryId;
     private String name;
-    private Integer sku;
+    private String brand;
+    private String sku;
     private String description;
     private BigDecimal price;
     private BigDecimal priceOffer;

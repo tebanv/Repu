@@ -29,6 +29,7 @@ public class ManageProductUseCase {
                 .flatMap(existing -> {
                     Product merged = existing.toBuilder()
                             .name(updates.getName() != null ? updates.getName() : existing.getName())
+                            .brand(updates.getBrand() != null ? updates.getBrand() : existing.getBrand())
                             .description(updates.getDescription() != null ? updates.getDescription() : existing.getDescription())
                             .price(updates.getPrice() != null ? updates.getPrice() : existing.getPrice())
                             .stock(updates.getStock() != null ? updates.getStock() : existing.getStock())
