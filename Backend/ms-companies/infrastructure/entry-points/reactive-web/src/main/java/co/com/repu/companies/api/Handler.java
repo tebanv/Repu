@@ -246,7 +246,8 @@ public class Handler {
             String physicalAddress,
             PointCoordinates location,
             Object operationalConfig,
-            String slug) {}
+            String slug,
+            String categoryId) {}
 
     public record CompanyUpdateRequest(
             String businessName,
@@ -257,7 +258,8 @@ public class Handler {
             String physicalAddress,
             PointCoordinates location,
             Object operationalConfig,
-            String slug) {}
+            String slug,
+            String categoryId) {}
 
     public record CompanyResponse(
             String id,
@@ -274,7 +276,8 @@ public class Handler {
             Double rating,
             Integer reviewCount,
             Boolean active,
-            String slug) {}
+            String slug,
+            String categoryId) {}
 
     private static String validateInput(CompanyInput input) {
         if (input.businessName() == null || input.businessName().isBlank()) return "businessName is required.";
@@ -282,6 +285,8 @@ public class Handler {
         if (input.physicalAddress() == null || input.physicalAddress().isBlank()) return "physicalAddress is required.";
         String slugError = validateSlug(input.slug());
         if (slugError != null) return slugError;
+        String categoryError = validateCategoryId(input.categoryId());
+        if (categoryError != null) return categoryError;
         return validateLocation(input.location());
     }
 
@@ -292,6 +297,8 @@ public class Handler {
         }
         String slugError = validateSlug(input.slug());
         if (slugError != null) return slugError;
+        String categoryError = validateCategoryId(input.categoryId());
+        if (categoryError != null) return categoryError;
         return input.location() == null ? null : validateLocation(input.location());
     }
 
@@ -303,6 +310,11 @@ public class Handler {
         } catch (IllegalArgumentException e) {
             return "slug must contain 1-" + CompanySlug.MAX_LENGTH + " letters or numbers.";
         }
+    }
+
+    private static String validateCategoryId(String categoryId) {
+        return categoryId == null || UUID_PATTERN.matcher(categoryId).matches()
+                ? null : "categoryId must be a valid UUID.";
     }
 
     private static String validateLocation(PointCoordinates location) {
@@ -331,6 +343,7 @@ public class Handler {
                 .longitude(input.location().longitude())
                 .operationalConfig(input.operationalConfig())
                 .slug(input.slug())
+                .categoryId(input.categoryId())
                 .build();
     }
 
@@ -346,6 +359,7 @@ public class Handler {
                 .longitude(input.location() == null ? null : input.location().longitude())
                 .operationalConfig(input.operationalConfig())
                 .slug(input.slug())
+                .categoryId(input.categoryId())
                 .build();
     }
 
@@ -355,6 +369,7 @@ public class Handler {
         return new CompanyResponse(company.getId(), company.getUserIdOwner(), company.getName(),
                 company.getTaxId(), company.getDescription(), company.getLogoUrl(), company.getPhone(),
                 company.getBannerUrl(), company.getAddress(), location, company.getOperationalConfig(),
-                company.getRating(), company.getReviewCount(), company.getActive(), company.getSlug());
+                company.getRating(), company.getReviewCount(), company.getActive(), company.getSlug(),
+                company.getCategoryId());
     }
 }

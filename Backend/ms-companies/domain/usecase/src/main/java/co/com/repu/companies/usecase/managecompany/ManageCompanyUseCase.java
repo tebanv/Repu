@@ -71,6 +71,8 @@ public class ManageCompanyUseCase {
                                 .operationalConfig(updates.getOperationalConfig() != null
                                         ? updates.getOperationalConfig() : existingCompany.getOperationalConfig())
                                 .slug(requestedSlug != null ? requestedSlug : existingCompany.getSlug())
+                                .categoryId(updates.getCategoryId() != null
+                                        ? updates.getCategoryId() : existingCompany.getCategoryId())
                                 .build();
 
                         return companyRepository.save(updatedCompany, messageId);
