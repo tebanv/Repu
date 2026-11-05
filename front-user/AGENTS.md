@@ -5,13 +5,12 @@ Before analyzing, editing, or generating any code in this repository, you MUST i
 - Backend decision: `./docs/ADR-002-BACKEND-MICROSERVICES.md` — the real backend is 7 Spring Boot microservices; Supabase is legacy.
 - Historical decision: `./docs/ADR-001-BACKEND-SPRING.md` — kept for context, superseded in scope by ADR-002.
 - Backend contract/topology: `./docs/BACKEND.md` — `ms-auth`, `ms-users`, `ms-orders`, etc.
-- Auth migration (first cut): `./docs/AUTHENTICATION.md`, `./docs/PLAN-LOGIN-MS-AUTH.md`.
+- Authentication and sessions: `./docs/AUTHENTICATION.md`.
 - Core Rules: `./docs/AI_GUIDELINES.md`.
 - Architecture & Flow: `./docs/ARCHITECTURE.md`, `./docs/APP_FLOW.md`, `./docs/DATAFLOW.md`.
 - Data & Folder Specs: `./docs/DATA_MODEL.md`, `./docs/FOLDER_STRUCTURE.md`.
-- Guidelines & Auth: `./docs/PROJECT_GUIDE.md`, `./docs/AUTHENTICATION.md`.
 - Planning & History: `./docs/ROADMAP.md`, `./docs/CHANGELOG.md`, `./docs/TESTING.md`.
-- Documentation index: `./README.md`.
+- Documentation index (one owner document per topic): `./README.md`.
 
 ## Key invariants
 
@@ -24,7 +23,7 @@ Before analyzing, editing, or generating any code in this repository, you MUST i
 - Preserve the cut order: **auth → catalog → orders → tracking**, with no dual writes.
 - Do not change visual design, styles, or colors without explicit approval.
 - **Never run `git push` without an explicit user request.** A local commit does not authorize publishing; a generic “ok” does not either. Propose the push and wait for confirmation.
-- Update `docs/CHANGELOG.md` and the relevant docs (`AUTHENTICATION`, `BACKEND`, `ARCHITECTURE`, `ROADMAP`, `DATAFLOW`, etc.) for every relevant change.
+- Update `docs/CHANGELOG.md` and the relevant docs (`AUTHENTICATION`, `BACKEND`, `ARCHITECTURE`, `ROADMAP`, `DATAFLOW`, etc.) for every relevant change. Each topic lives in one owner document; link to it instead of repeating it.
 
 Always maintain strict alignment with the patterns defined in these documents.
 

@@ -22,7 +22,7 @@ Cuando un agente de IA o desarrollador sea instruido para actualizar, complement
 ## 1. Reglas Generales de Desarrollo y Buenas Prácticas
 
 1. **Revisar Siempre los Archivos de Contexto `.md`:**
-   - Antes de responder, sugerir código o implementar cambios, consulta obligatoriamente los archivos de documentación clave: `PROJECT_GUIDE.md`, `FOLDER_STRUCTURE.md`, `ARCHITECTURE.md`, `DATAFLOW.md`, `ROADMAP.md`, `APP_FLOW.md`, `BACKEND.md`, `ADR-002-BACKEND-MICROSERVICES.md`, `AUTHENTICATION.md`, etc.
+   - Antes de responder, sugerir código o implementar cambios, consulta obligatoriamente los archivos de documentación clave: `FOLDER_STRUCTURE.md`, `ARCHITECTURE.md`, `DATAFLOW.md`, `ROADMAP.md`, `APP_FLOW.md`, `BACKEND.md`, `ADR-002-BACKEND-MICROSERVICES.md`, `AUTHENTICATION.md`, etc.
    - Sigue la estructura de carpetas, convenciones de nomenclatura y decisiones arquitectónicas ya documentadas.
    - Si tienes dudas sobre un requerimiento o flujo, consulta primero los archivos de documentación antes de asumir o preguntar al usuario.
 
@@ -47,6 +47,7 @@ Cuando un agente de IA o desarrollador sea instruido para actualizar, complement
    - **Si creas nuevos componentes, servicios o stores, documenta su propósito y ubicación en los archivos `.md` correspondientes.**
    - Mantén actualizados los archivos de documentación y enlaza los cambios relevantes en el `README.md`.
    - Cada cambio relevante debe registrarse en `docs/CHANGELOG.md` y actualizar el estado de las fases en `docs/ROADMAP.md`. Si se altera la arquitectura, el backend o el flujo de datos, sincronizar `docs/ARCHITECTURE.md`, `docs/BACKEND.md`, `docs/AUTHENTICATION.md` y `docs/DATAFLOW.md`.
+   - **Un tema, un documento:** cada tema tiene un único documento dueño (tabla en `README.md`). Si otro documento se relaciona con ese tema, enlázalo en vez de repetir el contenido. No crees documentos que no aporten algo propio.
 
 7. **Seguridad y Secretos:**
    - Nunca subas tokens, contraseñas, claves privadas ni datos sensibles. Utiliza variables de entorno (`.env.local`) y mantén al día `.env.example` (primera entrada `NEXT_PUBLIC_MAPBOX_TOKEN=`; `AUTH_API_ORIGIN` y `USERS_API_ORIGIN` son variables de servidor, no `NEXT_PUBLIC`).

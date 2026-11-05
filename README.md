@@ -21,8 +21,7 @@ Plataforma de delivery de repuestos automotrices (baterías, llantas y autoparte
 - `ms-orders` — carrito, checkout, pedidos, tracking/SSE
 - `ms-manage-payment` — pagos
 
-La decisión vigente está en [`front-user/docs/ADR-002-BACKEND-MICROSERVICES.md`](front-user/docs/ADR-002-BACKEND-MICROSERVICES.md) y el mapa operativo en [`front-user/docs/BACKEND.md`](front-user/docs/BACKEND.md). El plan de auth (primer corte) está en [`front-user/docs/PLAN-LOGIN-MS-AUTH.md`](front-user/docs/PLAN-LOGIN-MS-AUTH.md).
-
+La decisión vigente está en [`front-user/docs/ADR-002-BACKEND-MICROSERVICES.md`](front-user/docs/ADR-002-BACKEND-MICROSERVICES.md) y el mapa operativo en [`front-user/docs/BACKEND.md`](front-user/docs/BACKEND.md).
 ## Documentación del frontend
 
 El índice principal es [`front-user/README.md`](front-user/README.md).

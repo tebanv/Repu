@@ -1,7 +1,9 @@
 # Plan — Integración de auth `front-user` ↔ `ms-auth` / `ms-users`
 
+> **Archivado (2026-11-01).** Plan ejecutado del corte de auth; se conserva solo como registro de decisiones y diagnóstico. El estado vigente y lo pendiente están en [AUTHENTICATION.md](../AUTHENTICATION.md), y lo que se le pide al backend en [BACKEND.md](../BACKEND.md) §7.
+
 - **Estado:** Implementación de código completa; smoke verificado en entorno de pruebas (2026-10-28) y en servidor (2026-10-31, HTTP con cookie dev); chips demo y QA puntual pendientes
-- **Base:** [ADR-002](./ADR-002-BACKEND-MICROSERVICES.md) (Decisión, Consecuencias y Plan de corte), [AUTHENTICATION.md](./AUTHENTICATION.md), [BACKEND.md](./BACKEND.md)
+- **Base:** [ADR-002](../ADR-002-BACKEND-MICROSERVICES.md) (Decisión, Consecuencias y Plan de corte), [AUTHENTICATION.md](../AUTHENTICATION.md), [BACKEND.md](../BACKEND.md)
 - **Contrato:** verificado contra el código de `Backend/ms-auth` + `Backend/ms-users` y `Arq-Infra/Repu.postman_collection.json` (no hay OpenAPI)
 
 ## 0. Contrato real del backend

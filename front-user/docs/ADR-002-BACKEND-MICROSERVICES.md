@@ -4,7 +4,8 @@
 - **Fecha:** 2026-10-27
 - **Ámbito:** `front-user` + `Backend/` + `Arq-Infra/`
 - **Sustituye en alcance a:** [ADR-001](./ADR-001-BACKEND-SPRING.md) (se conserva como decisión histórica)
-- **Relacionados:** [BACKEND.md](./BACKEND.md), [AUTHENTICATION.md](./AUTHENTICATION.md), [DATA_MODEL.md](./DATA_MODEL.md), [PLAN-LOGIN-MS-AUTH.md](./PLAN-LOGIN-MS-AUTH.md), [ARCHITECTURE.md](./ARCHITECTURE.md), [ROADMAP.md](./ROADMAP.md)
+- **Relacionados:** [BACKEND.md](./BACKEND.md), [AUTHENTICATION.md](./AUTHENTICATION.md), [DATA_MODEL.md](./DATA_MODEL.md), [ROADMAP.md](./ROADMAP.md)
+- **Nota:** las consecuencias describen el contexto al decidir. El estado actual está en los documentos relacionados.
 
 ## Contexto
 
@@ -62,34 +63,9 @@ Mantener la narrativa de ADR-001 (“Spring es futuro, Supabase es el backend ac
 - **Sin rate limit/lockout documentado** en login; riesgo de fuerza bruta.
 - **Sin OpenAPI:** el contrato se deduce del código/Postman y puede cambiar sin aviso.
 
-## Criterios de salida del corte de auth
+## Ejecución
 
-- [x] `src/services/authService.ts` no importa `@supabase/supabase-js`; usa `httpClient` con `credentials: 'include'`.
-- [x] `login` = `POST /ms-auth/api/auth/login` + `GET /ms-users/api/users/profile`; construye `User` con `firstName + lastName`.
-- [x] `logout` llama a `POST /ms-auth/api/auth/logout` y limpia el estado local aunque falle la red.
-- [x] `getCurrentUser`/`initialize` usan `GET /ms-users/api/users/profile`; sin sesión → `null`.
-- [x] `subscribeToAuthChanges` usa `BroadcastChannel` + evento `unauthorized` + `visibilitychange`; no hay polling.
-- [x] `UserRole` incluye `analista`; el mapeo MAYÚSCULAS → minúsculas es explícito y tolerante a roles desconocidos.
-- [x] El `accessToken` no aparece en `localStorage`, `sessionStorage`, URLs ni logs.
-- [x] El guard `MainLayoutShell` redirige a `/login` ante `401`, logout y expiración (logout multi-tab verificado el 2026-10-31; 401 por expiración/borrado de cookie pendiente de QA).
-- [x] `pnpm test`, `pnpm type-check` y `pnpm build` verdes; tests de `httpClient` y `authService` ejecutados (68/68; 2026-10-28).
-- [x] Smoke de auth en entorno de pruebas: registro, login OK/KO, perfil, logout y `401` posterior.
-- [x] Smoke de auth en el servidor desplegado (2026-10-31, HTTP con cookie `repu_session_dev`; TLS/`__Host-` pendientes).
-- [x] Documentación actualizada (`AUTHENTICATION.md`, `CHANGELOG.md`, `ROADMAP.md`, `TESTING.md`).
-- [x] Supabase Auth deja de ser necesario para el front (el catálogo puede seguir en Supabase hasta su corte).
-
-## Plan de corte (auth primero)
-
-1. **Verificar backend con Postman:** login → profile → logout contra la instancia real, con un usuario de la BD `repu`. Confirmar cookie y 401.
-2. **Preparar transporte:** `next.config.js` con `rewrites` dev-only hacia `AUTH_API_ORIGIN` y `USERS_API_ORIGIN`; `.env.example` con esas variables de servidor.
-3. **Crear `src/services/httpClient.ts`:** `fetch` relativo, `credentials: 'include'`, `X-Request-ID`, parseo de `{message}`, errores tipados y emisor `onUnauthorized`.
-4. **Tipos:** añadir `analista` a `UserRole`; documentar el mapeo de roles.
-5. **Reescribir `authService`:** mismas siete exportaciones públicas; `login`, `logout`, `getCurrentUser`, `verifyToken`, `register`, `requestPasswordReset`, `subscribeToAuthChanges`.
-6. **Store y guard:** mantener el contrato de `authStore`; `initialize()` revalida contra `profile`; `MainLayoutShell` reacciona a `401`/logout.
-7. **LoginForm:** reemplazar los chips demo de Supabase por usuarios de la BD Spring o retirarlos.
-8. **Tests:** `httpClient` (200/401/5xx/red) y `authService` (login+profile, 401, logout, subscribe, roles).
-9. **Documentación y limpieza:** actualizar docs y retirar imports de Supabase Auth; `supabaseClient.ts` se conserva solo para el catálogo hasta el corte de catálogo.
-10. **Opcional:** `src/proxy.ts` para un guard optimista sin cookie; no valida sesión, solo evita el flash.
+El estado de los cortes está en [ROADMAP.md](./ROADMAP.md). El corte de auth se ejecutó con el plan archivado en [legacy/PLAN-LOGIN-MS-AUTH.md](./legacy/PLAN-LOGIN-MS-AUTH.md).
 
 ## Alternativas consideradas
 
@@ -100,8 +76,4 @@ Mantener la narrativa de ADR-001 (“Spring es futuro, Supabase es el backend ac
 
 ## Notas operativas
 
-- `ms-auth` y `ms-users` comparten la cookie; `ms-orders`, `ms-companies`, `ms-products` y `ms-categories` validan la sesión contra `ms-auth` con `X-Auth-Service-Token`.
-- `ms-users` valida la sesión directamente contra `sesiones_usuario` en PostgreSQL (no llama a `ms-auth`); es una excepción consciente que debe vigilarse ante desincronización Redis/DB.
-- `ms-manage-payment` no usa `AUTH_SERVICE_TOKEN` en el Compose actual; su contrato de autenticación debe revisarse antes de integrarlo.
-- La guía de sesiones del backend está en `Arq-Infra/Guia-Integracion-Sesiones-Ms-Auth.md`.
-- El DDL canónico está en `Arq-Infra/Repo-DB-2.sql`; el modelo Supabase anterior se conserva en `docs/legacy/DATA_MODEL-SUPABASE.md`.
+Los detalles operativos y los riesgos vigentes están en [BACKEND.md](./BACKEND.md). La guía de sesiones del backend está en `Arq-Infra/Guia-Integracion-Sesiones-Ms-Auth.md`.

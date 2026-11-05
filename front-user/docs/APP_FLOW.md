@@ -1,373 +1,77 @@
-# Flujo de la Aplicación - Repu
+# Flujo de la aplicación
 
-## Visión General
+Qué hace el usuario y qué ve. La mecánica interna está en [DATAFLOW.md](./DATAFLOW.md) y lo que falta construir en [ROADMAP.md](./ROADMAP.md).
 
-**Repu** es una plataforma de delivery en tiempo real especializada en repuestos automotrices. Conecta a conductores con tiendas de autopartes cercanas, permitiéndoles ordenar baterías, llantas y repuestos con entrega rápida y seguimiento en vivo del pedido hasta su ubicación.
+## 1. Producto y actores
 
-### Propuesta de Valor
+Repu conecta a conductores con tiendas de autopartes cercanas para pedir baterías, llantas y repuestos con entrega a domicilio.
 
-- **Para el usuario**: Obtener el repuesto que necesita sin moverse, con certeza de disponibilidad y tracking en tiempo real
-- **Para las tiendas**: Canal de ventas digital con alcance geolocalizado y logística de última milla resuelta
-- **Para los repartidores**: Oportunidad de ingresos con entregas especializadas en el sector automotriz
+| Actor | Aplicación |
+|---|---|
+| Cliente | `front-user` (este repositorio) |
+| Tienda | `front-store` (futuro) |
+| Repartidor | `front-driver` (futuro) |
+| Administrador | `front-admin` (futuro) |
 
----
+## 2. Flujo del cliente
 
-## Actores del Sistema
+**Acceso.** Inicia sesión en `/login`. Sin sesión válida, cualquier ruta del grupo `(main)` redirige allí.
 
-| Actor | Descripción | Aplicación |
-|-------|-------------|------------|
-| **Cliente** | Persona que busca y ordena repuestos | `front-user` (actual) |
-| **Tienda** | Negocio que vende repuestos y gestiona inventario | `front-store` (futuro) |
-| **Repartidor** | Persona que recoge y entrega los pedidos | `front-driver` (futuro) |
-| **Administrador** | Gestiona la plataforma, métricas, soporte | `front-admin` (futuro) |
+**Descubrimiento (`/`).**
+1. Concede el GPS y el mapa se centra en su ubicación. Si lo deniega o lo pospone, navega desde una ubicación por defecto y puede activarlo con la cápsula flotante.
+2. Ve las tiendas cercanas y las filtra por batería, llanta o repuesto.
+3. Selecciona una tienda (pin o lista), ve su tarjeta y entra al catálogo.
 
----
+**Selección (`/store/[slug]`).**
+4. Navega el catálogo y abre el detalle de un producto en un modal.
+5. Agrega productos al carrito. Si ya tiene productos de otra tienda, un diálogo le pide vaciar el carrito o cancelar.
+6. Revisa el carrito en un drawer, disponible también desde el header.
 
-## Flujo Principal del Cliente
+**Checkout (`/checkout`), simulado.**
+7. Con el carrito vacío, se le redirige a `/`.
+8. Confirma la dirección (sugerida por GPS y editable) y agrega notas.
+9. Revisa el total. El envío es `store.deliveryInfo.fee ?? (subtotal > 80000 ? 0 : 6000)` y la tarifa de servicio es 0.
+10. Paga con Wompi, la única opción en la UI. El pago no es real: el pedido se crea en local tras unos 600 ms y el carrito se vacía.
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           FASE 1: DESCUBRIMIENTO                            │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  1. Cliente abre la app (`app/(main)/page.tsx` → ruta pública `/`, grupo `(main)`):│
-│     - Concede GPS: El mapa se centra en sus coordenadas exactas.            │
-│     - Minimiza/Deniega: Navega con ubicación por defecto y puede activar    │
-│       el GPS en cualquier momento con la cápsula superior flotante.         │
-│          ↓                                                                  │
-│  2. Ve mapa interactivo con tiendas cercanas y marcadores interactivos     │
-│          ↓                                                                  │
-│  3. Filtra por tipo de repuesto (baterías, llantas, autopartes)             │
-│          ↓                                                                  │
-│  4. Explora tiendas en el mapa o lista lateral                              │
-│          ↓                                                                  │
-│  5. Selecciona una tienda → Ve tarjeta con rating e info                    │
-│          ↓                                                                  │
-│  6. Toca "Ir a la tienda" → Accede al catálogo                              │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      ↓
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           FASE 2: SELECCIÓN                                 │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  7. Cliente navega el catálogo de la tienda                                 │
-│          ↓                                                                  │
-│  8. Busca por nombre, referencia o categoría                                │
-│          ↓                                                                  │
-│  9. Ve detalle del producto en modal `ProductModal` (no es ruta)          │
-│          ↓                                                                  │
-│  10. Agrega productos al carrito                                            │
-│          ↓                                                                  │
-│  11. Solo una tienda por pedido: conflicto abre `StoreConflictDialog`       │
-│      (`StoreView` + `clearCart` al cambiar de tienda)                        │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      ↓
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           FASE 3: CHECKOUT ✅ IMPLEMENTADO                 │
-│                (`app/(main)/checkout/page.tsx` + 4 componentes)            │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  12. Cliente revisa carrito y cantidades (redirect a `/` si vacío)          │
-│          ↓                                                                  │
-│  13. Confirma dirección de entrega (GPS por defecto o manual)               │
-│          ↓                                                                  │
-│  14. Envío = `store.deliveryInfo.fee ?? (subtotal > 80000 ? 0 : 6000)`      │
-│      (no es cálculo por distancia puro)                                     │
-│          ↓                                                                  │
-│  15. UI solo ofrece Wompi en línea (1 `PAYMENT_OPTION`; el tipo admite 5)   │
-│          ↓                                                                  │
-│  16. Revisa resumen final (subtotal + deliveryFee + serviceFee=0 + total,   │
-│      sin `discount`)                                                        │
-│          ↓                                                                  │
-│  17. Confirma pedido (pago SIMULADO: `createOrder` ~600ms;                  │
-│      wompi → PAGADO/PAID, resto → CREADO/PENDING)                            │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      ↓
-┌─────────────────────────────────────────────────────────────────────────────┐
-│              FASE 4: SEGUIMIENTO ✅ IMPLEMENTADO EN EL FRONT (SIMULACIÓN   │
-│              LOCAL; el backend ya expone ms-orders + SSE, aún no cableado) │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  18. Pedido creado en `orderStore` (mock local, sin notificar a tienda)      │
-│          ↓                                                                  │
-│  19. Avance manual con "Simular avance al siguiente estado"                 │
-│      (`OrderTimeline` → `updateOrderStatus`)                                 │
-│          ↓                                                                  │
-│  20. Repartidor mock fijo (Carlos Andrés Rodríguez, sin asignación real)    │
-│          ↓                                                                  │
-│  21. Repartidor recoge en tienda                                            │
-│          ↓                                                                  │
-│  22. Cliente ve mapa con ubicación del repartidor en vivo                   │
-│          ↓                                                                  │
-│  23. Cliente recibe notificaciones de estado                                │
-│          ↓                                                                  │
-│  24. Repartidor llega → Cliente confirma entrega                            │
-│          ↓                                                                  │
-│  25. Al llegar a ENTREGADO se auto-abre `OrderRatingModal` (tienda+driver)  │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+**Seguimiento (`/order/[id]`), simulado.**
+11. Ve la línea de tiempo, el mapa, el repartidor mock y el detalle del pedido.
+12. Avanza el estado a mano con "Simular avance". No hay ubicación en vivo ni notificaciones.
+13. Al llegar a `ENTREGADO`, se abre el modal para calificar tienda y repartidor.
+
+Puede tener varios pedidos activos a la vez; los consulta desde el drawer del header (pestañas *En curso* e *Historial*).
+
+## 3. Pantallas
+
+| Ruta | Pantalla |
+|---|---|
+| `/login` | Inicio de sesión |
+| `/` | Mapa, filtros y tiendas |
+| `/store/[slug]` | Catálogo de una tienda |
+| `/checkout` | Dirección, pago y confirmación |
+| `/order/[id]` | Seguimiento del pedido |
+
+El detalle de producto y el carrito no son rutas: son `ProductModal` y `CartDrawer`.
+
+## 4. Estados del pedido en el front
+
+Definidos en `src/types/order.ts`. Un pedido pagado con Wompi nace en `PAGADO`; con cualquier otro método, en `CREADO`.
+
+```text
+CREADO → PAGADO → ACEPTADO → PREPARANDO → LISTO → RECOGIDO → EN_CAMINO → ENTREGADO
 ```
 
----
+| Estado | Significado |
+|---|---|
+| `CREADO` | Pedido iniciado, pago pendiente |
+| `PAGADO` | Pago confirmado |
+| `ACEPTADO` | La tienda aceptó |
+| `PREPARANDO` | La tienda alista los productos |
+| `LISTO` | Listo para recoger |
+| `RECOGIDO` | El repartidor tiene el pedido |
+| `EN_CAMINO` | En ruta al cliente |
+| `ENTREGADO` | Recibido |
+| `CANCELADO` | Cancelado; no se permite desde `EN_CAMINO` ni `ENTREGADO` |
 
-## Estados del Pedido (reales, `src/types/order.ts`)
+El botón de simulación salta estados intermedios: `PAGADO`/`ACEPTADO → PREPARANDO`, `PREPARANDO`/`LISTO → RECOGIDO`, `RECOGIDO → EN_CAMINO` y `EN_CAMINO → ENTREGADO`.
 
-```
-CREADO ─→ PAGADO ─→ ACEPTADO ─→ PREPARANDO ─→ LISTO ─→ RECOGIDO ─→ EN_CAMINO ─→ ENTREGADO
-   │         │           │            │             │           │            │
-   └─────────┴───────────┴────────────┴─────────────┴───────────┴────────────┴──→ CANCELADO
-```
-
-Transiciones manuales reales (`OrderTimeline`): `PAGADO→PREPARANDO`, `ACEPTADO→PREPARANDO`, `PREPARANDO→RECOGIDO`, `LISTO→RECOGIDO`, `RECOGIDO→EN_CAMINO`, `EN_CAMINO→ENTREGADO`. `cancelOrder` bloquea `EN_CAMINO`/`ENTREGADO`.
-
-| Estado | Descripción | Responsable | Notificación al Cliente |
-|--------|-------------|-------------|-------------------------|
-| `CREADO` | Pedido iniciado, pago pendiente | Sistema | — |
-| `PAGADO` | Pago confirmado exitosamente | Pasarela (simulada) | "Tu pago fue confirmado" |
-| `ACEPTADO` | Tienda aceptó el pedido | Tienda | "La tienda está preparando tu pedido" |
-| `PREPARANDO` | Productos siendo empacados | Tienda | — |
-| `LISTO` | Pedido listo para recoger | Tienda | "Tu pedido está listo" |
-| `RECOGIDO` | Repartidor tiene el pedido | Repartidor | "El repartidor recogió tu pedido" |
-| `EN_CAMINO` | Repartidor en ruta al cliente | Repartidor | "Tu pedido está en camino" + mapa |
-| `ENTREGADO` | Cliente recibió el pedido | Repartidor | "¡Pedido entregado! Califica tu experiencia" |
-| `CANCELADO` | Pedido cancelado (no en `EN_CAMINO`/`ENTREGADO`) | Cliente/Sistema | "Tu pedido fue cancelado" |
-
----
-
-## Pantallas de la Aplicación (front-user)
-
-### Implementadas ✅
-
-| Pantalla | Ruta | Descripción |
-|----------|------|-------------|
-| Login | `/login` (`app/(auth)/login`) | Autenticación de usuarios |
-| Mapa Principal | `/` (`app/(main)/page.tsx`) | Mapa con tiendas, filtros, lista lateral |
-| Tienda | `/store/[slug]` (`app/(main)/store/[slug]`) | Catálogo de productos de una tienda con CTA flotante de carrito |
-| Checkout | `/checkout` (`app/(main)/checkout/page.tsx` + 4 componentes) | Dirección, pago (solo Wompi simulado), confirmación |
-| Seguimiento | `/order/[id]` (`app/(main)/order/[id]/page.tsx` + 7 componentes tracking) | Tracking simulado local + rating auto en `ENTREGADO` |
-
-> Notas: `/product/[id]` no es ruta (es `ProductModal`); `/cart` no es ruta (es `CartDrawer` global en `StoreView` y `AppHeader`); no existe ruta `/orders` (solo `ActiveOrdersDrawer` + hooks `useActiveOrders`/`useCompletedOrders`).
-
-### Por Implementar 🚧
-
-| Pantalla | Ruta | Descripción |
-|----------|------|-------------|
-| Mis Pedidos | `/orders` | Historial de pedidos |
-| Perfil | `/profile` | Datos, direcciones, métodos de pago |
-
----
-
-## Modelo de Datos Principal
-
-> Nota: modelo objetivo simplificado; el implementado en el front está en `src/types/order.ts` (pedido sin `orderNumber`/`userId`/`driverId` — el `id` con formato `REP-YYYY-XXXX` hace de número —, `items: CartItem[]`, `breakdown` sin `discount`, `stateHistory` en vez de `timeline`, `rating { storeRating, driverRating, comments?, submittedAt }`, `estimatedDeliveryMinutes: number`, `deliveryLocation` dentro de `deliveryAddress.coordinates`; `DriverInfo { name, phone, vehicleType, vehiclePlate, rating, avatar? }` sin `id`/`isOnline`/coords — las coords van en `driverCoordinates`). **El backend real usa la tabla `ordenes` con `estado_orden`/`estado_pago`/`estado_comercio`/`estado_envio` y dinero `NUMERIC(15,2)`; el mapeo aún no está implementado (ver `DATA_MODEL.md` §6).**
-
-### Cliente
-```typescript
-{
-  id: string,
-  email: string,
-  name: string,
-  phone: string,
-  avatar: string | null,
-  addresses: Address[],
-  defaultAddressId: string | null,
-  createdAt: timestamp
-}
-```
-
-### Tienda
-```typescript
-{
-  id: string,
-  name: string,
-  slug: string,
-  description: string,
-  lat: number,
-  lng: number,
-  address: string,
-  city: string,
-  phone: string,
-  categories: ['battery', 'tire', 'spare', 'shop'],
-  rating: number,
-  totalReviews: number,
-  schedule: {
-    monday: { open: '08:00', close: '18:00' },
-    // ...
-  },
-  isOpen: boolean,
-  logo: string,
-  banner: string,
-  deliveryRadius: number,  // metros
-  minOrderAmount: number,
-  avgPrepTime: number,     // minutos
-}
-```
-
-### Producto
-```typescript
-{
-  id: string,
-  storeId: string,
-  name: string,
-  description: string,
-  price: number,
-  comparePrice: number | null,  // precio tachado
-  category: string,
-  subcategory: string,
-  brand: string,
-  reference: string,           // código del fabricante
-  images: string[],
-  stock: number,
-  isAvailable: boolean,
-  specifications: {
-    // varía por categoría
-    voltage: '12V',
-    amperage: '60Ah',
-    // ...
-  },
-  compatibleVehicles: string[],  // ['Chevrolet Spark 2015-2020', ...]
-}
-```
-
-### Pedido
-```typescript
-{
-  id: string,
-  orderNumber: string,         // REP-2026-00001
-  userId: string,
-  storeId: string,
-  driverId: string | null,
-  status: OrderStatus,
-  items: [{
-    productId: string,
-    name: string,
-    price: number,
-    quantity: number,
-  }],
-  subtotal: number,
-  deliveryFee: number,
-  serviceFee: number,   // checkout fija serviceFee = 0; sin `discount`
-  total: number,
-  deliveryAddress: Address,
-  deliveryLocation: { lat, lng },
-  paymentMethod: PaymentMethod,   // UI solo ofrece Wompi en línea (1 opción)
-  paymentStatus: 'PENDING' | 'PAID',   // mayúsculas reales (`src/types/order.ts`)
-  notes: string,               // instrucciones especiales
-  estimatedDelivery: timestamp,
-  actualDelivery: timestamp | null,
-  rating: {
-    store: number | null,
-    driver: number | null,
-    comment: string | null,
-  },
-  timeline: [{
-    status: string,
-    timestamp: timestamp,
-    note: string,
-  }],
-  createdAt: timestamp,
-  updatedAt: timestamp,
-}
-```
-
-### Repartidor
-```typescript
-{
-  id: string,
-  name: string,
-  phone: string,
-  avatar: string,
-  vehicleType: 'motorcycle' | 'car',
-  vehiclePlate: string,
-  rating: number,
-  totalDeliveries: number,
-  isOnline: boolean,
-  currentLocation: { lat, lng },
-  currentOrderId: string | null,
-}
-```
-
----
-
-## Integraciones Requeridas
-
-| Servicio | Propósito | Estado real |
-|----------|-----------|-----------|
-| **Mapbox** | Mapas, geocoding, rutas | ✅ Implementado |
-| **Spring Boot (`ms-auth` / `ms-users`)** | Autenticación y perfil/sesiones | Front migrado; smoke verificado en entorno de pruebas y en servidor (2026-10-31); TLS pendiente |
-| **Spring Boot (catálogo/pedidos)** | `ms-companies`, `ms-products`, `ms-categories`, `ms-orders`, `ms-manage-payment` | Backend implementado; front aún no los consume |
-| **Supabase** | Catálogo legado (PostgreSQL/PostGIS) | Solo catálogo hasta su corte; auth sale de Supabase con `ms-auth` |
-| **Pasarela de pago** | Wompi en línea (simulado en UI, sin PSE/tarjetas/Nequi reales) | Simulado |
-| **Push Notifications** | Alertas de estado del pedido | Pendiente (futuro) |
-| **SMS/WhatsApp** | Notificaciones críticas | Pendiente (futuro) |
-| **Analytics** | Métricas de uso y conversión | Pendiente (futuro) |
-
----
-
-## Arquitectura de Tiempo Real
-
-Estado real: el backend ya expone auth (`ms-auth`/`ms-users`) y pedidos/tracking (`ms-orders`, incluido SSE). El front ya consume auth; aún no consume pedidos/tracking. El catálogo sigue en Supabase como legado; carrito, pedidos y tracking viven en Zustand `persist` (`cart-storage`, `order-storage`; `auth-storage` solo caché de UI) + sincronización cross-tab (`lib/storageSync.ts`). Coordenadas del repartidor solo vía `updateDriverCoordinates` manual. El destino es el corte a `ms-orders` (SSE), no Supabase Realtime. Ver [ADR-002](./ADR-002-BACKEND-MICROSERVICES.md) y [BACKEND.md](./BACKEND.md).
-
-```
-┌─────────────┐     persist + cross-tab sync      ┌─────────────┐
-│   Tiendas / │ ────────────────────────────────→ │   Cliente   │
-│  Repartidor │   (mock local; sin GPS 5-10 s)    │  (mapa +    │
-│   (mock)    │                                   │   timeline) │
-└─────────────┘                                   └─────────────┘
-```
-
----
-
-## Componentes Implementados vs Pendientes
-
-### ✅ Implementados (Fase Actual)
-- Sistema de autenticación con persistencia
-- Mapa interactivo con Mapbox
-- Geolocalización del usuario
-- Stores Zustand (location, stores, filter, auth, cart, order)
-- Filtros por categoría de tienda
-- Lista de tiendas (desktop)
-- StoreCard holográfico
-- Marcadores personalizados con selección
-- Diseño responsive móvil/desktop
-- Arquitectura híbrida de filtrado (cliente/API)
-- Página de tienda con catálogo por `slug` (`StoreView` conectada al `cartStore` como fuente única)
-- Base del carrito global con Zustand + `persist` + `immer`
-- Persistencia del carrito con contexto de tienda
-- TTL de carrito con expiración automática al rehidratar
-- Aviso reactivo (`cartNotice`/`EXPIRED_CART` + toast en `MainLayoutShell`)
-- `ProductModal` conectado al store reactivo
-- `CartButton` conectado a `itemCount` y `subtotal` del store
-- Drawer/vista de carrito pre-checkout (`CartDrawer` global en `StoreView` y `AppHeader`)
-- Sincronización multi-tab del carrito y pedidos (`lib/storageSync.ts`)
-- Checkout completo (mock): `app/(main)/checkout/page.tsx` + 4 componentes
-- Sistema de pedidos (mock): `orderStore` + persistencia `order-storage`
-- Tracking base (simulación local): `app/(main)/order/[id]/page.tsx` + 7 componentes tracking
-- `StoreConflictDialog` mono-tienda + `ActiveOrdersDrawer` + `OrderRatingModal`
-
-### 📋 Fases Posteriores
-- Pagos reales (Wompi productivo, PSE/tarjetas/Nequi)
-- SSE de `ms-orders` + repartidor vivo
-- Notificaciones (push/SMS)
-- Historial `/orders` y perfil `/profile`
-
----
-
-## Decisiones Técnicas
-
-| Decisión | Elección | Razón |
-|----------|----------|-------|
-| Framework | Next.js 16 (canary 16.3.1; App Router) | SSR, routing, optimización |
-| Estado global | Zustand | Simplicidad, performance, persistencia |
-| Mapas | Mapbox GL JS | Personalización, rendimiento |
-| Estilos | Tailwind CSS | Rapidez, consistencia |
-| Animaciones | Framer Motion | Declarativo, performante |
-| Base de datos | PostgreSQL + PostGIS (schema `repu` del backend; Supabase solo legado de catálogo) | PostGIS, integridad relacional, soft delete y auditoría |
-| Tiempo real | SSE de `ms-orders` (backend disponible; front pendiente) | Backend propio; sin acoplar a Supabase Realtime |
-
----
-
-*Documento de contexto para desarrollo - Repu 2026*
+El backend modela los estados de otra forma; la brecha está en [DATA_MODEL.md](./DATA_MODEL.md) §6.

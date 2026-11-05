@@ -21,7 +21,7 @@ type Phase = 'idle' | 'loading' | 'success';
 
 /** Accesos rápidos de desarrollo.
  * LEGADO: apuntan a seeds de Supabase Auth y no existen en la BD Spring.
- * Pendiente (paso 7 del plan de auth): reemplazarlos por usuarios reales de
+ * Pendiente (`docs/AUTHENTICATION.md` §9): reemplazarlos por usuarios reales de
  * `repu.usuarios` o retirarlos con aprobación explícita. */
 const DEMO_USERS = [
   { label: 'Admin', email: 'admin@mallvirtual.com', password: 'admin123' },
