@@ -19,13 +19,16 @@ Repu/
 │   ├── Repo-DB-2.sql            # Canonical PostgreSQL/PostGIS DDL (schema repu)
 │   ├── Repu.postman_collection.json
 │   ├── Guia-Integracion-Sesiones-Ms-Auth.md
+│   ├── Comandos_Docker.md
 │   └── Apis_Mall_Virtual_V2.yaml  # Legacy scope checklist, not current contract
 ├── docker-compose-infra.yaml    # Traefik + PostgreSQL/PostGIS + Redis
 ├── docker-compose-apps.yaml     # Front + 7 microservices
 └── Postman/                     # Additional Postman collection
 ```
 
-> Backend decision: [ADR-002](./ADR-002-BACKEND-MICROSERVICES.md). Operational map: [BACKEND.md](./BACKEND.md). The front only talks to `src/services/`; it never imports backend SDKs.
+`front-user/` also holds its own `Dockerfile` and `docker-compose.yml` for deploying the front alone.
+
+> What each service does: [BACKEND.md](./BACKEND.md). What each module does: [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## 1. Frontend (`front-user/src`)
 
@@ -138,12 +141,12 @@ src/
 │   └── __tests__/                    # Vitest suites (cartStore, orderStore, authStore, storesStore)
 │
 ├── services/                         # Business logic, interaction with external APIs
-│   ├── api.ts                        # Catálogo legado sobre Supabase (RPC get_nearby_stores + stores/products). Destino: ms-companies/ms-products/ms-categories
-│   ├── supabaseClient.ts             # Singleton diferido del cliente Supabase (solo catálogo legado; se retira al cortar catálogo)
+│   ├── api.ts                        # Catálogo contra ms-companies/ms-products/ms-categories (adaptadores a Store/Product)
+│   ├── supabaseClient.ts             # Sin consumidores; se retira en el paso 8 de PLAN-CATALOGO
 │   ├── httpClient.ts                 # Transporte HTTP: fetch relativo, credentials include, X-Request-ID, errores tipados, onUnauthorized
 │   ├── authService.ts                # Auth contra ms-auth (login/logout/register) + ms-users (profile); sin Supabase
 │   ├── geolocationService.ts         # Browser geolocation abstraction
-│   └── __tests__/                    # Vitest suites (authService contra backend, httpClient)
+│   └── __tests__/                    # Vitest suites (api, authService, httpClient)
 │   # Nota: services/ es el único punto de intercambio Supabase → microservicios Spring (ADR-002)
 │
 ├── lib/                              # Pure utilities, helpers, constants
@@ -157,5 +160,5 @@ src/
 │   └── setup.ts                      # Vitest global setup (in-memory localStorage for node env)
 │
 └── data/                             # Static application data
-    └── products.ts                   # Mock catalog products and lookup helpers
+    └── products.ts                   # Old mock catalog; no consumers, pending removal
 ```

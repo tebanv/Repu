@@ -20,34 +20,31 @@ const nextConfig = {
   },
 
   /**
-   * Same-origin en desarrollo para `ms-auth`/`ms-users`.
+   * Same-origin en desarrollo para los microservicios.
    *
-   * En producción Traefik ya enruta `/ms-auth` y `/ms-users` en el mismo host;
-   * en dev Next replica esas rutas para que la cookie `HttpOnly` funcione sin
-   * CORS ni diferencias de host. Solo se activa si las variables existen y
+   * En producción Traefik ya enruta `/ms-*` en el mismo host; en dev Next
+   * replica esas rutas para que la cookie `HttpOnly` funcione sin CORS ni
+   * diferencias de host. Cada regla solo se activa si su variable existe y
    * nunca en producción.
    */
   async rewrites() {
     if (process.env.NODE_ENV === 'production') return [];
 
-    const authOrigin = process.env.AUTH_API_ORIGIN?.replace(/\/$/, '');
-    const usersOrigin = process.env.USERS_API_ORIGIN?.replace(/\/$/, '');
-    const rules = [];
+    // Prefijo público → variable de entorno (solo servidor) con su origen.
+    const services = [
+      ['ms-auth', 'AUTH_API_ORIGIN'],
+      ['ms-users', 'USERS_API_ORIGIN'],
+      ['ms-companies', 'COMPANIES_API_ORIGIN'],
+      ['ms-products', 'PRODUCTS_API_ORIGIN'],
+      ['ms-categories', 'CATEGORIES_API_ORIGIN'],
+    ];
 
-    if (authOrigin) {
-      rules.push({
-        source: '/ms-auth/:path*',
-        destination: `${authOrigin}/ms-auth/:path*`,
-      });
-    }
-    if (usersOrigin) {
-      rules.push({
-        source: '/ms-users/:path*',
-        destination: `${usersOrigin}/ms-users/:path*`,
-      });
-    }
-
-    return rules;
+    return services.flatMap(([prefix, envName]) => {
+      const origin = process.env[envName]?.replace(/\/$/, '');
+      return origin
+        ? [{ source: `/${prefix}/:path*`, destination: `${origin}/${prefix}/:path*` }]
+        : [];
+    });
   },
 };
 

@@ -18,7 +18,8 @@ export interface StoreSchedule {
 }
 
 export interface StoreDeliveryInfo {
-  fee: number;
+  /** Costo de envío en COP. `null` = aún no definido por la tienda (se muestra "por confirmar"). */
+  fee: number | null;
   avgPrepTime: number;
 }
 

@@ -114,7 +114,9 @@ export default function OrderSummaryCard({
         <div className="flex items-center justify-between text-gray-300">
           <span>Costo de domicilio</span>
           <span className="tabular-nums font-medium">
-            {breakdown.deliveryFee === 0 ? (
+            {breakdown.deliveryFee === null ? (
+              <span className="text-gray-400">Por confirmar</span>
+            ) : breakdown.deliveryFee === 0 ? (
               <span className="text-emerald-400">Gratis</span>
             ) : (
               <span className="text-white">{formatCurrency(breakdown.deliveryFee)}</span>
@@ -134,7 +136,9 @@ export default function OrderSummaryCard({
         <div className="pt-3 border-t border-white/15 flex items-baseline justify-between text-sm">
           <div>
             <span className="font-bold text-white text-base">Total a pagar</span>
-            <p className="text-[10px] text-gray-500">Impuestos incluidos</p>
+            <p className="text-[10px] text-gray-500">
+              {breakdown.deliveryFee === null ? 'Impuestos incluidos · envío no incluido' : 'Impuestos incluidos'}
+            </p>
           </div>
           <span className="text-xl font-bold text-cyan-300 tabular-nums drop-shadow-[0_0_12px_rgba(34,211,238,0.4)]">
             {formatCurrency(breakdown.total)}

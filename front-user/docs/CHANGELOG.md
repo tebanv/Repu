@@ -5,6 +5,57 @@
 - **Verificado en local (2026-11-01):** el commit `dad7e6e` ya no existe, `git log --all -- front-user/.env.local` no devuelve nada y `.env.local` está ignorado. No se verificó el remoto ni sus forks o cachés.
 - **Falta:** rotar `NEXT_PUBLIC_MAPBOX_TOKEN`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` y la contraseña de base de datos que circuló por chat. Reescribir el historial no invalida una clave ya expuesta, y desde el repositorio no se puede comprobar si ya se rotaron.
 
+## 2026-11-04 — Catálogo contra los microservicios y costo de envío "por confirmar"
+
+### Contexto
+- Se ejecutaron los pasos 1 a 6 de `docs/PLAN-CATALOGO.md`: tiendas y productos dejan de leerse desde Supabase.
+- La regla de envío (gratis sobre $80.000, $6.000 en otro caso) era una prueba visual temprana. Se retira porque el costo real todavía no se conoce.
+
+### Cambios implementados
+1. **`next.config.js` + `.env.example`:** `rewrites` de desarrollo para `/ms-companies`, `/ms-products` y `/ms-categories` (`COMPANIES_API_ORIGIN`, `PRODUCTS_API_ORIGIN`, `CATEGORIES_API_ORIGIN`).
+2. **`src/services/api.ts` reescrito sobre `httpClient`:**
+   - Adaptadores empresa → `Store` y producto → `Product`.
+   - Categorías traducidas por palabra clave del nombre, con caché por sesión.
+   - Descarte de inactivos y `stock: 0` como agotado.
+   - Radio en km.
+   - Las lecturas públicas no cierran la sesión ante un `401`.
+   - Se eliminaron `fetchStoreById` y `fetchProductById`.
+3. **Checkout:** carga la tienda por el `storeSlug` del carrito.
+4. **Costo de envío:**
+   - `StoreDeliveryInfo.fee` y `OrderBreakdown.deliveryFee` admiten `null`.
+   - `StoreHeader`, `OrderSummaryCard`, `CartDrawer` y `OrderDetailsAccordion` muestran "por confirmar".
+   - El total no incluye el envío.
+   - Cambio visual aprobado por el usuario.
+5. **`cartStore`:** `CART_STATE_VERSION` pasa a 2 y descarta los carritos guardados con ids de Supabase.
+6. **Pruebas:** nuevo `api.test.ts` (13) y un caso de migración del carrito. Suite: 82/82 en 9 archivos.
+
+### Verificación
+- `pnpm test` 82/82, `pnpm type-check` sin errores y `pnpm build` correcto.
+- Lecturas contra el servidor desplegado: listado cercano, tienda por slug (`200`/`404`), categorías y productos responden con la forma que espera el adaptador.
+- `pnpm dev` con `rewrites` hacia el servidor: las tres rutas responden `200`.
+- **No verificado:** el flujo en navegador (mapa, tienda, carrito y checkout); queda como paso 7 del plan.
+
+### Pendiente
+- Paso 7 (smoke en navegador), paso 8 (retirar Supabase) y paso 9 (docs finales).
+- Costo de envío real ([ROADMAP.md](./ROADMAP.md) §4).
+
+## 2026-11-04 — Plan del corte de catálogo
+
+### Contexto
+- El backend integró la consulta de tienda por slug, `categoryId` en empresas, `sku` como texto, `brand` y la corrección de roles. Se verificó contra el código de `Backend/`.
+
+### Cambios documentales
+1. **Nuevo `docs/PLAN-CATALOGO.md`:** funciones afectadas, decisiones, tablas de adaptadores, pasos y pendientes con backend.
+2. **`ROADMAP.md` §2.2:** resumido y enlazado al plan.
+3. **`BACKEND.md` §7, tres hallazgos nuevos:**
+   - `ms-products` permite a `COMPRADOR` crear, editar y cambiar el estado de productos, y no verifica a qué empresa pertenecen.
+   - `empresas.id_categoria` admite una sola categoría por tienda.
+   - `ms-companies`: `PATCH /api/companies/{companyId}` no valida propiedad; cualquier usuario autenticado puede editar los datos de otra empresa.
+4. **`README.md`:** el plan se agregó al índice.
+
+### Sin cambios de código
+- No se tocó `src/`.
+
 ## 2026-11-04 — Backend de catálogo verificado e integrado
 
 ### Contexto
@@ -12,7 +63,7 @@
 - Se hizo `fetch` y merge de `origin/main` en `echava` (commit `b92ab26`), conservando los cambios locales.
 
 ### Verificado contra el código
-- **Resuelto:** `GET /api/companies/{slug}` público; `empresas.id_categoria` con FK e índice; `sku` de producto como texto; `marca` expuesta; roles de `ms-products` alineados con `rol_sistema`.
+- **Resuelto:** `GET /api/companies/{slug}` público; `empresas.id_categoria` con FK e índice; `sku` de producto como texto; `marca` expuesta; nombres de roles de `ms-products` alineados con `rol_sistema`.
 - **Parcial:** categorías por tienda: solo `categoryId`, sin nombre/lista ni mapeo al enum del front.
 - **Pendiente:** filtro de activos en `findAll`, `findNearest` y `searchProducts`; datos de prueba de catálogo; `taxId`/`ownerUserId` siguen en la respuesta pública de companies.
 - **Tests:** `ms-products` trae pruebas de SKU/marca; no se añadieron tests de slug/categorías en `ms-companies`.

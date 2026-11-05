@@ -13,7 +13,7 @@ import useCartStore, { useCartHasHydrated, useCartSummary } from '@/store/cartSt
 import useLocationStore from '@/store/locationStore';
 import useOrderStore from '@/store/orderStore';
 import useToastStore from '@/store/toastStore';
-import { fetchStoreById } from '@/services/api';
+import { fetchStoreBySlug } from '@/services/api';
 import type {
   DeliveryAddress,
   PaymentMethod,
@@ -52,12 +52,13 @@ export default function CheckoutPage() {
     }
   }, [hasHydrated, cartSummary.itemCount, confirmedOrder, router]);
 
-  // Cargar detalles de la tienda para conocer el costo de envío exacto
+  // Cargar la tienda (por el slug que guarda el carrito) para conocer su
+  // ubicación, tiempo de preparación y, cuando exista, su costo de envío.
   useEffect(() => {
     async function loadStore() {
-      if (!cartSummary.storeId) return;
+      if (!cartSummary.storeSlug) return;
       try {
-        const storeData = await fetchStoreById(cartSummary.storeId);
+        const storeData = await fetchStoreBySlug(cartSummary.storeSlug);
         if (storeData) {
           setStore(storeData);
         }
@@ -67,11 +68,13 @@ export default function CheckoutPage() {
     }
 
     loadStore();
-  }, [cartSummary.storeId]);
+  }, [cartSummary.storeSlug]);
 
-  const deliveryFee = store?.deliveryInfo?.fee ?? (cartSummary.subtotal > 80000 ? 0 : 6000);
+  // El costo de envío aún no está definido en el backend: sin dato real queda
+  // `null` ("por confirmar") y no se suma al total. Pendiente en ROADMAP.
+  const deliveryFee = store?.deliveryInfo?.fee ?? null;
   const serviceFee = 0; // Sin costos ocultos de plataforma
-  const total = cartSummary.subtotal + deliveryFee + serviceFee;
+  const total = cartSummary.subtotal + (deliveryFee ?? 0) + serviceFee;
 
   const breakdown: OrderBreakdown = {
     subtotal: cartSummary.subtotal,

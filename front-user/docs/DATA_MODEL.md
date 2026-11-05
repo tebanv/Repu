@@ -141,15 +141,9 @@ fecha_creacion / fecha_actualizacion
 
 ## 4. Roles
 
-| Backend `rol_sistema` | Front `UserRole` | Autorregistro |
-|---|---|---|
-| `COMPRADOR` | `comprador` | Sí |
-| `DISTRIBUIDOR` | `distribuidor` | Sí |
-| `DOMICILIARIO` | `domiciliario` | Sí |
-| `ANALISTA` | `analista` | No |
-| `ADMIN` | `admin` | No |
+`usuarios.rol_sistema` admite `COMPRADOR`, `DISTRIBUIDOR`, `DOMICILIARIO`, `ANALISTA` y `ADMIN`.
 
-El front debe añadir `analista` a `src/types/auth.ts`. `'demo'` no es un rol.
+El mapeo y su implementación están en [AUTHENTICATION.md](./AUTHENTICATION.md) §5.
 
 ## 5. Mapeo auth front ↔ backend
 
@@ -164,9 +158,11 @@ El front debe añadir `analista` a `src/types/auth.ts`. `'demo'` no es un rol.
 
 `auth-storage` solo persiste `user` + `isAuthenticated`; el token queda en la cookie.
 
-## 6. Brecha de pedidos (para el corte posterior)
+## 6. Brechas pendientes con los tipos del front
 
-El modelo de pedidos del backend **no coincide** con `src/types/order.ts`:
+**Catálogo:** el adaptador de `empresas` y `productos` hacia `Store` y `Product` está en [PLAN-CATALOGO.md](./PLAN-CATALOGO.md) §3.
+
+**Pedidos:** el modelo del backend **no coincide** con `src/types/order.ts`:
 
 | Backend | Front hoy | Implicación |
 |---|---|---|
@@ -178,7 +174,7 @@ El modelo de pedidos del backend **no coincide** con `src/types/order.ts`:
 | `subtotal`, `costo_envio`, `descuentos`, `impuestos`, `total_final` `NUMERIC(15,2)` | `subtotal`, `deliveryFee`, `serviceFee`, `total` enteros COP | Adaptador monetario obligatorio |
 | `detalles_orden` con snapshots `JSONB` | `OrderItem` simple | Mapear nombre/precio/cantidad y conservar snapshots |
 
-> Esta tabla es un **diagnóstico**, no un contrato aprobado. El mapeo definitivo se cerrará antes de reemplazar `orderStore` y debe documentarse en `DATAFLOW.md`/`AUTHENTICATION.md` solo cuando exista.
+> Esta tabla es un **diagnóstico**, no un contrato aprobado. El mapeo definitivo se cerrará antes de reemplazar `orderStore` y se documentará aquí cuando exista.
 
 ## 7. Acceso a datos y seguridad
 
@@ -189,18 +185,4 @@ El modelo de pedidos del backend **no coincide** con `src/types/order.ts`:
 
 ## 8. Relación con el modelo Supabase anterior
 
-El modelo inglés (`profiles`, `stores`, `products`, `orders`, `order_items`, `order_status_history`, `driver_positions`, RLS con `auth.uid()`) queda como **histórico** en [legacy/DATA_MODEL-SUPABASE.md](./legacy/DATA_MODEL-SUPABASE.md). No se mantiene, no se migra y no se usa para nuevos desarrollos.
-
-Diferencias clave:
-
-- Supabase: tablas inglesas, `BIGINT` COP, RLS, `auth.users`; Backend: tablas españolas, `NUMERIC(15,2)`, sin RLS, sesiones opacas.
-- Supabase: `orders.driver_id` y `driver_positions`; Backend: `envios`/`posiciones_actuales_envio`.
-- Supabase: `order_status` de 9 valores; Backend: cuatro dimensiones de estado (`estado_orden`, `estado_pago`, `estado_comercio`, `estado_envio`).
-
-## 9. Siguientes pasos
-
-1. Auth verificado en servidor (2026-10-31, cookie dev sobre HTTP); quedan QA puntual y TLS. Siguiente: catálogo, usando `usuarios`, `sesiones_usuario` y `direcciones_usuario` (vía `ms-users`).
-2. Formalizar el mapeo de roles y la conversión monetaria en `src/services/`.
-3. Antes del corte de catálogo, mapear `empresas`/`productos` (ES) → `Store`/`Product` (front).
-4. Antes del corte de pedidos, acordar el mapeo de estados y el reemplazo de `orderStore` por `ms-orders`.
-5. Publicar OpenAPI 3.1 desde el backend; mientras tanto, `Arq-Infra/Repu.postman_collection.json` es la referencia ejecutable.
+El modelo inglés de la etapa Supabase está en [legacy/DATA_MODEL-SUPABASE.md](./legacy/DATA_MODEL-SUPABASE.md). Ya no lo lee ningún servicio del front.

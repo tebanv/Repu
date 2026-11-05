@@ -79,7 +79,7 @@ export default function StoreHeader({ store }: StoreHeaderProps) {
 
   const isOpen = isStoreOpen(store.schedule);
   const scheduleText = getScheduleText(store.schedule);
-  const deliveryFee = store.deliveryInfo?.fee || 0;
+  const deliveryFee = store.deliveryInfo?.fee ?? null;
   const prepTime = store.deliveryInfo?.avgPrepTime || 0;
 
   return (
@@ -234,7 +234,9 @@ export default function StoreHeader({ store }: StoreHeaderProps) {
           <div className="flex items-center gap-2">
             <Truck size={16} className="text-accent" />
             <span className="text-sm text-white">
-              {deliveryFee === 0 ? (
+              {deliveryFee === null ? (
+                <span className="text-gray-400">Envío por confirmar</span>
+              ) : deliveryFee === 0 ? (
                 <span className="text-green-400 font-medium">Envío gratis</span>
               ) : (
                 <span>{formatCurrency(deliveryFee)}</span>

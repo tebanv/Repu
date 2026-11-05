@@ -128,21 +128,25 @@ Más comandos en `Arq-Infra/Comandos_Docker.md`. Con `pnpm dev`, el navegador us
 > Verificado contra `origin/main` el 2026-11-04. Lo marcado como resuelto ya está en el código; lo pendiente sigue bloqueando el corte.
 
 1. **`ms-companies` — tienda por slug: resuelto (2026-11-04).** `GET /api/companies/{slug}` es público (`RouterRest` + `permitAll`). No se pide ruta por id: el checkout usará el slug del carrito. Tampoco por id de producto: `fetchProductById` no tiene consumidores.
+   - **Una categoría por tienda:** `id_categoria` admite un solo valor, así que una tienda que vende baterías y llantas solo aparece en un filtro del mapa.
    - **Categorías por tienda: parcial.** `empresas.id_categoria` y `CompanyResponse.categoryId` ya existen, pero solo devuelven un UUID: no hay nombre ni lista. Falta definir el mapeo a `Store.categories` (`battery|tire|spare|shop`) y resolver el nombre contra `ms-categories`.
    - **Filtro `activo`: pendiente.** `findNearest` y `findAll` siguen sin filtrar empresas activas; `findBySlug` tampoco.
 1b. **`ms-products` — SKU y marca: resuelto (2026-11-04).** `sku` pasó a `String`, se eliminó el `Integer.valueOf` y `productos.marca` se expone como `brand`.
    - **Filtro `activo`: pendiente.** `searchProducts` sigue sin filtrar productos activos.
-1c. **Datos: pendiente.** No hay catálogo de prueba en `Repo-DB-2.sql` (ni empresas, ni productos, ni categorías).
+1c. **Datos: parcial.** `Repo-DB-2.sql` no trae seed. En el servidor hay 7 empresas de prueba, casi todas de comida, y una de baterías (`baterias-la-42-…`) con productos. Falta un catálogo de autopartes representativo con categorías cuyos nombres incluyan `bateria`, `llanta`, `repuesto` o `taller` ([PLAN-CATALOGO.md](./PLAN-CATALOGO.md) §3).
+   - Confirmado en el servidor (2026-11-04): el listado devuelve empresas inactivas.
 
 **Seguridad**
 2. **TLS:** Traefik solo expone el entrypoint `web` (HTTP). Bloquea la cookie `Secure` en producción.
 3. **`ms-manage-payment`:** no tiene `SecurityWebFilterChain` ni filtro de sesión, y el Compose no le pasa `AUTH_SERVICE_TOKEN`. Hay que revisarlo antes de integrarlo; incluye la ruta `PUT /payments/{id}/status/{status}`.
+3a. **`ms-products`, escritura:** `SecurityConfig` permite `COMPRADOR` en `POST /api/catalog/products`, `PATCH /api/catalog/products/{productId}` y `PATCH /api/catalog/products/{productId}/status`. El handler y el caso de uso no verifican que el producto, o el `companyId` del body, pertenezcan a la empresa del usuario: cualquier comprador puede crear productos activos para cualquier tienda, editar los de otra tienda y activar o desactivar productos ajenos. Al pasar de `BUYER` a `COMPRADOR` se conservó el permiso, cuando debía retirarse; `BUYER` no existía en `rol_sistema`, así que antes el permiso estaba muerto.
 3b. **`ms-companies`:** la respuesta pública de `GET /api/companies` y `GET /api/companies/{slug}` incluye `taxId` y `ownerUserId`.
+3c. **`ms-companies`, edición de datos:** `PATCH /api/companies/{companyId}` solo exige `authenticated()` y `updateCompanyDetails` no recibe ni valida al actor; cualquier usuario autenticado puede editar los datos de cualquier empresa. `PATCH /api/companies/{companyId}/status` sí valida propietario o `ADMIN`, así que ese caso está cubierto.
 4. **Parámetros del sistema:** en `ms-auth` basta con tener sesión; no exigen `ADMIN`.
 5. **Login:** sin rate limit ni lockout documentados.
 
 **Consistencia**
-6. **Roles en `ms-products`: resuelto (2026-11-04).** `SecurityConfig` ya usa `DISTRIBUIDOR` y `COMPRADOR`, alineado con `rol_sistema`.
+6. **Roles en `ms-products`: nombres alineados (2026-11-04), pero el permiso de escritura para `COMPRADOR` sigue abierto (ver 3a).** `SecurityConfig` ya usa `DISTRIBUIDOR` y `COMPRADOR`, alineado con `rol_sistema`.
 7. **Postman y `ms-orders`:** la colección usa `/ms-orders/api/companies/.../orders/...`, pero `reject` y `ready` están sin `/api` en el router. Verificar antes de usarlas.
 8. **Postman y `ms-companies`:** la colección usa `GET /ms-companies/companies?...`; el router define `/api/companies`.
 9. **`ms-users` valida en BD y el resto vía `ms-auth`:** vigilar desincronización entre Redis y PostgreSQL.

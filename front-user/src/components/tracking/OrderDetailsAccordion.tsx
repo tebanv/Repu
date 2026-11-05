@@ -148,9 +148,11 @@ export default function OrderDetailsAccordion({ order }: OrderDetailsAccordionPr
               <div className="flex justify-between text-gray-400">
                 <span>Costo de envío</span>
                 <span className="tabular-nums font-medium text-white">
-                  {order.breakdown.deliveryFee === 0
-                    ? 'Gratis'
-                    : formatCurrency(order.breakdown.deliveryFee)}
+                  {order.breakdown.deliveryFee === null
+                    ? 'Por confirmar'
+                    : order.breakdown.deliveryFee === 0
+                      ? 'Gratis'
+                      : formatCurrency(order.breakdown.deliveryFee)}
                 </span>
               </div>
               {order.breakdown.serviceFee > 0 && (

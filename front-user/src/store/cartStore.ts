@@ -18,7 +18,9 @@ import type {
 } from '@/types';
 
 export const CART_STORAGE_KEY = 'cart-storage';
-export const CART_STATE_VERSION = 1;
+// v2 (corte de catálogo): los carritos v1 guardan ids de Supabase que no existen
+// en el backend `repu`; `migrate` los descarta al cambiar la versión.
+export const CART_STATE_VERSION = 2;
 export const CART_TTL_MS = 24 * 60 * 60 * 1000;
 
 const EXPIRED_CART_NOTICE: { code: string; message: string } = {

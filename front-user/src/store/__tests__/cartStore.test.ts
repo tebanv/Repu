@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import useCartStore, {
+  CART_STATE_VERSION,
   CART_STORAGE_KEY,
   CART_TTL_MS,
   isCartExpired,
@@ -126,7 +127,7 @@ describe('cartStore — validación y límites', () => {
   });
 
   // QUIRK documentado: stock 0 hoy se normaliza a "sin límite" (igual que null)
-  // en vez de agotado. No se cambia la regla en Fase A; queda en deuda de TESTING §7.
+  // en vez de agotado. No se cambia la regla en Fase A; queda en deuda de TESTING §4.
   it('QUIRK: stock 0 se trata como ilimitado (pendiente regla de agotado)', () => {
     const result = useCartStore.getState().addItem(makeProduct({ stock: 0 }), 1);
     expect(result.ok).toBe(true);
@@ -243,9 +244,9 @@ describe('cartStore — expiración TTL', () => {
           itemCount: 2,
           subtotal: 200,
           lastUpdatedAt: old,
-          version: 1,
+          version: CART_STATE_VERSION,
         },
-        version: 1,
+        version: CART_STATE_VERSION,
       })
     );
 
@@ -279,9 +280,9 @@ describe('cartStore — expiración TTL', () => {
           itemCount: 100,
           subtotal: 999999,
           lastUpdatedAt: now,
-          version: 1,
+          version: CART_STATE_VERSION,
         },
-        version: 1,
+        version: CART_STATE_VERSION,
       })
     );
 
@@ -292,6 +293,42 @@ describe('cartStore — expiración TTL', () => {
     // Derivados recalculados, no los persistidos corruptos
     expect(state.itemCount).toBe(1);
     expect(state.subtotal).toBe(50);
+  });
+});
+
+describe('cartStore — corte de catálogo', () => {
+  it('descarta carritos v1 con ids de Supabase al rehidratar', async () => {
+    localStorage.setItem(
+      CART_STORAGE_KEY,
+      JSON.stringify({
+        state: {
+          storeId: 'supabase-store',
+          storeSlug: 'tienda-vieja',
+          storeName: 'Vieja',
+          items: [
+            {
+              productId: 'supabase-product',
+              name: 'Batería',
+              price: 100,
+              image: null,
+              quantity: 1,
+              stockSnapshot: 5,
+              maxPerOrder: null,
+            },
+          ],
+          itemCount: 1,
+          subtotal: 100,
+          lastUpdatedAt: new Date().toISOString(),
+          version: 1,
+        },
+        version: 1,
+      })
+    );
+
+    await useCartStore.persist.rehydrate();
+    const state = useCartStore.getState();
+    expect(state.items).toHaveLength(0);
+    expect(state.storeId).toBeNull();
   });
 });
 

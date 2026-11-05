@@ -1,148 +1,88 @@
-# Arquitectura de Frontend (Mapa + Catálogo + Carrito + Checkout + Tracking/Multi-pedido)
+# Arquitectura del frontend
 
-Este documento describe la arquitectura general del frontend actual, incluyendo el módulo de geolocalización, la página de tienda, la base del carrito persistente, el checkout (`app/(main)/checkout` + `components/checkout/*`) y el seguimiento de pedidos (`components/tracking/*` + `order/[id]`).
+Cómo está organizado el front y qué reglas no se deben romper. Los flujos paso a paso están en [DATAFLOW.md](./DATAFLOW.md), la ubicación de los archivos en [FOLDER_STRUCTURE.md](./FOLDER_STRUCTURE.md) y el backend en [BACKEND.md](./BACKEND.md).
 
-## 1. Resumen de la Arquitectura
-
-El diseño se centra en un **flujo de datos unidireccional y reactivo**, gestionado por stores de Zustand y orquestado por componentes contenedores. La UI renderiza estado derivado; la lógica de negocio vive en stores y servicios.
-
-- **Frontend:** Next.js (App Router), React, Zustand para estado global (+ `persist` + `immer`), Mapbox GL JS para mapas, Tailwind CSS, framer-motion. **Backend real:** siete microservicios Spring Boot en Docker detrás de Traefik ([ADR-002](./ADR-002-BACKEND-MICROSERVICES.md)); auth ya está migrado a `ms-auth`/`ms-users` y el catálogo sigue en Supabase como legado transitorio hasta su corte.
-- **Componentes Principales:**
-    - **`MapContainer` (Orquestador):** Componente crucial que inicializa el mapa. Al montar hace `fetchStores`; en `moveend` aplica debounce 600ms + umbral 120m (`MIN_FETCH_DISTANCE`, MapContainer.tsx:78-96). Los cambios de filtro no disparan refetch: van por `applyFilters` en memoria (filtros en cliente).
-    - `FilterBanner`: Muestra los filtros de categorías. Su única responsabilidad es notificar al `filterStore` cuando el usuario cambia una selección.
-    - `InfoPanel`: Panel lateral que muestra información contextual (anuncios o detalles de la tienda seleccionada). Solo móvil; en desktop `PageLayout` usa `StoreCard`/`StoresList` + `AdCarousel` (PageLayout.tsx:84-88).
-    - `StoresLayer`: Componente "tonto" (presentacional) que recibe una lista de tiendas y las renderiza en el mapa. **No contiene lógica de filtrado**.
-    - `app/(main)/store/[slug]/page.tsx`: contenedor de la página de tienda (Server Component → `StoreView` client). Carga tienda/productos con `fetchStoreBySlug`/`fetchProductsByStore` de `services/api.ts` y delega la lógica de carrito al `cartStore` (`useCartSummary`/`addItem` + toasts + `StoreConflictDialog`): delegación cumplida.
-    - `ProductModal` y `CartButton`: componentes de UI del catálogo que consumen estado reactivo del carrito mediante selectores reactivos (`CartButton` usa `useCartSummary`; `StoreView`/`ProductModal`/`CartDrawer` usan hooks del store) sin segunda fuente de verdad local.
-- **Stores de Zustand (Gestores de Estado):**
-    - `locationStore`: Gestiona el estado de la ubicación del usuario y los permisos, con `startTracking`/`stopTracking`, `watchId` e `isTracking`.
-    - `storesStore`: Almacena la lista de tiendas, el estado de carga (`isLoading`), y la tienda actualmente seleccionada. Filtra en cliente en memoria (`masterStores` → `stores` vía `applyFilters`); la API solo filtra por radio.
-    - `filterStore`: Mantiene el estado de los filtros activos (ej. qué categorías están seleccionadas). **No contiene lógica de aplicación de filtros**.
-    - `authStore`: Gestiona sesión persistida (key `auth-storage`) revalidada contra el backend vía `initialize()` (la sesión vigente manda; listener de auth para multi-tab/expiración/401); el guard es client-only en `MainLayoutShell.tsx`, sin middleware. `ms-auth` emite un token opaco en cookie `httpOnly`; `ms-users` entrega el perfil. El `accessToken` del body no se persiste. Ver [AUTHENTICATION.md](./AUTHENTICATION.md) y [ADR-002](./ADR-002-BACKEND-MICROSERVICES.md).
-    - `cartStore`: Gestiona el carrito persistente como **fuente única de verdad**. Mantiene contexto de tienda, items, derivados (`itemCount`, `subtotal`), metadatos de persistencia (`lastUpdatedAt`, `version`, persist key `cart-storage`, TTL 24h, cross-tab sync vía `storageSync`) y estado auxiliar de UX (`cartNotice`, `hasHydrated`).
-    - `orderStore`: Gestiona pedidos mock (`orders`, `createOrder` mock, `getOrderById`, `updateOrderStatus`/`cancelOrder`/`rateOrder`, selectores `useActiveOrders`/`useActiveOrdersCount`/`useCompletedOrders`, persist `order-storage`). Base de estado de checkout + tracking.
-    - `toastStore`: Gestiona feedback transitorio de UI (toasts) para eventos no bloqueantes como agregado al carrito, clamps de cantidad y avisos de expiración.
-- **Capa de Servicios/API:**
-    - `services/supabaseClient.ts`: singleton diferido del cliente Supabase (único importador de `@supabase/supabase-js`; **legado transitorio solo para catálogo**, se retira al cortar ese dominio).
-    - `services/httpClient.ts`: transporte único contra el backend Spring (`fetch` relativo, `credentials: 'include'`, `X-Request-ID`, errores tipados, evento `unauthorized`).
-    - `services/authService.ts`: auth contra `ms-auth` (login/logout/register) + `ms-users` (perfil); normaliza roles y errores de dominio.
-    - `services/api.ts`: catálogo **legado sobre Supabase** mientras se corta el dominio. `fetchNearbyStores({lat,lng,radius})` llama al RPC `get_nearby_stores`; el destino es `ms-companies`/`ms-products`/`ms-categories` con el mismo contrato `Store`/`Product`. El filtrado por categoría se aplica en cliente (`storesStore`). `location` llega como EWKB hex y el adaptador lo proyecta a `lat/lng`.
-
-## 1.1 Principio clave del carrito
-
-- El carrito debe modelarse con **datos + acciones** dentro del store.
-- Los componentes React no deben depender de getters imperativos internos; deben consumir **selectores/hooks reactivos** exportados desde `cartStore`.
-- La expiración por antigüedad (TTL) se resuelve durante la rehidratación del store para evitar carritos persistidos con precio o inventario potencialmente desactualizados.
-
-## 2. Diagrama de Flujo de Datos (Conceptual)
+## 1. Capas
 
 ```text
-[locationStore] -----+                                  +-----> [masterStores]
-                      |                                  |           |
-                      v                                  |           v
-                (lee estado)                             |     (applyFilters
-                      |                                  |      en memoria)
-[filterStore] ------> [MapContainer] --(dispara fetch)--> (api.ts) ---+
-     ^                    (Orquestador)                 (solo radio)  |
-     |                                                               v
-(actualiza)                                                      [storesStore]
-     |                                                           (derivados
-     +---------------- [FilterBanner]                            filtrados)
+UI (componentes) ── lee con selectores ──► Stores Zustand
+      │                                         ▲
+      │ dispara acciones                        │ actualiza
+      ▼                                         │
+    Stores ───────── llaman ──────► Servicios (src/services/) ──► red
 ```
 
-## 3. Flujo de Interacción y Sincronización
+- Los componentes renderizan; la lógica de negocio vive en stores y servicios.
+- Cada dominio tiene una sola fuente de verdad, y los componentes se suscriben con selectores específicos.
+- La UI y los stores no conocen SDKs ni detalles de red. Solo usan tipos de `src/types/`.
+- La traducción entre backend y dominio vive solo en `src/services/`.
 
-1.  **Inicio**: `locationStore` obtiene la ubicación del usuario.
-2.  **Orquestación**: `MapContainer` llama a `storesStore.fetchStores({location,filters})` con debounce 600ms / umbral 120m.
-3.  **Capa de Datos**: La acción llama a la API (`fetchNearbyStores`), que filtra las tiendas solo por radio.
-4.  **Actualización de Estado**: `storesStore` guarda `masterStores` y deriva `stores` ya filtrados vía `applyFilters`.
-5.  **Renderizado**: `StoresLayer` detecta el cambio en `storesStore` y renderiza los nuevos marcadores.
-6.  **Cambio de Filtro**: Si el usuario interactúa con `FilterBanner`, `filterStore` se actualiza y el cambio se resuelve con `applyFilters` en memoria, sin HTTP.
+## 2. Stores
 
-## 4. Ventajas de esta Arquitectura
+| Store | Responsabilidad | Persistencia |
+|---|---|---|
+| `authStore` | Caché de UI de la sesión ([AUTHENTICATION.md](./AUTHENTICATION.md) §6) | `auth-storage` |
+| `locationStore` | Coordenadas, permisos y ciclo de vida del GPS | — |
+| `filterStore` | Categorías activas, sin lógica de filtrado | — |
+| `storesStore` | `masterStores` (zona cargada), `stores` (filtradas) y selección | — |
+| `cartStore` | Carrito | `cart-storage`, con TTL de 24 h |
+| `orderStore` | Pedidos mock, máximo 20 | `order-storage` |
+| `toastStore` | Notificaciones, máximo 4 visibles | — |
 
-- **Separación de Responsabilidades Clara**: Los componentes renderizan, los stores almacenan estado, y los servicios manejan la lógica de negocio y el acceso a datos.
-- **Predecible**: El flujo de datos es más fácil de seguir, con `MapContainer` como el punto de partida claro para la carga de datos.
-- **Eficiente**: El filtrado por categoría se realiza en cliente en memoria, y los componentes de UI solo se re-renderizan con los datos que necesitan mostrar.
-- **Persistencia Segura del Carrito**: la rehidratación sanea shape, versión y antigüedad del carrito antes de exponerlo a la UI.
-- **Consistencia de Producto**: el carrito impide mezcla de tiendas (`STORE_CONFLICT`); el checkout ya está implementado (página + 4 componentes).
+## 3. Servicios
 
-## 5. Optimizaciones de Render (Febrero 2026)
+| Servicio | Backend | Estado |
+|---|---|---|
+| `httpClient.ts` | Transporte común hacia los microservicios | Vigente |
+| `authService.ts` | `ms-auth` + `ms-users` | Vigente |
+| `api.ts` | `ms-companies`, `ms-products`, `ms-categories` (lecturas públicas); adaptadores en [PLAN-CATALOGO.md](./PLAN-CATALOGO.md) §3 | Vigente |
+| `supabaseClient.ts` | Sin consumidores | Se retira en el paso 8 del plan |
+| `geolocationService.ts` | `navigator.geolocation` | Vigente |
 
-- **`MapSection` memoizado**: se exporta con `React.memo` para evitar re-renders por propagación desde el layout cuando cambian componentes no relacionados (por ejemplo, el carrusel).
-- **Montaje condicional de `InfoPanel` en desktop**: el panel móvil ya no se mantiene montado de forma oculta en escritorio. Matiz: `AdCarousel` de desktop sigue siempre montado (`PageLayout` L73-75); lo condicional es el `InfoPanel` móvil.
-- **Suscripciones selectivas a Zustand**: se reemplazaron suscripciones globales (`useStore()`) por selectores puntuales en componentes clave (`MapContainer`, `LocationControlProvider`, `FilterBanner`, `StoresList`, `AppHeader`).
+## 4. Módulo de mapa
 
----
+- **`MapContainer`** es el orquestador. Inicializa Mapbox una sola vez (`dark-v11`), centra el mapa con la ubicación y decide cuándo pedir tiendas.
+- **`StoresLayer`** es presentacional. Separa dos efectos: recrear marcadores cuando cambia la lista y actualizar solo la selección cuando cambia `selectedStoreId`.
+- **`LocationControlProvider`** centraliza los permisos; `LocationButton` y `LocationPermissionModal` solo presentan.
+- **`PageLayout`** muestra lista y anuncios en desktop, y `InfoPanel` (tarjeta de tienda o anuncios) en móvil.
 
-## 6. Estado actual del carrito (Abril 2026)
+Riesgo conocido: `MapContainer` concentra inicialización, debounce y umbrales. Conviene extraerlos a hooks cuando lleguen el clustering o el tracking en vivo.
 
-- Ya existe `cartStore` con Zustand + `persist` + `immer`.
-- Ya existe expiración automática por TTL de 24 horas usando `lastUpdatedAt`.
-- Ya existe `cartNotice` para avisar expiración automática tras reabrir la app.
-- Ya conectado: `ProductModal`, agregado rápido, `CartButton` y `cartNotice` usan el store/reactividad esperada.
-- Ya existe un `CartDrawer` pre-checkout con lista editable, subtotal reactivo y CTA de continuidad.
-- El drawer usa `AnimatePresence` para altas/bajas visuales y gesto móvil de swipe-left para eliminación rápida.
+## 5. Módulo de carrito
 
----
+Reglas implementadas en `cartStore`:
 
-## 7. Gestión Multi-Pedido Concurrente y Panel Lateral (Agosto 2026)
+- **Una tienda por carrito:** un producto de otra tienda devuelve `STORE_CONFLICT` sin mutar nada, y la UI pide confirmación.
+- **Cantidades:** mínimo 1; el máximo sale de `stockSnapshot` y `maxPerOrder`. Si se excede, devuelve `QUANTITY_CLAMPED`.
+- **Dinero:** enteros COP con `Math.round`.
+- **Rehidratación:** valida forma y versión (`CART_STATE_VERSION`) y descarta lo corrupto.
+- **TTL:** con más de 24 h, o con items sin timestamp, el carrito se vacía y se expone `cartNotice` (`EXPIRED_CART`).
+- **Resultados:** las acciones devuelven `{ ok, code, message? }` y la UI decide el feedback.
+- **Lectura:** solo con hooks reactivos (`useCartSummary`, `useCartItem`, `useIsSameCartStore`, `useCartNotice`, `useCartHasHydrated`), nunca con getters.
 
-Para soportar la realidad de un marketplace de autopartes donde un usuario puede tener **múltiples compras activas en diferentes tiendas al mismo tiempo** (ej. baterías en Tienda A y llantas en Tienda B):
+`stockSnapshot` es referencial; nunca es fuente de verdad al pagar.
 
-1. **Eliminación del Singleton `activeOrderId` (Enfoque B Puro):**
-   - El estado no modela un único ID activo global; las órdenes activas son un subconjunto derivado del arreglo `orders: Order[]`.
-   - La orden visualizada en pantalla se determina de forma pura mediante la URL (`/order/[id]`).
-2. **Selectores Atómicos Memoizados:**
-   - `useActiveOrders()`: Retorna la lista de pedidos en curso (`status !== 'ENTREGADO' && status !== 'CANCELADO'`).
-   - `useActiveOrdersCount()`: Retorna un entero primitivo (`number`) para que el botón del `AppHeader` no sufra re-renders por cambios en las propiedades internas de los pedidos.
-   - `useCompletedOrders()`: Retorna los pedidos archivados de la sesión.
-    - `getOrderById(id)`: Acceso directo indexado para la vista de seguimiento (método del store, vía `useOrderStore.getState().getOrderById`).
-3. **Panel Lateral de Navegación (`ActiveOrdersDrawer.tsx`):**
-   - Panel Cyberpunk montado en `AppHeader` con pestañas *En Curso (N)* e *Historial (N)*.
-   - Permite consultar tiempos estimados (ETA), estado de despacho y acceder al tracking en el mapa de cualquier pedido activo sin perder el contexto de navegación principal.
+## 6. Pedidos
 
----
+- No existe `activeOrderId`: los pedidos activos se derivan de `orders[]` con `useActiveOrders`, `useActiveOrdersCount` y `useCompletedOrders`.
+- La URL decide qué pedido se ve (`/order/[id]`).
+- Todo es local; `orderStore` no habla con el backend. Repartidor, teléfono y chat son simulados.
 
-## 8. Principios de Ingeniería para Producción a Gran Escala
+## 7. Guardrails
 
-Diseñado para operar a gran escala minimizando consumo de batería en móviles, eliminando re-renders innecesarios y previniendo sobrecostos en APIs de mapas y bases de datos:
+**Rendimiento**
+- `MapSection` está memoizado y el mapa no se recrea por renders del layout.
+- `moveend` aplica debounce de 600 ms y umbral de 120 m. Cambiar filtros no genera tráfico de red.
+- `AdCarousel` cambia de slide por intervalo; su barra de progreso es una animación declarativa, sin `setState` por frame.
+- `InfoPanel` es solo móvil: no se monta en desktop.
 
-### 8.1 Telemetría GPS en Tiempo Real (1Hz) vs Estado de Negocio Relacional (futuro, no implementado)
-- **El Stream GPS NO es Estado de Negocio:** Las actualizaciones de coordenadas del domiciliario a 1Hz (1 por segundo) **no deben mutar el store relacional de órdenes** 60 veces por minuto, ya que forzaría re-renderizados innecesarios en toda la aplicación.
-- **Canal de Renderizado Dedicado:** La telemetría en vivo viaja directamente a una capa de renderizado WebGL/Canvas (`requestAnimationFrame` / `easeTo` en Mapbox) o un store liviano transitorio.
-- **Persistencia Periódica:** El `orderStore` y la base de datos PostgreSQL solo registran la última posición conocida en intervalos discretos (cada 15-30s) o en cambios de estado (`RECOGIDO`, `EN_CAMINO`, `ENTREGADO`).
+**GPS y batería** (`locationStore`)
+- `PERMISSION_DENIED` llama a `clearWatch` de inmediato.
+- `POSITION_UNAVAILABLE` y `TIMEOUT` conservan las últimas coordenadas, mantienen la escucha y evitan re-renders repetidos.
 
-### 8.2 Resiliencia de Hardware Móvil y Ahorro de Batería
-- **Apagado Inmediato de Sensores:** Ante denegación de permisos (`PERMISSION_DENIED`), se invoca de inmediato `navigator.geolocation.clearWatch()` para apagar la antena GPS del dispositivo.
-- **Modo Pasivo en Zonas de Sombra (Sótanos/Túneles):** Ante pérdida temporal de satélites (`POSITION_UNAVAILABLE` / `TIMEOUT`), se preservan las últimas coordenadas válidas y el sensor permanece en escucha pasiva, reconectando automáticamente en cuanto el usuario sale a la intemperie.
-- **Guarda Anti Re-renders:** Filtrado de eventos repetitivos para que Zustand no emita actualizaciones de estado cada 10s mientras el usuario permanezca sin cobertura (`locationStore.ts`: `clearWatch` ante `DENIED`, watcher persistente y guarda anti re-renders ante `POSITION_UNAVAILABLE`/`TIMEOUT`, timeout 10s).
+**Safari iOS** (CTA inferior del carrito)
+- No animar `transform` sobre un nodo `fixed`: usar un wrapper `fixed` estático y una capa interna animada.
+- Mantener el safe-area separado del color del botón (`mobile-safe-area-screen`, `safe-bottom-pad`) y usar `min-h-screen` + `min-h-[100dvh]` en la vista de tienda.
+- No reintroducir hacks globales de scroll.
 
-### 8.3 Control de Costes y Rendimiento en Mapas (Mapbox / Google Maps)
-- **Instancias Únicas de Mapa:** Se evita la recreación de instancias de mapas en cada ciclo de render (instancia única con cleanup).
-- **Deduplicación y Debounce de Viewport:** Los eventos `moveend` aplican debounce 600ms + umbral 120m para evitar peticiones HTTP redundantes a la API de tiendas en movimientos milimétricos.
-- **Tiles Vectoriales Cacheados:** Uso de estilos optimizados (`dark-v11`); el cacheo de tiles es comportamiento del navegador/Mapbox, no configuración del repo.
-
-### 8.4 Separación de Client State vs Server Cache (futuro, no implementado)
-- **Zustand (Client Session State):** Gestiona el estado interactivo de la sesión en memoria (carrito activo, órdenes en curso, filtros).
-- **TanStack Query / SWR (Server Cache, futuro):** No implementado — cero TanStack/SWR en `src/`. El backend `ms-orders` ya expone listado de órdenes, pero el front aún no lo consume; el historial actual es filtrado en memoria (`useCompletedOrders`) sobre persist local `order-storage`.
-
----
-
-## 9. Backend real y estrategia de corte (ADR-002, 2026-10-27)
-
-**Decisión:** el backend real son siete microservicios Spring Boot en Docker, orquestados por Traefik, con PostgreSQL/PostGIS (`schema repu`) y Redis. Supabase queda fuera del camino crítico ([ADR-002](./ADR-002-BACKEND-MICROSERVICES.md); [ADR-001](./ADR-001-BACKEND-SPRING.md) se conserva como histórico).
-
-- **Topología:** Traefik same-origin sirve `front-user` y los micros por `PathPrefix`: `/ms-auth`, `/ms-users`, `/ms-companies`, `/ms-products`, `/ms-categories`, `/ms-orders`, `/ms-manage-payment`.
-- **Autoridad de sesión:** `ms-auth` emite un token opaco (cookie `__Host-repu_session`, `HttpOnly/Secure/SameSite=Lax`), lo guarda como hash en PostgreSQL y lo cachea en Redis. `ms-users` expone el perfil; los demás micros validan la sesión contra `ms-auth` con `X-Auth-Service-Token`.
-- **Vigente hoy en el front:** auth ya usa `ms-auth`/`ms-users` y su smoke se verificó en entorno de pruebas y en servidor (2026-10-31, cookie dev sobre HTTP; TLS pendiente); catálogo sigue en Supabase (legado); carrito/pedidos/tracking son locales.
-- **Corte por dominio:** auth → catálogo → pedidos → tracking. Auth ya está migrado (`ms-auth` + `ms-users`) y verificado en entorno de pruebas y en servidor; sigue catálogo. El catálogo Supabase es de lectura anónima y no bloqueó el cambio.
-- **Contrato:** no hay OpenAPI publicado; la fuente es el código de `Backend/`, `Arq-Infra/Repo-DB-2.sql` y `Arq-Infra/Repu.postman_collection.json`. Ver [BACKEND.md](./BACKEND.md).
-- **Auth:** cookie `httpOnly`; el web ignora el `accessToken` del body. El perfil se obtiene de `GET /ms-users/api/users/profile`.
-- **Producción:** HTTPS es bloqueante; el compose actual de Traefik solo expone HTTP y el navegador descarta la cookie `Secure` fuera de localhost.
-- **Criterios de salida:** ver [ADR-002](./ADR-002-BACKEND-MICROSERVICES.md) §Criterios y [PLAN-LOGIN-MS-AUTH.md](./PLAN-LOGIN-MS-AUTH.md).
-
----
-
-Este documento sirve como referencia principal para entender la arquitectura del frontend actual. Para detalles del flujo paso a paso, consulta `DATAFLOW.md`.
-
+Los criterios generales para evaluar cambios están en [AI_GUIDELINES.md](./AI_GUIDELINES.md) §4.

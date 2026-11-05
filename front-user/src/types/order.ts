@@ -29,7 +29,8 @@ export interface DeliveryAddress {
 
 export interface OrderBreakdown {
   subtotal: number;
-  deliveryFee: number;
+  /** `null` = costo de envío por confirmar; no se suma a `total`. */
+  deliveryFee: number | null;
   serviceFee: number;
   total: number;
 }

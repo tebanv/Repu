@@ -583,7 +583,7 @@ export default function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerPr
 
                   <div className="flex items-center justify-between text-xs text-gray-400">
                     <span>Costo de envío</span>
-                    <span className="text-emerald-400 font-medium">Calculado en checkout</span>
+                    <span className="text-gray-400 font-medium">Por confirmar</span>
                   </div>
 
                   <div className="pt-2 border-t border-white/[0.06] flex items-baseline justify-between">

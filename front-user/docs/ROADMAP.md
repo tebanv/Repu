@@ -27,19 +27,13 @@ Lo pendiente está en [AUTHENTICATION.md](./AUTHENTICATION.md) §9.
 
 ### 2.2 Catálogo
 
-- [ ] Cerrar los bloqueantes de catálogo de [BACKEND.md](./BACKEND.md) §7:
-  - [x] Tienda por slug: `GET /api/companies/{slug}` público.
-  - [x] `sku` como texto y `marca` expuesta en `ms-products`.
-  - [x] Roles de `ms-products` alineados con `rol_sistema` (`DISTRIBUIDOR`/`COMPRADOR`).
-  - [ ] Categorías por tienda: el backend expone `categoryId`, pero falta nombre/lista y mapeo a `StoreCategory`.
-  - [ ] Filtro de activos en `ms-companies` y `ms-products`.
-  - [ ] Datos de prueba de catálogo en `Repo-DB-2.sql`.
-- [ ] Eliminar `fetchProductById` (sin consumidores) y hacer que el checkout cargue la tienda con el `storeSlug` del carrito en lugar de `fetchStoreById`.
-- [ ] Reimplementar las funciones restantes de `api.ts` con `httpClient` y adaptadores de `empresas`/`productos` a `Store`/`Product` ([DATA_MODEL.md](./DATA_MODEL.md) §6).
-- [ ] Añadir `rewrites` de desarrollo para `/ms-companies`, `/ms-products` y `/ms-categories` (hoy solo existen los de auth y users).
-- [ ] Convertir el radio: el front usa metros y `ms-companies` espera `radiusKm` entero.
-- [ ] Cambiar la regla de agotado: hoy `stock: 0` significa "sin límite" ([TESTING.md](./TESTING.md) §4), y en `productos` el inventario vale 0 por defecto.
-- [ ] Retirar `@supabase/supabase-js`, `supabaseClient.ts` y las variables `NEXT_PUBLIC_SUPABASE_*`, también de `Dockerfile` y de los archivos Compose.
+El plan de ejecución está en [PLAN-CATALOGO.md](./PLAN-CATALOGO.md).
+
+- [x] Backend: tienda por slug, `sku` como texto, `marca` expuesta y `categoryId` en empresas (2026-11-04).
+- [ ] Backend: catálogo de autopartes real. Hoy el servidor tiene 7 empresas de prueba, casi todas de comida, y una de baterías con productos ([BACKEND.md](./BACKEND.md) §7).
+- [x] Front: pasos 1 a 6 del plan (transporte, adaptadores, checkout por slug, reset de carritos y pruebas) (2026-11-04).
+- [ ] Smoke en servidor.
+- [ ] Retirar Supabase del front.
 
 ### 2.3 Pedidos y pagos
 
@@ -71,7 +65,8 @@ Lo pendiente está en [AUTHENTICATION.md](./AUTHENTICATION.md) §9.
 - [ ] Pantallas `/orders` (historial) y `/profile` (datos y direcciones).
 - [ ] UI de registro y de recuperación de contraseña; el servicio ya existe, pero no hay pantallas.
 - [ ] Búsqueda dentro del catálogo de una tienda.
-- [ ] Fotos reales de producto en catálogo, modal y carrito.
+- [ ] Fotos reales de producto en catálogo, modal y carrito. El backend ya envía `images`; falta mostrarlas, y es un cambio visual.
+- [ ] **Costo de envío real:** hoy no se conoce y se muestra "por confirmar" sin sumarlo al total. Requiere definir con backend dónde vive (`operationalConfig.delivery.fee` u otra regla, como distancia o zona) y cobrarlo en el checkout de `ms-orders`.
 - [ ] Regla de capacidad logística: limitar el carrito por peso, volumen o vehículo de reparto.
 - [ ] Eventos de analítica del carrito: `cart_item_added`, `cart_item_removed`, `cart_quantity_updated`, `cart_cleared`, `cart_store_conflict`. Hoy solo existe `cart_expired`.
 - [ ] Métodos de pago reales; el tipo admite cinco y la UI solo ofrece Wompi.

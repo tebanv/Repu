@@ -1,141 +1,70 @@
-# Testing — front-user
+# Pruebas
 
-Fuente única para pruebas del cliente. `ROADMAP.md` solo resume el DoD por fase y apunta aquí para el detalle.
+Cómo se prueba el front y qué falta cubrir.
 
-> Estado: runner instalado (Vitest 5 + jsdom). Comandos con `pnpm` exclusivo (nunca `npm`/`yarn`). **Suite ejecutada: 68/68 tests en 8 archivos** (61 previos − 12 de auth Supabase + 11 de auth Spring + 8 de `httpClient`), con `pnpm type-check` sin errores y `pnpm build` correcto (2026-10-28). Al cortar auth se reescribieron los tests de `authService` y se añadió `httpClient`; los tests de stores conservan su contrato. Los conteos se reverificaron contra los archivos el 2026-10-31 (68 tests en 8 archivos); la suite no se re-ejecutó ese día. El smoke de servidor y el QA de login/logout/multi-tab quedaron verificados el 2026-10-31; quedan QA puntual (cookie manual, ANALISTA, inactivo), chips demo y TLS. Ver [ADR-002](./ADR-002-BACKEND-MICROSERVICES.md) y [PLAN-LOGIN-MS-AUTH.md](./PLAN-LOGIN-MS-AUTH.md).
+**Última ejecución (2026-11-04):** `pnpm test` 82/82 en 9 archivos, `pnpm type-check` sin errores, `pnpm build` correcto. `pnpm lint` falla ([§4](#4-deuda)).
 
-## 1. Comandos
+## 1. Comandos y configuración
 
 ```bash
-pnpm test            # vitest run — 68/68 (2026-10-28)
-pnpm test:watch      # vitest (watch en local)
-pnpm test:coverage   # vitest run --coverage (v8, stores + lib)
-pnpm type-check    # tsc --noEmit — 0 errores (2026-10-28)
-pnpm build         # Next producción — correcto (2026-10-28)
+pnpm test            # vitest run
+pnpm test:watch      # vitest en modo watch
+pnpm test:coverage   # cobertura v8 de src/store y src/lib; no incluye src/services
+pnpm type-check      # tsc --noEmit
+pnpm build           # build de producción
 ```
 
-Config: `vitest.config.mts` (extensión `.mts` para carga ESM sin warnings) con `environment: 'node'`, alias `@ -> ./src`, `include: src/**/*.test.ts`, setup `src/test/setup.ts` (localStorage en memoria). `jsdom` está instalado, pero la suite actual corre en `environment: 'node'`; los tests de stores puros no necesitan DOM salvo que toquen `window` (el setup mockea `localStorage`; `geolocation` no se mockea en ningún test actual).
+`vitest.config.mts` usa `environment: 'node'`, el alias `@`, `include: src/**/*.test.ts` y el setup `src/test/setup.ts`, que aporta un `localStorage` en memoria. `jsdom` está instalado, pero la suite no lo usa; por eso no hay tests de componentes.
 
 ## 2. Convenciones
 
-- Ubicación: `src/**/__tests__/*.test.ts` junto al dominio (`store/__tests__/cartStore.test.ts`).
-- Lógica pura primero: `cartStore`, `orderStore`, `authStore`, `storesStore`, `filterStores`, `isCartExpired`, `sanitize`.
-- No duplicar fuentes: los tests importan acciones reales del store, no reimplementan reglas.
-- Dinero en enteros COP (`Math.round`); cantidades mínimo 1.
-- Códigos de resultado (`CartActionResult.code`) se asertan explícitos: `ITEM_ADDED`, `QUANTITY_CLAMPED`, `STORE_CONFLICT`, etc. (nota: `EXPIRED_CART` es `CartNotice`, no `CartActionResult.code`).
-- Aislamiento: `localStorage.clear()` + reset de store entre tests; TTL con aritmética real de `Date` (sin `vi.useFakeTimers`).
-- Cookies: no validar `Set-Cookie` desde `response.headers` en JavaScript (es un *forbidden response header*); usar DevTools → Application → Cookies o `curl -i`.
+- Los tests viven en `src/**/__tests__/*.test.ts`, junto a su dominio.
+- Importan las acciones reales del store; no reimplementan reglas.
+- Los códigos de resultado se asertan de forma explícita (`ITEM_ADDED`, `STORE_CONFLICT`, etc.).
+- Entre tests: `localStorage.clear()` y reset del store.
+- El TTL se prueba con aritmética real de `Date`, sin fake timers.
+- Los servicios se prueban con `fetch` mockeado.
 
-## 3. Matriz unitaria — código actual
+## 3. Cobertura
 
-> Cobertura Fase A (2026-09-16) + P1 (2026-10-12) + corte auth (2026-10-27) + ejecución (2026-10-28) + smoke de servidor (2026-10-31): §3.1 auth (`ms-auth`/`ms-users`, tests ejecutados), §3.2 híbrido, §3.3 carrito y §3.4 pedidos en `src/store/__tests__/` + `src/services/__tests__/` (68 tests ejecutados). §3.5 ubicación y §3.6 toasts siguen como especificación sin test (sin cambios recientes, riesgo bajo).
+| Archivo | Tests | Cubre |
+|---|---|---|
+| `store/__tests__/cartStore.test.ts` | 24 | Altas y merge, una tienda por carrito, límites, redondeo, TTL, rehidratación, descarte de carritos v1 y selectores puros |
+| `store/__tests__/orderStore.test.ts` | 9 | Creación, tope de 20, historial, cancelación, calificación y coordenadas |
+| `store/__tests__/authStore.test.ts` | 7 | Login, logout e `initialize` con y sin sesión |
+| `store/__tests__/storesStore.test.ts` | 5 | Filtrado híbrido, error de red y selección |
+| `services/__tests__/api.test.ts` | 13 | Adaptadores de tienda y producto, radio, categorías por palabra clave y su caché, inactivos, agotado, oferta, envío sin definir, slug 404/400 y 401 sin cierre de sesión |
+| `services/__tests__/authService.test.ts` | 11 | Login + perfil, roles, registro, recuperación, logout y `401` global |
+| `services/__tests__/httpClient.test.ts` | 8 | Estados HTTP, errores, `X-Request-ID`, credenciales y evento `unauthorized` |
+| `lib/__tests__/storageSync.test.ts` | 3 | Sincronización entre pestañas de `cart-storage` |
+| `lib/__tests__/analytics.test.ts` | 2 | Telemetría |
 
-### 3.1 Auth — `ms-auth`/`ms-users` (implementado; tests ejecutados)
+### Sin cobertura automatizada
 
-> `authService` ya no usa Supabase. Los tests se reescribieron contra `fetch` mockeado; `authStore` conserva sus aserciones públicas.
+- `locationStore`: permisos, `clearWatch` y escucha pasiva.
+- `toastStore` y `filterStore`.
+- `subscribeToAuthChanges`: `BroadcastChannel` y `storage`. Solo está probado el `401` global.
+- Selectores `useActiveOrders`, `useActiveOrdersCount` y `useCompletedOrders`.
+- Persistencia de `order-storage` y su sincronización entre pestañas.
+- Componentes y flujos de UI; no hay runner E2E. Conviene Playwright para checkout y tracking cuando haya backend real.
 
-- [x] `httpClient`: `fetch` relativo con `credentials: 'include'`, `X-Request-ID`, parseo `{message}`, 200/400/401/5xx/red, emisor `unauthorized`.
-- [x] `login` ok: POST login → GET profile → `User` con `name = firstName + lastName`; email normalizado; rol `ANALISTA` → `analista`.
-- [x] `login` 401 → `false`/error “Credenciales inválidas”; 5xx/red → “Servicio no disponible”; no se filtra si el email existe.
-- [x] `getCurrentUser` con perfil → `User`; sin sesión/401 → `null`.
-- [x] `verifyToken` = `Boolean(getCurrentUser())`; argumento legacy ignorado.
-- [x] `logout` limpia estado local incluso si `POST logout` falla o devuelve 401; la cookie la expira el backend.
-- [x] `register` crea cuenta y **no** inicia sesión; validación de rol autorregistro y password.
-- [x] `requestPasswordReset` → `202` genérico; no revela existencia del correo.
-- [x] `subscribeToAuthChanges` (parcial): `authService.test.ts` cubre la emisión de `null` ante un `401` global.
-- [ ] `subscribeToAuthChanges` (pendiente): login/logout/`unauthorized` por `BroadcastChannel`, fallback `storage` y listener `null` → `isLoading=false` en `authStore`.
-- [x] `authStore.initialize()`: con sesión hidrata; sin sesión descarta `auth-storage`; `hasHydrated=true` al terminar.
-- [x] Smoke de API en entorno de pruebas: registro `201`, login OK `200`, login KO `401`, perfil `200`, logout `204` y perfil posterior `401`.
-- [x] Smoke de API/UI en servidor (2026-10-31): cookie `repu_session_dev`, perfil `200`, login OK/KO, logout `204`, perfil posterior `401`, redirect y `auth-storage` sin token.
-- [x] `MainLayoutShell`: espera `hasHydrated + !isLoading`; logout multi-tab redirige a `/login` (verificado en servidor, 2026-10-31).
-- [ ] `MainLayoutShell`: 401 por expiración/borrado de cookie → `/login` (pendiente).
-- [x] `LoginForm`: login OK/KO y sesión activa → `/` (verificado en servidor, 2026-10-31).
-- [ ] `LoginForm`: chips demo apuntan a usuarios reales de Spring o se retiran.
+### QA manual
 
-#### Legado Supabase (tests retirados)
+**Verificado en servidor (2026-10-31):** login correcto e incorrecto, perfil, logout, `401` posterior, redirect a `/`, `auth-storage` sin `accessToken`, sesión compartida entre pestañas y logout propagado.
 
-La cobertura anterior de `authService` contra Supabase (12 tests) fue reemplazada por la suite actual de `httpClient` + `authService` contra el backend. No se conservan tests contra el SDK de Supabase; el catálogo legacy queda cubierto por los tests de `api.ts` cuando se corte ese dominio.
+**Pendiente:**
+- Auth: ver [AUTHENTICATION.md](./AUTHENTICATION.md) §9.
+- Safari iOS, Chrome iOS y desktop: agregar un producto y hacer scroll; el CTA `Ver carrito` no debe mostrar bloque de color ni moverse ([ARCHITECTURE.md](./ARCHITECTURE.md) §7).
+- Carrito en dos pestañas reales.
+- Sin GPS: al denegar el permiso, el mapa sigue navegable en `DEFAULT_LOCATION` y la cápsula de ubicación queda visible.
+- Autofill de Chrome en login: label flotado al cargar y centrado al vaciar y salir del campo.
+- Flujo completo de compra: `ProductModal` → `CartButton` → `CartDrawer` → `/checkout` → `/order/[id]` → calificación.
+- Conflicto multi-tienda: "Vaciar y continuar" reemplaza el carrito; cancelar lo conserva.
 
-### 3.2 Tiendas híbrido (`storesStore.ts` + `filterStore.ts` + `api.ts`)
-- [ ] `fetchStores({location, filters})` guarda `masterStores` completa y `stores` ya filtrada en una sola actualización.
-- [ ] `applyFilters` re-filtra en memoria sin llamar a API (mockear `fetchNearbyStores` y contar llamadas).
-- [ ] Filtro vacío → `stores === masterStores`; filtro `battery/tire/spare` → solo intersección por `store.categories`.
-- [ ] `selectStore/clearSelection` actualiza `selectedStoreId` sin tocar listas.
-- [ ] Error de red → `error` seteado, `isLoading=false`, conserva `masterStores` previa (resiliencia).
+Para depurar, revisar en DevTools → Application → Local Storage las claves `auth-storage`, `cart-storage` y `order-storage`.
 
-### 3.3 Carrito (`cartStore.ts`, DoD 7.6 — prioridad máxima)
-- [ ] `addItem` nuevo → `ITEM_ADDED`, fija contexto `storeId/slug/name`, `itemCount/subtotal` recalculados.
-- [ ] `addItem` existente → mergea cantidades, `ITEM_UPDATED`, actualiza `price/image/name/snapshots`.
-- [ ] `addItem` otra tienda → `STORE_CONFLICT` con `currentStoreId/incomingStoreId`, no muta items.
-- [ ] `addItem` inválido (sin `id`/`name`, `isAvailable=false`) → `INVALID_PRODUCT`. Nota: `stock: 0` se normaliza a “sin límite” (ver §7 QUIRK) e inserta `ITEM_ADDED`, no `INVALID_PRODUCT`.
-- [ ] Sin `storeId` en producto → `MISSING_STORE_CONTEXT`. Otros códigos reales: `INVALID_PRODUCT_ID`, `INVALID_STORE_CONTEXT`, `ITEM_UPDATED`, `UNKNOWN_ERROR` (+ `QUANTITY_UPDATED`, `ITEM_REMOVED`, `STORE_CONTEXT_REPLACED`).
-- [ ] `updateQuantity` respeta `min(stockSnapshot, maxPerOrder)` → `QUANTITY_CLAMPED` si excede, `QUANTITY_UPDATED` si ok (clamps separados de stock vs `maxPerOrder`).
-- [ ] `removeItem` inexistente → `ITEM_NOT_FOUND`; existente → `ITEM_REMOVED` y si queda vacío limpia contexto de tienda.
-- [ ] `replaceStoreContext` con carrito no vacío de otra tienda → `STORE_CONFLICT`; vacío o misma tienda → `STORE_CONTEXT_REPLACED`.
-- [ ] Redondeo: precios decimales → enteros COP sin drift (`price*qty` suma exacta).
-- [ ] Persistencia: `sanitize` descarta items corruptos; `migrate` con `version!==1` → estado vacío; `partialize` solo persiste slice definido.
-- [ ] TTL (`isCartExpired`): con items + `lastUpdatedAt` >24h → expirado; sin items → no expirado; con items sin `lastUpdatedAt` → expirado; `merge` expirado → vacío + `cartNotice EXPIRED_CART`.
-- [ ] Idempotencia: doble `addItem` rápido no corrompe (resultado atómico).
-- [ ] Selectores `selectCartItemByProductId` / `selectIsSameStore` (cobertura con tests).
+## 4. Deuda
 
-### 3.4 Pedidos (`orderStore.ts`, Fase 8/9 mock)
-- [ ] `createOrder` genera `id REP-YYYY-XXXX`, `status CREADO` (o `PAGADO` si `wompi`), `paymentStatus PENDING/PAID`, prepend + cap 20 órdenes.
-- [ ] `getOrderById` retorno indexado.
-- [ ] `updateOrderStatus` apendea `stateHistory` con `timestamp/note`.
-- [ ] `cancelOrder` retorna `false` en `EN_CAMINO/ENTREGADO`, `true` + `CANCELADO` en resto.
-- [ ] `rateOrder` guarda objeto anidado `rating: OrderRating` sin validación de rango (el test solo aserta `storeRating`).
-- [ ] `driverCoordinates` inicial + `updateDriverCoordinates` (cobertura con tests).
-- [ ] Selectores (sin test): `useActiveOrders` excluye `ENTREGADO/CANCELADO`; `useActiveOrdersCount` retorna `number` primitivo; `useCompletedOrders` solo finalizados.
-- [ ] Persistencia `order-storage` conserva `orders` tras recarga (solo `orders`, no `isLoading/error`).
-
-### 3.5 Ubicación (`locationStore.ts`, Fase 9.6) — especificación sin test
-- [ ] `requestPermission` ok → `GRANTED` + `userCoordinates`; `code===1` → `DENIED` + `clearWatch` invocado.
-- [ ] `POSITION_UNAVAILABLE/TIMEOUT` → preserva últimas coords, escucha pasiva, sin ráfaga de sets (guarda anti re-render).
-- [ ] `startTracking` no duplica `watchId` si ya rastrea; `stopTracking` limpia y libera.
-- [ ] Reintento vía botón “Mi Ubicación” rearma tras `DENIED` resuelto.
-
-### 3.6 Toasts (`toastStore.ts`) — especificación sin test
-- [ ] `pushToast` cota máx 4 visibles con auto-evicción (`.slice(-4)`).
-- [ ] `cartNotice` → toast `warning` automático en `(main)/layout` al rehidratar expirado.
-
-## 4. Integración UI (sin runner E2E aún, checklist con Vitest + QA manual)
-
-- [ ] Agregar desde `ProductModal` actualiza `CartButton` (`itemCount/subtotal` reactivos).
-- [ ] Recarga conserva carrito (`cart-storage`) y sesión (`auth-storage`).
-- [ ] Vaciar carrito limpia UI + `CartDrawer` muestra estado vacío.
-- [ ] Conflicto multi-tienda abre `StoreConflictDialog`; “Vaciar y continuar” reemplaza, cancelar preserva.
-- [ ] `CartDrawer`: `+/-`, eliminar botón + swipe-left móvil, subtotal animado, `Escape` cierra, foco inicial en cerrar.
-- [ ] Checkout: carrito vacío redirige a `/`; confirmar crea orden + `clearCart` + toast + pantalla `REP-XXXX` con botón “Seguir Pedido” → `/order/[id]`.
-- [ ] Tracking: `/order/[id]` resuelve por URL (sin singleton), timeline `CREADO→ENTREGADO`, `ENTREGADO` abre `OrderRatingModal`.
-- [ ] Header: badge carrito + botón “Pedidos en curso” con `useActiveOrdersCount`, abre `ActiveOrdersDrawer` sin recarga.
-
-## 5. QA manual (no automatizable barato)
-
-- [ ] Safari iOS: agregar producto → CTA `Ver carrito` sin bloque azul; scroll con barra dinámica mantiene posición (guardrail: no animar `transform` en nodo `fixed`).
-- [ ] Chrome iOS + desktop: mismo flujo, layout intacto.
-- [x] Multi-tab carrito (unit): `enableCrossTabSync` (`src/lib/storageSync.ts`) rehidrata `cart-storage` ante `storage` event — verificado con tests para `cart-storage`; `order-storage` usa el mismo helper (suscripción en `orderStore`) sin test directo.
-- [ ] Multi-tab carrito (QA real): pendiente probar la sincronización en 2 pestañas reales.
-- [x] Multi-tab auth: la sesión persiste entre pestañas y el logout se propaga (verificado en servidor, 2026-10-31).
-- [x] Carrito expirado: `merge` vacía + `cartNotice EXPIRED_CART` + `track('cart_expired', {reason})` — cubierto en `cartStore.test.ts` (TTL + rehidratación corrupta).
-- [ ] Sin GPS: denegar permiso → mapa navegable en `DEFAULT_LOCATION` + cápsula `[ 📍 Permitir ubicación ]` visible; modal minimizable no bloquea `StoresLayer`.
-- [ ] Login autofill (Chrome): carga fresca con credenciales guardadas → label flotado; vaciar+blur → label al centro.
-- [ ] Debugging (heredado de `TEST_LOGIN.md`): DevTools → Application → Local Storage → keys `auth-storage`, `cart-storage`, `order-storage`; limpiar con `localStorage.clear(); location.reload()`.
-
-## 6. Legado `TEST_LOGIN.md` (eliminado)
-
-Se migró lo útil y se eliminó el archivo para evitar doble fuente:
- - Conservado: credenciales seed históricas de Supabase Auth (nunca prod), persistencia `auth-storage` + recarga, flujo logout, debugging localStorage. Para `ms-auth` no hay seed en `Repo-DB-2.sql`; ver `PLAN-LOGIN-MS-AUTH.md` §5.
-- Descartado: estructura de carpetas `.js` (ya es `.tsx`), capturas “Mall Virtual” (branding hoy `Repu`), pasos que asumían `layout.js/page.js`.
- - Credenciales dev históricas (seed Supabase Auth, nunca prod): `admin@mallvirtual.com/admin123`, `usuario@demo.com/user123`, `demo@demo.com/demo123`.
-
-## 7. Deuda y siguientes
-
-- [x] Instalar runner (A1) y dejar `pnpm test` verde — 68/68, `type-check` 0 errores, `build` ok (verificado 2026-10-28).
-- [x] Multi-tab sync + evento `cart_expired` (A2) — `storageSync.ts` + `analytics.ts`, con tests.
-- [ ] QUIRK conocido: `stock: 0` se normaliza a “sin límite” (igual que `null`) en vez de agotado. Test lo documenta (`cartStore.test.ts`). Decidir regla de agotado antes del backend real (ver §3.3: `stock 0` → `ITEM_ADDED`, no `INVALID_PRODUCT`).
-- [ ] `pnpm lint` roto a nivel entorno (pre-existente, no de Fase A): `eslint-config-next@15.2.2` no soporta TS 7.0 (`typescript-eslint does not support TS 7.0`).Resolver al margen: subir eslint-config-next o fijar TS soportado.
-- [x] Auth migrado a `ms-auth`/`ms-users`; tests de `authService`/`httpClient` ejecutados. Smoke de API verificado en entorno de pruebas y en servidor (2026-10-31).
-- [x] Smoke de auth en servidor y QA de login/logout/multi-tab (2026-10-31).
-- [ ] QA pendiente: borrado manual de cookie, ANALISTA en UI, usuario inactivo y chips demo.
-- [ ] Al conectar los microservicios Spring restantes (ADR-002): tests de adaptadores REST (`httpClient.ts`, `api.ts`, futuro `orderService.ts`) con mocks de red; UI/stores no se tocan (Zero-Coupling). No se planifican tests de Supabase Realtime: el tracking va por SSE de `ms-orders`.
-- [ ] Futuro E2E (Playwright) solo para checkout→tracking cuando haya backend real.
+- **`stock: 0` en `cartStore`:** el carrito todavía lo trata como "sin límite". Desde el corte de catálogo no llega a ocurrir, porque el adaptador marca esos productos como no disponibles y el carrito los rechaza.
+- **`pnpm lint`:** falla al cargar la configuración porque `eslint-config-next@15.2.2` usa una versión de `typescript-eslint` que no soporta TypeScript 7. Hay que subir `eslint-config-next` o fijar una versión de TypeScript compatible.
+- **Al conectar más microservicios:** agregar tests de adaptadores con red mockeada.
