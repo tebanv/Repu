@@ -1,12 +1,55 @@
 # Changelog
 
-## ⚠️ PENDIENTE POST-PRUEBAS — Rotar claves y sacar `.env.local` del historial
-- El commit `dad7e6e` (`test(front-user)`) subió `front-user/.env.local` a `echava` SOLO para pruebas en servidor.
-- Al terminar las pruebas, hacer SÍ o SÍ:
-  1. Rotar `NEXT_PUBLIC_MAPBOX_TOKEN` (Mapbox) y `NEXT_PUBLIC_SUPABASE_ANON_KEY` (Supabase).
-  2. `git rm --cached front-user/.env.local` y reescribir/excluir el archivo del historial (o nuevo commit + `git filter-repo` si ya se mergeó).
-  3. Verificar que `.env.local` vuelve a estar ignorado (`git check-ignore front-user/.env.local`).
-- No cerrar este pendiente sin completar los 3 pasos.
+## ⚠️ PENDIENTE — Rotar claves expuestas
+- El commit `dad7e6e` (`test(front-user)`) subió `front-user/.env.local` a `echava` para pruebas en servidor.
+- **Verificado en local (2026-11-01):** el commit `dad7e6e` ya no existe, `git log --all -- front-user/.env.local` no devuelve nada y `.env.local` está ignorado. No se verificó el remoto ni sus forks o cachés.
+- **Falta:** rotar `NEXT_PUBLIC_MAPBOX_TOKEN`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` y la contraseña de base de datos que circuló por chat. Reescribir el historial no invalida una clave ya expuesta, y desde el repositorio no se puede comprobar si ya se rotaron.
+
+## 2026-11-04 — Backend de catálogo verificado e integrado
+
+### Contexto
+- El backend publicó en `main` los commits `6e411d9`, `9817269` y `a1cd4cc`.
+- Se hizo `fetch` y merge de `origin/main` en `echava` (commit `b92ab26`), conservando los cambios locales.
+
+### Verificado contra el código
+- **Resuelto:** `GET /api/companies/{slug}` público; `empresas.id_categoria` con FK e índice; `sku` de producto como texto; `marca` expuesta; roles de `ms-products` alineados con `rol_sistema`.
+- **Parcial:** categorías por tienda: solo `categoryId`, sin nombre/lista ni mapeo al enum del front.
+- **Pendiente:** filtro de activos en `findAll`, `findNearest` y `searchProducts`; datos de prueba de catálogo; `taxId`/`ownerUserId` siguen en la respuesta pública de companies.
+- **Tests:** `ms-products` trae pruebas de SKU/marca; no se añadieron tests de slug/categorías en `ms-companies`.
+
+### Documentación
+- `BACKEND.md` §3 y §7 actualizados con el estado verificado.
+- `ROADMAP.md` §2.2 desglosa lo resuelto y lo pendiente.
+
+### Sin cambios de código del front
+- No se tocó `src/`; el merge solo incorporó backend e infraestructura.
+
+## 2026-11-01 — Documentación contrastada con el código y sin duplicados
+
+### Contexto
+- La documentación repetía los mismos temas en varios archivos y había quedado desalineada con el código.
+- Se ejecutó `pnpm test` (68/68), `pnpm type-check` (sin errores) y `pnpm build` (correcto). `pnpm lint` sigue fallando por la incompatibilidad con TypeScript 7.
+
+### Organización
+1. **Un documento dueño por tema:** la tabla está en `README.md`, y la regla se añadió a `AI_GUIDELINES.md` y `AGENTS.md`.
+2. **`PROJECT_GUIDE.md` eliminado:** repetía otros documentos. Sus guardrails y reglas de carrito pasaron a `ARCHITECTURE.md`, y las prioridades a `ROADMAP.md`.
+3. **`PLAN-LOGIN-MS-AUTH.md` archivado en `legacy/`:** el plan ya se ejecutó. Los pendientes pasaron a `AUTHENTICATION.md` §9 y los pedidos al backend a `BACKEND.md` §7.
+4. **`ROADMAP.md` reducido:** ahora solo tiene estado y pendientes; lo ya hecho está en este changelog.
+5. **Recortados:** `README.md`, `APP_FLOW.md`, `ARCHITECTURE.md`, `DATAFLOW.md`, `TESTING.md`, `ADR-002` y `DATA_MODEL.md`.
+
+### Correcciones contra el código
+- **Catálogo:** los `GET` de `ms-companies`, `ms-products` y `ms-categories` son públicos; se documentaba que exigían sesión.
+- **Rutas:** `BACKEND.md` ahora lista las rutas reales de cada router, incluidos `ms-orders` y `ms-manage-payment`.
+- **Gaps nuevos en `BACKEND.md` §7:** falta la ruta de tienda por slug; las categorías por tienda, el `sku`, el filtro de activos y la marca también bloquean el catálogo; `ms-manage-payment` no tiene validación de sesión; `ms-products` usa roles inexistentes (`DISTRIBUTOR`, `BUYER`); `reject` y `ready` de `ms-orders` no coinciden con Postman.
+- **`analista`:** se retiró la afirmación de que el front no lo tenía.
+- **`APP_FLOW.md`:** se retiraron la búsqueda en catálogo, la ubicación en vivo y las notificaciones, que no existen, y el modelo de datos "objetivo", que no reflejaba los tipos.
+- **`DATAFLOW.md`:** el radio lo resuelve el RPC, no un Haversine en `api.ts`.
+- **`TESTING.md`:** las casillas marcaban como pendientes pruebas de carrito, pedidos y tiendas que ya existen.
+- **`AUTHENTICATION.md`:** se documentó que el evento `storage` siempre está activo, no solo como fallback, y que un error de red al revalidar deja al usuario como no autenticado.
+- **Credenciales demo:** se retiraron de la documentación; siguen en `LoginForm.tsx` hasta decidir qué hacer con los chips.
+
+### Código
+- Solo comentarios: `src/services/api.ts` y `src/components/auth/LoginForm.tsx` ahora apuntan a los documentos correctos.
 
 ## 2026-10-31 — Regla: no hacer `git push` sin solicitud explícita
 
