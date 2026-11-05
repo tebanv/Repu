@@ -40,11 +40,11 @@ public class SecurityConfig {
                         // Así que GET es PÚBLICO.
                         .pathMatchers(HttpMethod.GET, "/api/catalog/products").permitAll()
                         // POST: Solo DISTRIBUTOR
-                        .pathMatchers(HttpMethod.POST, "/api/catalog/products").hasAnyRole("ADMIN", "DISTRIBUTOR", "BUYER")
+                        .pathMatchers(HttpMethod.POST, "/api/catalog/products").hasAnyRole("ADMIN", "DISTRIBUIDOR", "COMPRADOR")
                         // PATCH Update: Solo DISTRIBUTOR
-                        .pathMatchers(HttpMethod.PATCH, "/api/catalog/products/*").hasAnyRole("ADMIN", "DISTRIBUTOR", "BUYER")
+                        .pathMatchers(HttpMethod.PATCH, "/api/catalog/products/*").hasAnyRole("ADMIN", "DISTRIBUIDOR", "COMPRADOR")
                         // PATCH Status: DISTRIBUTOR o ADMIN
-                        .pathMatchers(HttpMethod.PATCH, "/api/catalog/products/*/status").hasAnyRole("DISTRIBUTOR", "ADMIN", "BUYER")
+                        .pathMatchers(HttpMethod.PATCH, "/api/catalog/products/*/status").hasAnyRole("DISTRIBUIDOR", "ADMIN", "COMPRADOR")
                         .anyExchange().authenticated()
                 )
                 .build();

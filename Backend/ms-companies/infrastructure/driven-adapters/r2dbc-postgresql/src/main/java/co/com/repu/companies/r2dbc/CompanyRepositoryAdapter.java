@@ -28,7 +28,7 @@ public class CompanyRepositoryAdapter implements CompanyRepository {
     private static final String SELECT_COLUMNS = """
             id_empresa, id_usuario_propietario, razon_social, nit_identificacion, logo_url,
             descripcion_tienda, configuracion_operativa, direccion_fisica, telefono_comercial,
-            banner_url, slug, public.ST_Y(ubicacion::public.geometry) AS latitud,
+            banner_url, slug, id_categoria, public.ST_Y(ubicacion::public.geometry) AS latitud,
             public.ST_X(ubicacion::public.geometry) AS longitud, calificacion_promedio,
             total_resenas, activo, fecha_creacion, fecha_actualizacion
             """;
@@ -91,6 +91,16 @@ public class CompanyRepositoryAdapter implements CompanyRepository {
     }
 
     @Override
+    public Mono<Company> findBySlug(String slug) {
+        return databaseClient.sql("SELECT " + SELECT_COLUMNS
+                        + " FROM repu.empresas WHERE slug = $1")
+                .bind(0, slug)
+                .map((row, metadata) -> mapper.toDomain(toEntity(row)))
+                .one()
+                .onErrorMap(this::translatePersistenceError);
+    }
+
+    @Override
     public Mono<Boolean> existsBySlug(String slug) {
         return databaseClient.sql("SELECT EXISTS (SELECT 1 FROM repu.empresas WHERE slug = $1) AS slug_exists")
                 .bind(0, slug)
@@ -118,11 +128,11 @@ public class CompanyRepositoryAdapter implements CompanyRepository {
                         INSERT INTO repu.empresas
                         (id_empresa, id_usuario_propietario, razon_social, nit_identificacion, logo_url,
                          descripcion_tienda, configuracion_operativa, direccion_fisica, ubicacion,
-                         calificacion_promedio, activo, slug, telefono_comercial, banner_url)
+                         calificacion_promedio, activo, slug, telefono_comercial, banner_url, id_categoria)
                         VALUES ($1, $2, $3, $4, $5, $6, $7,
                                 $8, CAST(public.ST_SetSRID(public.ST_MakePoint($9, $10), 4326)
                                          AS public.geography),
-                                COALESCE($11, 0), COALESCE($12, TRUE), $13, $14, $15)
+                                COALESCE($11, 0), COALESCE($12, TRUE), $13, $14, $15, $16)
                         RETURNING %s
                         """.formatted(SELECT_COLUMNS))
                 .bind(0, id)
@@ -141,6 +151,7 @@ public class CompanyRepositoryAdapter implements CompanyRepository {
         statement = bindNullable(statement, 11, company.getActive(), Boolean.class);
         statement = bindNullable(statement, 13, company.getPhone(), String.class);
         statement = bindNullable(statement, 14, company.getBannerUrl(), String.class);
+        statement = bindNullable(statement, 15, categoryId(company), UUID.class);
         return statement.map((row, metadata) -> mapper.toDomain(toEntity(row))).one()
                 .onErrorMap(this::translatePersistenceError);
     }
@@ -156,6 +167,7 @@ public class CompanyRepositoryAdapter implements CompanyRepository {
                             calificacion_promedio = COALESCE($10, calificacion_promedio),
                             activo = COALESCE($11, activo), telefono_comercial = $12,
                             banner_url = $13, slug = COALESCE($14, slug),
+                            id_categoria = $15,
                             fecha_actualizacion = CURRENT_TIMESTAMP
                         WHERE id_empresa = $1
                         RETURNING %s
@@ -175,6 +187,7 @@ public class CompanyRepositoryAdapter implements CompanyRepository {
         statement = bindNullable(statement, 11, company.getPhone(), String.class);
         statement = bindNullable(statement, 12, company.getBannerUrl(), String.class);
         statement = bindNullable(statement, 13, company.getSlug(), String.class);
+        statement = bindNullable(statement, 14, categoryId(company), UUID.class);
         return statement.map((row, metadata) -> mapper.toDomain(toEntity(row))).one()
                 .onErrorMap(this::translatePersistenceError);
     }
@@ -239,11 +252,16 @@ public class CompanyRepositoryAdapter implements CompanyRepository {
                 .reviewCount(row.get("total_resenas", Integer.class))
                 .active(row.get("activo", Boolean.class))
                 .slug(row.get("slug", String.class))
+                .categoryId(row.get("id_categoria", UUID.class))
                 .phone(row.get("telefono_comercial", String.class))
                 .bannerUrl(row.get("banner_url", String.class))
                 .createdAt(row.get("fecha_creacion", java.time.LocalDateTime.class))
                 .updatedAt(row.get("fecha_actualizacion", java.time.LocalDateTime.class))
                 .build();
+    }
+
+    private UUID categoryId(Company company) {
+        return company.getCategoryId() == null ? null : UUID.fromString(company.getCategoryId());
     }
 
     private <T> DatabaseClient.GenericExecuteSpec bindNullable(

@@ -46,6 +46,9 @@ public class CompanyEntity {
     @Column("slug")
     private String slug;
 
+    @Column("id_categoria")
+    private UUID categoryId;
+
     // Postgres JSONB requiere configuración especial de R2DBC o convertir a String/Map
     // Por simplicidad inicial, R2DBC a veces lo maneja como String si no hay converter
     @Column("configuracion_operativa")

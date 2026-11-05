@@ -40,6 +40,10 @@ public class ManageCompanyUseCase {
                         : companyRepository.save(company, messageId));
     }
 
+    public Mono<Company> getCompanyBySlug(String slug) {
+        return companyRepository.findBySlug(CompanySlug.normalize(slug));
+    }
+
     /**
      * Actualiza parcialmente una empresa.
      * Solo los campos no nulos en 'updates' sobrescribirán a 'existing'.
@@ -71,6 +75,8 @@ public class ManageCompanyUseCase {
                                 .operationalConfig(updates.getOperationalConfig() != null
                                         ? updates.getOperationalConfig() : existingCompany.getOperationalConfig())
                                 .slug(requestedSlug != null ? requestedSlug : existingCompany.getSlug())
+                                .categoryId(updates.getCategoryId() != null
+                                        ? updates.getCategoryId() : existingCompany.getCategoryId())
                                 .build();
 
                         return companyRepository.save(updatedCompany, messageId);

@@ -18,7 +18,7 @@ public class SessionAuthenticationService {
     private final String sessionCookieName;
 
     public SessionAuthenticationService(@Value("${auth.session.base-url}") String baseUrl,
-                                        @Value("${auth.session.service-token:}") String serviceToken,
+                                        @Value("${auth.session.service-token}") String serviceToken,
                                         @Value("${security.session-cookie.name:__Host-repu_session}") String sessionCookieName) {
         this.sessionCookieName = sessionCookieName;
         this.sessionUri = resolveSessionUri(baseUrl);

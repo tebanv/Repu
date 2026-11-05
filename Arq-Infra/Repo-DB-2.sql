@@ -151,6 +151,7 @@ CREATE TABLE empresas (
     slug VARCHAR(150) NOT NULL,
     telefono_comercial VARCHAR(20),
     banner_url TEXT,
+    id_categoria UUID,
     CONSTRAINT chk_empresas_calificacion CHECK (calificacion_promedio BETWEEN 0 AND 5),
     CONSTRAINT uq_empresas_slug UNIQUE (slug)
 );
@@ -584,6 +585,9 @@ ALTER TABLE sesiones_usuario
 ALTER TABLE empresas
     ADD CONSTRAINT fk_empresas_propietario FOREIGN KEY (id_usuario_propietario) REFERENCES usuarios(id_usuario) ON DELETE RESTRICT;
 
+ALTER TABLE empresas
+    ADD CONSTRAINT fk_empresas_categoria FOREIGN KEY (id_categoria) REFERENCES categorias(id_categoria) ON DELETE RESTRICT;
+
 ALTER TABLE direcciones_usuario
     ADD CONSTRAINT fk_direcciones_usuario FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario) ON DELETE CASCADE;
 
@@ -670,6 +674,7 @@ CREATE INDEX idx_empresas_propietario ON empresas(id_usuario_propietario);
 CREATE INDEX IF NOT EXISTS idx_empresas_ubicacion ON empresas USING GIST (ubicacion);
 CREATE INDEX idx_empresas_slug ON empresas(slug);
 CREATE INDEX idx_empresas_telefono ON empresas(telefono_comercial);
+CREATE INDEX idx_empresas_categoria ON empresas(id_categoria);
 
 -- Catálogo y productos
 CREATE INDEX idx_categorias_padre ON categorias(id_categoria_padre);

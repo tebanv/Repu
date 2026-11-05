@@ -19,6 +19,7 @@ public class Company {
     private String phone;
     private String bannerUrl;
     private String slug;
+    private String categoryId;
 
     // Configuración operativa (JSONB en BD)
     // Usamos Object o un Map para no acoplarnos a librerías de JSON aquí
