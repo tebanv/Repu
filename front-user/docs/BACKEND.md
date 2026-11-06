@@ -159,3 +159,48 @@ Más comandos en `Arq-Infra/Comandos_Docker.md`. Con `pnpm dev`, el navegador us
 13. Omitir `accessToken` del body para clientes web.
 14. Limpiar la cookie cuando se rechaza una sesión inválida, también en `logout`.
 15. Refresh de sesión, o extender el `Max-Age` de la cookie, y revocar sesiones al cambiar la contraseña.
+
+**Pedidos (`ms-orders`)**
+
+> Verificado contra el código el 2026-11-05 (`d93e012`, igual a `origin/main`). Plan del front: [PLAN-PEDIDOS.md](./PLAN-PEDIDOS.md). El front no se bloquea por estos puntos: mientras tanto usa la API actual, y cada ajuste solo cambia `src/services/`.
+
+*Prioridad 1: antes del smoke del checkout*
+
+- **P2. Programar la expiración de reservas.** El checkout reserva inventario (`reservas_inventario`), pero `ExpireInventoryReservationsUseCase` no tiene `@Scheduled` ni otro disparador, así que `ORDER_RESERVATION_TTL` no tiene efecto. Como el pago aún no existe, cada checkout de prueba deja stock bloqueado para siempre y el catálogo se agota solo. Pedido: ejecutarlo periódicamente (por ejemplo, cada minuto con `FOR UPDATE SKIP LOCKED` si hay varias instancias) y definir qué pasa con el pedido al expirar (cancelarlo y registrar el historial).
+
+*Prioridad 2: carrito (rendimiento y robustez)*
+
+- **C1. Fijar cantidad absoluta e idempotente:** `PUT /api/cart/items/{productId}` con `{ companyId, quantity }`, donde `quantity: 0` elimina.
+  - Hoy `POST /cart/items` **suma** la cantidad (no es idempotente): un reintento tras un timeout duplica unidades.
+  - Para cambiar una cantidad hay que hacer `DELETE` + `POST` (dos viajes, sin atomicidad), y el `DELETE` exige el `itemId` en lugar del `productId` que ya conoce el cliente.
+  - Con valor absoluto, el front agrupa una ráfaga de clics en **una** petición y puede reintentar sin riesgo.
+- **C2. Carrito activo sin `companyId`:** `GET /api/cart` debe devolver el carrito activo del usuario. Hoy exige `companyId`, así que en un dispositivo nuevo el front no puede descubrir el carrito.
+  - Propuesta: **un carrito activo por usuario** (índice único parcial en `id_usuario WHERE estado = 'ACTIVO'`), alineado con la regla de producto "una tienda por pedido". Deja la lectura en una sola fila indexada y evita carritos huérfanos en otras tiendas.
+- **C3. Vaciar:** `DELETE /api/cart`. Hoy cuesta un `DELETE` por ítem.
+- **C4. Disponibilidad en la respuesta del carrito:** por ítem, `available` y `maxQuantity` (stock disponible). Además, validar `quantity` contra el stock en C1 y responder `409 { code: INSUFFICIENT_STOCK, details: { available } }`.
+  - Hoy el carrito acepta cualquier cantidad y el error aparece recién en el checkout.
+  - Con esto, el front ajusta la cantidad en el momento en que el usuario la elige.
+- **C5. Reemplazo en lote:** `PUT /api/cart` con `{ companyId, items: [{ productId, quantity }] }` en una sola transacción. Cubre dos casos con **un** viaje en lugar de `n`: subir un carrito local previo y cambiar de tienda.
+
+*Prioridad 2: checkout*
+
+- **K1. Tienda en `OrderResponse`:** `company { id, name, slug, location }`. Hoy solo llega `companyId` y no hay ruta pública de empresa por id, así que el historial o un pedido abierto en otro dispositivo no puede mostrar la tienda sin consultas extra.
+- **K2. Cotización con envío calculado en el servidor:** `GET /api/cart/quote?addressId=` (o `addressId` en el `GET` del carrito), con `subtotal`, `shippingCost`, `serviceFee` y `total`, más la validación de cobertura.
+  - Hoy el checkout fija `costo_envio`, `costo_servicio`, `impuestos` y `descuentos` en `0`, y no verifica que la dirección esté dentro del radio de la tienda.
+  - Con PostGIS ya disponible, distancia y tarifa se calculan en una consulta. Lo que se muestra y lo que se cobra salen del mismo cálculo.
+- **K3. Rol en checkout y carrito:** `SecurityConfig` es `permitAll` y el filtro solo exige sesión. Cualquier rol, incluido `DOMICILIARIO`, puede crear carritos y pedidos. Pedido: exigir `COMPRADOR`.
+- **K4. Contrato:**
+  - El `Location` del `201` es `/orders/{id}`, pero la ruta real es `/api/orders/{id}`.
+  - Unificar los prefijos bajo `/api` (`/cart`, `/orders/active`, `/tracking/...` y `reject`/`ready`).
+  - Devolver `customerNotes`, que se guarda pero no se devuelve.
+
+*Después (pagos y tracking, fuera del alcance actual)*
+
+- **P1. El pago nunca pasa a `PAGADO`.** `AcceptOrderUseCase` lo exige, pero ningún servicio escribe `ordenes.estado_pago`. Se resuelve con la integración de `ms-manage-payment`.
+- **P3. Historial de estados en `OrderResponse`** (`historial_estados_orden` ya existe), ETA y repartidor.
+- **P4. SSE en memoria.** `OrderEventBus` es un `Sinks.replay().limit(256)` global en un proceso:
+  - Con más de una instancia se pierden eventos, y el búfer se comparte entre todos los pedidos.
+  - El evento solo trae `estado_orden`.
+  - No hay *heartbeat* para proxies con timeout de inactividad.
+  - Pedido: un bus compartido (Redis Pub/Sub ya está en la infraestructura), un evento con los cuatro estados y un *heartbeat*.
+- **P7. Calificación:** la tabla `resenas` existe, pero no hay endpoint.

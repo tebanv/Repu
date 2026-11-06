@@ -174,7 +174,7 @@ El mapeo y su implementación están en [AUTHENTICATION.md](./AUTHENTICATION.md)
 | `subtotal`, `costo_envio`, `descuentos`, `impuestos`, `total_final` `NUMERIC(15,2)` | `subtotal`, `deliveryFee`, `serviceFee`, `total` enteros COP | Adaptador monetario obligatorio |
 | `detalles_orden` con snapshots `JSONB` | `OrderItem` simple | Mapear nombre/precio/cantidad y conservar snapshots |
 
-> Esta tabla es un **diagnóstico**, no un contrato aprobado. El mapeo definitivo se cerrará antes de reemplazar `orderStore` y se documentará aquí cuando exista.
+> Esta tabla es un **diagnóstico**. El adaptador de checkout (dinero y snapshots) está en [PLAN-PEDIDOS.md](./PLAN-PEDIDOS.md) §3; el mapeo de estados se cerrará con el corte de tracking, porque hasta entonces el seguimiento es simulado.
 
 ## 7. Acceso a datos y seguridad
 
