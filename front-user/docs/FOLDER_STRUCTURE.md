@@ -143,7 +143,7 @@ src/
 ├── services/                         # Business logic, interaction with external APIs
 │   ├── api.ts                        # Catálogo contra ms-companies/ms-products/ms-categories (adaptadores a Store/Product)
 │   ├── supabaseClient.ts             # Sin consumidores; se retira en el paso 8 de PLAN-CATALOGO
-│   ├── httpClient.ts                 # Transporte HTTP: fetch relativo, credentials include, X-Request-ID, errores tipados, onUnauthorized
+│   ├── httpClient.ts                 # Transporte HTTP: fetch relativo, credentials include, X-Request-ID (UUID; fijable para idempotencia), HttpError con status/code, onUnauthorized
 │   ├── authService.ts                # Auth contra ms-auth (login/logout/register) + ms-users (profile); sin Supabase
 │   ├── geolocationService.ts         # Browser geolocation abstraction
 │   └── __tests__/                    # Vitest suites (api, authService, httpClient)
@@ -158,4 +158,7 @@ src/
 │
 ├── test/
 │   └── setup.ts                      # Vitest global setup (in-memory localStorage for node env)
+│
+├── proxy.ts                          # Optimistic route guard: redirects (main) routes to /login when no session cookie
+└── __tests__/                        # Vitest suite for proxy.ts
 ```

@@ -37,6 +37,7 @@ const nextConfig = {
       ['ms-companies', 'COMPANIES_API_ORIGIN'],
       ['ms-products', 'PRODUCTS_API_ORIGIN'],
       ['ms-categories', 'CATEGORIES_API_ORIGIN'],
+      ['ms-orders', 'ORDERS_API_ORIGIN'],
     ];
 
     return services.flatMap(([prefix, envName]) => {

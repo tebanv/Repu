@@ -6,7 +6,10 @@
  *   same-origin de Traefik en producción y los `rewrites` de Next en dev.
  * - `credentials: 'include'`: la sesión viaja en la cookie HttpOnly, nunca
  *   en un token leído por JavaScript.
- * - `X-Request-ID` en cada solicitud para trazabilidad del backend.
+ * - `X-Request-ID` (UUID v4) en cada solicitud para trazabilidad del backend.
+ *   El llamador puede fijarlo con `requestId`: el checkout de `ms-orders` lo
+ *   usa como clave de idempotencia, así que un reintento debe reutilizarlo
+ *   (docs/PLAN-PEDIDOS.md §2.4).
  * - Los 401 de endpoints autenticados notifican a `onUnauthorized`; el store
  *   limpia la sesión y el guard redirige. Login/registro pueden optar por no
  *   notificar (un 401 ahí es credencial inválida, no una sesión vencida).
@@ -21,17 +24,29 @@ export interface RequestOptions {
   signal?: AbortSignal;
   /** Evita el evento global de sesión vencida en endpoints públicos (login/registro). */
   skipUnauthorizedNotification?: boolean;
+  /**
+   * `X-Request-ID` explícito (UUID). Si se omite, se genera uno nuevo por
+   * solicitud. Usarlo solo cuando el backend lo trate como clave de
+   * idempotencia y el reintento deba enviarse con el mismo valor.
+   */
+  requestId?: string;
 }
 
 export class HttpError extends Error {
   readonly status: number;
   readonly payload?: unknown;
+  /**
+   * Código de negocio del backend (`{ code, message }`), p. ej.
+   * `INSUFFICIENT_STOCK`. Permite decidir sin depender del texto del mensaje.
+   */
+  readonly code?: string;
 
-  constructor(status: number, message: string, payload?: unknown) {
+  constructor(status: number, message: string, payload?: unknown, code?: string) {
     super(message);
     this.name = 'HttpError';
     this.status = status;
     this.payload = payload;
+    this.code = code;
   }
 }
 
@@ -56,11 +71,37 @@ function notifyUnauthorized(): void {
   }
 }
 
-function createRequestId(): string {
-  if (typeof globalThis.crypto?.randomUUID === 'function') {
-    return globalThis.crypto.randomUUID();
+/**
+ * UUID v4. `ms-orders` rechaza con 400 un `X-Request-ID` que no sea UUID,
+ * así que el respaldo (navegadores sin `randomUUID`, p. ej. contextos HTTP no
+ * seguros) también debe producir un UUID válido.
+ */
+export function createRequestId(): string {
+  const cryptoApi = globalThis.crypto;
+  if (typeof cryptoApi?.randomUUID === 'function') {
+    return cryptoApi.randomUUID();
   }
-  return `req-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+  const bytes = new Uint8Array(16);
+  if (typeof cryptoApi?.getRandomValues === 'function') {
+    cryptoApi.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  // Bits de versión (4) y variante (10xx) según RFC 9562.
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function extractCode(payload: unknown): string | undefined {
+  if (payload && typeof payload === 'object') {
+    const code = (payload as Record<string, unknown>).code;
+    if (typeof code === 'string' && code.trim()) return code;
+  }
+  return undefined;
 }
 
 function extractMessage(payload: unknown, fallback: string): string {
@@ -106,7 +147,7 @@ async function parseResponseBody(response: Response): Promise<unknown> {
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const method = options.method ?? 'GET';
   const headers = new Headers(options.headers);
-  headers.set('X-Request-ID', createRequestId());
+  headers.set('X-Request-ID', options.requestId ?? createRequestId());
 
   let body: BodyInit | undefined;
   if (options.body !== undefined) {
@@ -132,7 +173,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
       notifyUnauthorized();
     }
     const message = extractMessage(payload, `Error HTTP ${response.status}`);
-    throw new HttpError(response.status, message, payload);
+    throw new HttpError(response.status, message, payload, extractCode(payload));
   }
 
   return payload as T;
@@ -144,6 +185,9 @@ export const httpClient = {
 
   post: <T>(path: string, body?: unknown, options?: Omit<RequestOptions, 'method' | 'body'>) =>
     request<T>(path, { ...options, method: 'POST', body }),
+
+  put: <T>(path: string, body?: unknown, options?: Omit<RequestOptions, 'method' | 'body'>) =>
+    request<T>(path, { ...options, method: 'PUT', body }),
 
   patch: <T>(path: string, body?: unknown, options?: Omit<RequestOptions, 'method' | 'body'>) =>
     request<T>(path, { ...options, method: 'PATCH', body }),

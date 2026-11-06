@@ -15,7 +15,7 @@ pnpm dev                     # http://localhost:3000
 | Variable | Uso |
 |---|---|
 | `NEXT_PUBLIC_MAPBOX_TOKEN` | Mapa |
-| `AUTH_API_ORIGIN`, `USERS_API_ORIGIN`, `COMPANIES_API_ORIGIN`, `PRODUCTS_API_ORIGIN`, `CATEGORIES_API_ORIGIN` | Destino de los `rewrites` de desarrollo (solo servidor) |
+| `AUTH_API_ORIGIN`, `USERS_API_ORIGIN`, `COMPANIES_API_ORIGIN`, `PRODUCTS_API_ORIGIN`, `CATEGORIES_API_ORIGIN`, `ORDERS_API_ORIGIN` | Destino de los `rewrites` de desarrollo (solo servidor) |
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Ya sin uso; se retiran con el paquete de Supabase |
 
 Comandos: `pnpm build`, `pnpm test`, `pnpm type-check`. Para levantar el backend, ver [BACKEND.md](docs/BACKEND.md) §6.
@@ -35,6 +35,7 @@ Cada tema tiene un único documento dueño. Si un tema se relaciona con otro, se
 | Sesión, cookie y autenticación | [AUTHENTICATION.md](docs/AUTHENTICATION.md) |
 | Esquema `repu` y mapeo con los tipos del front | [DATA_MODEL.md](docs/DATA_MODEL.md) |
 | Plan del corte de catálogo (activo) | [PLAN-CATALOGO.md](docs/PLAN-CATALOGO.md) |
+| Plan de carrito y checkout contra `ms-orders` (activo) | [PLAN-PEDIDOS.md](docs/PLAN-PEDIDOS.md) |
 | Pruebas y cobertura | [TESTING.md](docs/TESTING.md) |
 | Decisión de backend vigente | [ADR-002](docs/ADR-002-BACKEND-MICROSERVICES.md) |
 | Reglas para colaboradores y asistentes de IA | [AI_GUIDELINES.md](docs/AI_GUIDELINES.md) |

@@ -37,6 +37,8 @@ El plan de ejecución está en [PLAN-CATALOGO.md](./PLAN-CATALOGO.md).
 
 ### 2.3 Pedidos y pagos
 
+Carrito y checkout: plan en [PLAN-PEDIDOS.md](./PLAN-PEDIDOS.md) (pasos 1–3 hechos, 2026-11-05). Pagos y tracking siguen simulados.
+
 - [ ] Cerrar el mapeo de estados y dinero ([DATA_MODEL.md](./DATA_MODEL.md) §6).
 - [ ] Crear `orderService` contra `ms-orders` con idempotencia de checkout; `orderStore` deja de ser la fuente transaccional.
 - [ ] Definir la relación entre `cartStore` y el carrito de servidor, sin dos fuentes de verdad.

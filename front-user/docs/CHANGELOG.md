@@ -21,6 +21,59 @@
 ### Código
 - Se eliminó `src/data/products.ts` (sin consumidores). `pnpm type-check` sin errores.
 
+## 2026-11-05 — Transporte para `ms-orders` y guard optimista (`PLAN-PEDIDOS` pasos 1–3)
+
+### Cambios implementados
+1. **`next.config.js` + `.env.example` + `README.md`:** `rewrite` de desarrollo para `/ms-orders` (`ORDERS_API_ORIGIN`, solo servidor).
+2. **`src/services/httpClient.ts`:**
+   - Opción `requestId` para fijar `X-Request-ID`: el checkout lo usa como clave de idempotencia.
+   - Respaldo de UUID v4 válido cuando no hay `randomUUID`; antes generaba `req-…`, que `ms-orders` rechaza con `400`.
+   - `HttpError.code`, leído del body `{ code, message }`.
+   - Método `put`.
+3. **Nuevo `src/proxy.ts`:**
+   - Si falta la cookie de sesión, redirige `/`, `/store/*`, `/checkout` y `/order/*` a `/login`, sin llamar al backend.
+   - `MainLayoutShell` sigue siendo la validación real.
+   - Cierra el pendiente opcional de `AUTHENTICATION.md` §9.
+4. **Pruebas:**
+   - `httpClient`: 5 nuevas.
+   - Nuevo `proxy.test.ts` (12).
+   - Suite: 99/99 en 10 archivos.
+
+### Verificación
+- `pnpm test` 99/99, `pnpm type-check` sin errores y `pnpm build` correcto; el build detecta el proxy.
+- `pnpm start` + `curl`:
+  - Sin cookie: `/`, `/checkout`, `/store/x` y `/order/abc` → `307 /login`.
+  - `/login` → `200`.
+  - Con `repu_session_dev`: `/checkout` → `200`.
+
+### Nota
+- La guía de Next 16 nombra el helper de pruebas `unstable_doesProxyMatch`, pero este canary (16.3.1-canary.20) solo exporta `unstable_doesMiddlewareMatch`.
+
+## 2026-11-05 — Plan de carrito y checkout contra `ms-orders`
+
+### Contexto
+- Se revisó `Backend/ms-orders` (`d93e012`, igual a `origin/main`) y las direcciones de `ms-users`.
+- **Alcance definido con el usuario:** llegar hasta el checkout. Pagos y tracking real quedan fuera, y el seguimiento simulado se conserva.
+- Las decisiones de Next.js se tomaron sobre las guías de `node_modules/next/dist/docs/` (16.3).
+
+### Cambios documentales
+1. **Nuevo `docs/PLAN-PEDIDOS.md`:**
+   - El carrito del servidor es la fuente de verdad, y `cartStore` su caché optimista: cantidades absolutas, agrupación de clics y reconciliación.
+   - Fetch directo en lugar de Server Actions, porque Next las despacha en serie.
+   - `proxy.ts` como guard optimista.
+   - Dirección desde `ms-users` e idempotencia del checkout.
+   - Cancelación en el servidor, para liberar las reservas.
+   - Pasos y métricas.
+2. **`BACKEND.md` §7, nuevo bloque *Pedidos*:** pedidos priorizados y argumentados:
+   - P2: expiración de reservas.
+   - C1–C5: carrito.
+   - K1–K4: checkout.
+   - P1, P3, P4 y P7: después.
+3. **Enlaces:** `README.md` (índice), `ROADMAP.md` §2.3 y `DATA_MODEL.md` §6.
+
+### Sin cambios de código
+- No se tocó `src/`.
+
 ## 2026-11-04 — Catálogo contra los microservicios y costo de envío "por confirmar"
 
 ### Contexto

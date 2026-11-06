@@ -75,7 +75,7 @@ Detalles:
 
 ## 6. Implementación del front
 
-**`httpClient.ts`:** `fetch` relativo con `credentials: 'include'`, `cache: 'no-store'` y `X-Request-ID`. Lanza `HttpError` con `status` y el `message` o `error` del body. Un `401` notifica a `onUnauthorized`, salvo con `skipUnauthorizedNotification` (login, registro y recuperación).
+**`httpClient.ts`:** `fetch` relativo con `credentials: 'include'`, `cache: 'no-store'` y `X-Request-ID` (UUID v4; el llamador puede fijarlo con `requestId` cuando el backend lo usa como clave de idempotencia). Lanza `HttpError` con `status`, el `message` o `error` del body y, si viene, su `code`. Un `401` notifica a `onUnauthorized`, salvo con `skipUnauthorizedNotification` (login, registro y recuperación).
 
 **`authService.ts`**
 
@@ -93,7 +93,9 @@ Detalles:
 
 **`authStore.ts`:** acciones `login`, `logout`, `clearError`, `setHasHydrated` e `initialize`. `initialize()` es idempotente y revalida contra el perfil. Cualquier error, incluido uno de red, deja al usuario como no autenticado.
 
-**`MainLayoutShell.tsx`:** guard solo de cliente. Espera `hasHydrated` y `!isLoading`; sin sesión, redirige a `/login`. No hay `src/proxy.ts`.
+**`src/proxy.ts`:** guard optimista. En `/`, `/store/*`, `/checkout` y `/order/*`, si no existe la cookie `__Host-repu_session` ni `repu_session_dev`, responde `307 → /login` antes de renderizar. No valida la cookie ni llama al backend (guía de Next: en `proxy` solo se leen cookies). Una ruta autenticada nueva debe agregarse a su `matcher`.
+
+**`MainLayoutShell.tsx`:** guard de cliente y fuente real de la sesión. Espera `hasHydrated` y `!isLoading`; sin sesión válida (cookie vencida o revocada), redirige a `/login`.
 
 ## 7. Flujos
 
@@ -124,6 +126,5 @@ Riesgo conocido: en las revalidaciones por `visibilitychange`, `storage` y `logi
 - [ ] **HTTPS en Traefik** y validación con `__Host-repu_session`.
 - [ ] **QA manual:** borrar la cookie a mano → `/login`; `ANALISTA` → `analista` en UI; usuario inactivo → `401`.
 - [ ] **Limpieza:** eliminar el usuario de prueba creado en el servidor (`prueba.auth.01@repu.test`).
-- [ ] **Opcional:** guard optimista en `src/proxy.ts` para evitar el flash sin cookie. Consultar antes `node_modules/next/dist/docs/`.
 
 Lo que debe resolver el backend está en [BACKEND.md](./BACKEND.md) §7; la cobertura de pruebas, en [TESTING.md](./TESTING.md).

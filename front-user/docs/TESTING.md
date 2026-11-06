@@ -2,7 +2,7 @@
 
 Cómo se prueba el front y qué falta cubrir.
 
-**Última ejecución (2026-11-04):** `pnpm test` 82/82 en 9 archivos, `pnpm type-check` sin errores, `pnpm build` correcto. `pnpm lint` falla ([§4](#4-deuda)).
+**Última ejecución (2026-11-05):** `pnpm test` 99/99 en 10 archivos, `pnpm type-check` sin errores, `pnpm build` correcto. `pnpm lint` falla ([§4](#4-deuda)).
 
 ## 1. Comandos y configuración
 
@@ -35,7 +35,8 @@ pnpm build           # build de producción
 | `store/__tests__/storesStore.test.ts` | 5 | Filtrado híbrido, error de red y selección |
 | `services/__tests__/api.test.ts` | 13 | Adaptadores de tienda y producto, radio, categorías por palabra clave y su caché, inactivos, agotado, oferta, envío sin definir, slug 404/400 y 401 sin cierre de sesión |
 | `services/__tests__/authService.test.ts` | 11 | Login + perfil, roles, registro, recuperación, logout y `401` global |
-| `services/__tests__/httpClient.test.ts` | 8 | Estados HTTP, errores, `X-Request-ID`, credenciales y evento `unauthorized` |
+| `services/__tests__/httpClient.test.ts` | 13 | Estados HTTP, errores y `code`, `X-Request-ID` (UUID v4, fijado por el llamador, respaldo sin `randomUUID`), `PUT`, credenciales y evento `unauthorized` |
+| `__tests__/proxy.test.ts` | 12 | Redirect sin cookie, ambas cookies de sesión, cookie vacía y `matcher` (rutas protegidas sí; `/login`, `/ms-*` y estáticos no) |
 | `lib/__tests__/storageSync.test.ts` | 3 | Sincronización entre pestañas de `cart-storage` |
 | `lib/__tests__/analytics.test.ts` | 2 | Telemetría |
 

@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { HttpError, httpClient, onUnauthorized, request } from '../httpClient';
+import { HttpError, createRequestId, httpClient, onUnauthorized, request } from '../httpClient';
+
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 function fakeResponse(
   body: unknown,
@@ -117,5 +119,62 @@ describe('httpClient — contrato de transporte', () => {
     fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
 
     await expect(request('/x')).rejects.toThrow('Failed to fetch');
+  });
+
+  it('respeta el X-Request-ID del llamador (idempotencia del checkout)', async () => {
+    fetchMock.mockResolvedValue(fakeResponse({ id: 'o-1' }, 201));
+    const key = '7f1c2a9e-3b4d-4e5f-8a6b-1c2d3e4f5a6b';
+
+    await httpClient.post('/ms-orders/api/orders/checkout', {}, { requestId: key });
+    await httpClient.post('/ms-orders/api/orders/checkout', {}, { requestId: key });
+
+    const ids = fetchMock.mock.calls.map(
+      ([, init]) => ((init as RequestInit).headers as Headers).get('x-request-id'),
+    );
+    expect(ids).toEqual([key, key]);
+  });
+
+  it('genera un UUID v4 distinto por solicitud si no se indica', async () => {
+    fetchMock.mockResolvedValue(fakeResponse({ ok: true }));
+
+    await request('/a');
+    await request('/b');
+
+    const ids = fetchMock.mock.calls.map(
+      ([, init]) => ((init as RequestInit).headers as Headers).get('x-request-id'),
+    );
+    expect(ids[0]).toMatch(UUID_V4);
+    expect(ids[1]).toMatch(UUID_V4);
+    expect(ids[0]).not.toBe(ids[1]);
+  });
+
+  it('el respaldo sin randomUUID también produce un UUID v4', () => {
+    vi.stubGlobal('crypto', {
+      getRandomValues: (bytes: Uint8Array) => bytes.fill(0xff),
+    });
+
+    expect(createRequestId()).toMatch(UUID_V4);
+  });
+
+  it('expone el code de negocio del body { code, message }', async () => {
+    fetchMock.mockResolvedValue(
+      fakeResponse({ code: 'INSUFFICIENT_STOCK', message: 'Sin stock', details: {} }, 409),
+    );
+
+    await expect(request('/ms-orders/api/orders/checkout')).rejects.toMatchObject({
+      status: 409,
+      code: 'INSUFFICIENT_STOCK',
+      message: 'Sin stock',
+    });
+  });
+
+  it('PUT serializa el body', async () => {
+    fetchMock.mockResolvedValue(fakeResponse({ ok: true }));
+
+    await httpClient.put('/ms-orders/api/cart/items/p-1', { quantity: 2 });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(init.method).toBe('PUT');
+    expect(init.body).toBe(JSON.stringify({ quantity: 2 }));
   });
 });
