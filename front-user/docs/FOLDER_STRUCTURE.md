@@ -147,7 +147,7 @@ src/
 │   ├── authService.ts                # Auth contra ms-auth (login/logout/register) + ms-users (profile); sin Supabase
 │   ├── geolocationService.ts         # Browser geolocation abstraction
 │   └── __tests__/                    # Vitest suites (api, authService, httpClient)
-│   # Nota: services/ es el único punto de intercambio Supabase → microservicios Spring (ADR-002)
+│   # Nota: services/ es el único punto de contacto con los microservicios Spring (ADR-002)
 │
 ├── lib/                              # Pure utilities, helpers, constants
 │   ├── analytics.ts                  # Minimal telemetry sink (track, dev-only debug)
@@ -158,7 +158,4 @@ src/
 │
 ├── test/
 │   └── setup.ts                      # Vitest global setup (in-memory localStorage for node env)
-│
-└── data/                             # Static application data
-    └── products.ts                   # Old mock catalog; no consumers, pending removal
 ```

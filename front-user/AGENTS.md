@@ -17,7 +17,7 @@ Before analyzing, editing, or generating any code in this repository, you MUST i
 - Use **only `pnpm`** (`pnpm dev`, `pnpm build`, `pnpm test`, `pnpm type-check`); never `npm` or `yarn`.
 - Respect **Zero-Coupling**: UI and Zustand stores never import backend SDKs; all network access goes through `src/services/`.
 - **`ms-auth` is the only session authority.** Web uses the `HttpOnly` cookie; never read or persist `accessToken` in `localStorage`/`sessionStorage`/URLs/logs.
-- **Supabase is legacy.** Do not add new features on Supabase Auth, Realtime, Edge Functions, Storage, or schema changes. Auth already uses `ms-auth`; Supabase remains only for the catalog until its cut.
+- **Supabase is legacy.** Do not add new features on Supabase Auth, Realtime, Edge Functions, Storage, or schema changes. Auth and catalog already use the microservices; leftover Supabase code in the front has no consumers and is being removed (see `docs/ROADMAP.md` §2.2).
 - Keep one source of truth per domain (cart, auth, stores, orders). Use reactive selectors/hooks, not duplicated local state.
 - Backend contract comes from `Backend/` code + `Arq-Infra/Repo-DB-2.sql` + `Arq-Infra/Repu.postman_collection.json`; do not invent endpoints or schemas.
 - Preserve the cut order: **auth → catalog → orders → tracking**, with no dual writes.

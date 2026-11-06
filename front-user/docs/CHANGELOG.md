@@ -5,6 +5,22 @@
 - **Verificado en local (2026-11-01):** el commit `dad7e6e` ya no existe, `git log --all -- front-user/.env.local` no devuelve nada y `.env.local` está ignorado. No se verificó el remoto ni sus forks o cachés.
 - **Falta:** rotar `NEXT_PUBLIC_MAPBOX_TOKEN`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` y la contraseña de base de datos que circuló por chat. Reescribir el historial no invalida una clave ya expuesta, y desde el repositorio no se puede comprobar si ya se rotaron.
 
+## 2026-11-05 — Documentación alineada con el corte de catálogo
+
+### Contexto
+- Varios documentos seguían describiendo el estado anterior al commit `5b5b99f`.
+
+### Cambios
+1. **`ROADMAP.md`:** fila de catálogo actualizada (front cortado, falta smoke y retiro de Supabase); se quitó el pendiente de `src/data/products.ts`.
+2. **`APP_FLOW.md` paso 9:** el envío es la tarifa de la tienda o "por confirmar"; se retiró la regla de $80.000 / $6.000. Los detalles se enlazan a `PLAN-CATALOGO.md` en vez de repetirse.
+3. **`BACKEND.md` §6:** los `rewrites` cubren cinco servicios y se remite a `next.config.js` y al README.
+4. **`AI_GUIDELINES.md` §1.7, §2.4 y §2.5:** sin estado duplicado; el estado por dominio se remite a `ROADMAP.md`.
+5. **`FOLDER_STRUCTURE.md`:** se quitó `src/data/` y se corrigió la nota de `services/`.
+6. **`PLAN-CATALOGO.md` paso 4 y `AGENTS.md`:** textos de envío y de Supabase actualizados.
+
+### Código
+- Se eliminó `src/data/products.ts` (sin consumidores). `pnpm type-check` sin errores.
+
 ## 2026-11-04 — Catálogo contra los microservicios y costo de envío "por confirmar"
 
 ### Contexto

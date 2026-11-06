@@ -50,7 +50,7 @@ Cuando un agente de IA o desarrollador sea instruido para actualizar, complement
    - **Un tema, un documento:** cada tema tiene un único documento dueño (tabla en `README.md`). Si otro documento se relaciona con ese tema, enlázalo en vez de repetir el contenido. No crees documentos que no aporten algo propio.
 
 7. **Seguridad y Secretos:**
-   - Nunca subas tokens, contraseñas, claves privadas ni datos sensibles. Utiliza variables de entorno (`.env.local`) y mantén al día `.env.example` (primera entrada `NEXT_PUBLIC_MAPBOX_TOKEN=`; `AUTH_API_ORIGIN` y `USERS_API_ORIGIN` son variables de servidor, no `NEXT_PUBLIC`).
+   - Nunca subas tokens, contraseñas, claves privadas ni datos sensibles. Utiliza variables de entorno (`.env.local`) y mantén al día `.env.example` (primera entrada `NEXT_PUBLIC_MAPBOX_TOKEN=`; las variables `*_API_ORIGIN` son de servidor, no `NEXT_PUBLIC`; ver el [README](../README.md)).
 
 8. **Facilitar el Testing y la Extensibilidad:**
    - Prefiere servicios y hooks reutilizables para lógica compleja. Escribe código modular, fácil de testear y con bajo acoplamiento.
@@ -75,9 +75,9 @@ Cuando un agente de IA o desarrollador sea instruido para actualizar, complement
 3. **Retorno Tipado Estricto:**
    - Toda función en `src/services/` debe recibir y retornar tipos e interfaces de dominio estrictamente definidos en `src/types/` (`Store`, `Product`, `Order`, etc.).
 4. **Independencia del Proveedor:**
-   - El frontend debe poder cambiar entre mocks locales en memoria, Supabase legado o los microservicios Spring reales modificando únicamente la capa `src/services/` y variables de entorno, sin alterar componentes de UI ni stores de Zustand. (Estado actual: auth ya usa `ms-auth`/`ms-users`; catálogo todavía en Supabase; pedidos/carrito locales. El corte es obligatorio, no opcional.)
+   - El frontend debe poder cambiar entre mocks locales en memoria, Supabase legado o los microservicios Spring reales modificando únicamente la capa `src/services/` y variables de entorno, sin alterar componentes de UI ni stores de Zustand. (El corte es obligatorio, no opcional; el estado por dominio está en [`ROADMAP.md`](./ROADMAP.md) §1.)
 5. **Backend real de microservicios (ADR-002, 2026-10-27):**
-   - El backend real son siete microservicios Spring Boot en Docker (`ms-auth`, `ms-users`, `ms-companies`, `ms-products`, `ms-categories`, `ms-orders`, `ms-manage-payment`) detrás de Traefik. Supabase queda **fuera del camino crítico**: no añadir features nuevas sobre Supabase Auth, Realtime, Edge Functions, Storage ni cambios de esquema. Auth ya está migrado a `ms-auth`; el catálogo sigue en Supabase como legado transitorio hasta su corte.
+   - El backend real son siete microservicios Spring Boot en Docker (`ms-auth`, `ms-users`, `ms-companies`, `ms-products`, `ms-categories`, `ms-orders`, `ms-manage-payment`) detrás de Traefik. Supabase queda **fuera del camino crítico**: no añadir features nuevas sobre Supabase Auth, Realtime, Edge Functions, Storage ni cambios de esquema. Auth y catálogo ya leen de los microservicios; lo que queda de Supabase en el front es código sin consumidores que se retira ([`ROADMAP.md`](./ROADMAP.md) §2.2).
    - Todo acceso a datos pasa por `src/services/`; el contrato se deriva del código de `Backend/` + `Arq-Infra/Repo-DB-2.sql` + `Arq-Infra/Repu.postman_collection.json`, no del legacy `arquitectura/`.
    - El corte es por dominio, **auth → catálogo → pedidos → tracking**, sin escrituras duales. Ver `docs/ADR-002-BACKEND-MICROSERVICES.md` y `docs/BACKEND.md`.
 6. **Sesión y contrato de auth (verificado):**

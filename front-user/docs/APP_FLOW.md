@@ -30,7 +30,7 @@ Repu conecta a conductores con tiendas de autopartes cercanas para pedir baterí
 **Checkout (`/checkout`), simulado.**
 7. Con el carrito vacío, se le redirige a `/`.
 8. Confirma la dirección (sugerida por GPS y editable) y agrega notas.
-9. Revisa el total. El envío es `store.deliveryInfo.fee ?? (subtotal > 80000 ? 0 : 6000)` y la tarifa de servicio es 0.
+9. Revisa el total. Si la tienda define su tarifa de envío se muestra y se suma; si no, aparece "por confirmar" y no entra en el total ([PLAN-CATALOGO.md](./PLAN-CATALOGO.md) §2, decisión 4). La tarifa de servicio es 0.
 10. Paga con Wompi, la única opción en la UI. El pago no es real: el pedido se crea en local tras unos 600 ms y el carrito se vacía.
 
 **Seguimiento (`/order/[id]`), simulado.**

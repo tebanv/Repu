@@ -10,7 +10,7 @@
 |---|---|---|---|
 | Mapa, geolocalización y filtros | — | `MapContainer`, `locationStore`, `storesStore`, `filterStore` | Funcional |
 | Auth | `ms-auth`, `ms-users` | `authService`, `httpClient` | Migrado y verificado en servidor por HTTP; falta TLS |
-| Catálogo | `ms-companies`, `ms-products`, `ms-categories` | `api.ts` sobre Supabase | **Siguiente corte**; backend ya expone slug, SKU, marca y roles; faltan activos, categorías y datos |
+| Catálogo | `ms-companies`, `ms-products`, `ms-categories` | `api.ts` sobre los microservicios | Front cortado (2026-11-04); falta el smoke en navegador y retirar Supabase. Backend: faltan filtro de activos, categorías de autopartes y datos ([§2.2](#22-catálogo)) |
 | Carrito | `ms-orders` | `cartStore` local persistente | Funcional en local; sin validación de servidor |
 | Checkout y pedidos | `ms-orders` | `orderStore` mock | Mock |
 | Pagos | `ms-manage-payment` | Wompi simulado | Mock |
@@ -57,7 +57,6 @@ El plan de ejecución está en [PLAN-CATALOGO.md](./PLAN-CATALOGO.md).
 - [ ] **HTTPS en Traefik:** bloquea el login estable en producción.
 - [ ] **OpenAPI 3.1 del backend:** hoy el contrato se deduce del código y de Postman.
 - [ ] **`pnpm lint`:** roto porque `eslint-config-next@15.2.2` no soporta TypeScript 7.
-- [ ] **Código sin uso:** retirar `src/data/products.ts`, que ya no tiene consumidores.
 - [ ] **Limpieza del repositorio:** decidir si `front-user/roster-backups/` (55 archivos) y los gitlinks de `front-user/worktrees/` deben seguir versionados.
 
 ## 4. Producto (después de los cortes)

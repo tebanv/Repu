@@ -119,7 +119,7 @@ docker compose -f docker-compose-apps.yaml up -d --build
 docker logs -f repu_ms_auth
 ```
 
-Más comandos en `Arq-Infra/Comandos_Docker.md`. Con `pnpm dev`, el navegador usa los `rewrites` de Next (hoy solo `/ms-auth` y `/ms-users`).
+Más comandos en `Arq-Infra/Comandos_Docker.md`. Con `pnpm dev`, el navegador usa los `rewrites` de Next, definidos en `next.config.js` con las variables de origen del [README](../README.md). Cubren `/ms-auth`, `/ms-users`, `/ms-companies`, `/ms-products` y `/ms-categories`; `ms-orders` y `ms-manage-payment` se agregan con sus cortes.
 
 ## 7. Gaps y pedidos al backend
 
