@@ -38,7 +38,25 @@ Si la red falla, `masterStores` se conserva y se puede seguir filtrando la zona 
 2. El store normaliza el producto. Si el carrito está vacío, fija el contexto de tienda.
 3. Si el producto es de otra tienda, devuelve `STORE_CONFLICT` y `StoreView` abre el diálogo.
 4. Si ya existe, suma cantidades respetando los límites.
-5. Recalcula `itemCount`, `subtotal` y `lastUpdatedAt`.
+5. Recalcula `itemCount`, `subtotal` y `lastUpdatedAt`, y marca el producto en `pendingSync`.
+
+**Sincronización con `ms-orders`** (el carrito del servidor es la fuente de verdad; [PLAN-PEDIDOS.md](./PLAN-PEDIDOS.md) §2.2)
+
+```text
+addItem / updateQuantity / removeItem ─► cartStore (al instante) ─► cartSyncQueue (400 ms por producto, en serie)
+                                                                          │
+                                         reconciliación ◄── carrito completo ◄── cartService.setServerItemQuantity
+```
+
+1. Cada cambio programa el envío de ese producto. Si llegan más cambios antes de 400 ms, se reemplaza: una ráfaga es una petición.
+2. La tarea lee la cantidad local **al ejecutarse** y pide al servidor esa cantidad absoluta. Quitar el último producto, o `clearCart`, vacía el carrito del servidor de esa tienda.
+3. La respuesta trae el carrito completo. Gana el servidor (precio, nombre, cantidad, productos de otro dispositivo), salvo en productos con cambios aún pendientes.
+4. Errores:
+   - Producto no disponible → se quita y se avisa.
+   - Tienda no disponible → se vacía y se avisa.
+   - Red o sesión → queda en `pendingSync` (`syncStatus: 'error'`) y se reintenta con el siguiente cambio, con el evento `online` o en `flushSync`.
+5. **Arranque:** con la sesión confirmada, `MainLayoutShell` llama a `syncWithServer`: lee el carrito de la tienda local, reconcilia y sube lo pendiente. Sin tienda local no puede descubrir el carrito del servidor hasta C2 ([BACKEND.md](./BACKEND.md) §7).
+6. **Checkout:** `flushSync()` envía todo de inmediato y devuelve `ok` cuando el servidor coincide. Tras crear el pedido, `resetAfterCheckout()` limpia solo el local, porque el servidor ya convirtió el carrito.
 
 ## 3. Pedidos (simulación local)
 

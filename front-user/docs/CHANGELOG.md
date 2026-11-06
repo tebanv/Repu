@@ -21,6 +21,38 @@
 ### Código
 - Se eliminó `src/data/products.ts` (sin consumidores). `pnpm type-check` sin errores.
 
+## 2026-11-05 — Carrito sincronizado con `ms-orders` (`PLAN-PEDIDOS` pasos 4–6)
+
+### Cambios implementados
+1. **`src/services/addressService.ts` + `src/types/address.ts`:** `listAddresses`, `createAddress` y `pickDefaultAddress` contra `ms-users`. El checkout los usará en el paso 9.
+2. **`src/lib/syncQueue.ts`:** cola con *coalescing* por clave (400 ms), ejecución en serie y `flush()`.
+3. **`src/services/cartService.ts`:** API de cantidad absoluta (`setServerItemQuantity`, `clearServerCart`, `getServerCart`).
+   - Hoy es un *shim* sobre `POST` (suma) y `DELETE` por ítem.
+   - Tras un error de red relee el carrito antes de calcular la diferencia, para no duplicar unidades.
+   - C1–C3 de `BACKEND.md` §7 solo cambian este archivo.
+4. **`src/store/cartStore.ts`:**
+   - Caché optimista del carrito del servidor. La interfaz pública no cambia: acciones síncronas y mismos `CartActionResult`.
+   - Nuevos `pendingSync`, `pendingClearStoreIds` y `syncStatus`.
+   - Nuevas acciones `syncWithServer`, `flushSync` y `resetAfterCheckout`.
+   - Nuevo hook `useCartSyncStatus`.
+   - `CART_STATE_VERSION` 3: los carritos v2 se conservan y se suben.
+   - Al expirar por TTL también se vacía el carrito del servidor.
+5. **`MainLayoutShell`:**
+   - Reconcilia el carrito al confirmar la sesión.
+   - El toast usa el título del aviso (`CartNotice.title`): "Producto no disponible", "Tienda no disponible" y "Carrito expirado".
+6. **Pruebas:**
+   - Nuevas: `syncQueue` (8), `cartService` (15), `addressService` (5) y `cartStoreSync` (11).
+   - `cartStore` (+2) ahora simula `cartService`.
+   - Suite: 140/140 en 14 archivos.
+
+### Verificación
+- `pnpm test` 140/140, `pnpm type-check` sin errores y `pnpm build` correcto.
+- Las pruebas detectaron que la cola avisaba "ocupada" antes de registrar el temporizador, y por eso el estado quedaba en `error` en lugar de `syncing`. Corregido.
+- **No verificado contra el servidor ni en el navegador:** queda para el smoke (paso 10).
+
+### Pendiente
+- Hasta el paso 9, el checkout simulado sigue llamando a `clearCart()`, que también vacía el carrito del servidor. Pasará a `resetAfterCheckout()`.
+
 ## 2026-11-05 — Transporte para `ms-orders` y guard optimista (`PLAN-PEDIDOS` pasos 1–3)
 
 ### Cambios implementados

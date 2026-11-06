@@ -1,4 +1,15 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+// Las reglas locales se prueban aisladas de la red: el carrito del servidor
+// (cartService) se simula. La sincronización tiene su suite propia.
+vi.mock('@/services/cartService', () => ({
+  classifyCartSyncError: () => 'retryable',
+  clearServerCart: vi.fn(async () => undefined),
+  getServerCart: vi.fn(async () => null),
+  markServerCartConverted: vi.fn(),
+  setServerItemQuantity: vi.fn(async () => null),
+}));
+
 import useCartStore, {
   CART_STATE_VERSION,
   CART_STORAGE_KEY,
@@ -6,6 +17,7 @@ import useCartStore, {
   isCartExpired,
   selectCartItemByProductId,
   selectIsSameStore,
+  resetCartSyncForTests,
 } from '../cartStore';
 import type { CartProductInput } from '@/types';
 
@@ -25,6 +37,7 @@ function makeProduct(overrides: Partial<CartProductInput> = {}): CartProductInpu
 
 // Resetea store + storage entre tests para aislamiento total.
 function resetCart(): void {
+  resetCartSyncForTests();
   localStorage.clear();
   useCartStore.setState({
     storeId: null,
@@ -36,6 +49,9 @@ function resetCart(): void {
     lastUpdatedAt: null,
     cartNotice: null,
     hasHydrated: true,
+    pendingSync: [],
+    pendingClearStoreIds: [],
+    syncStatus: 'idle',
   });
 }
 
@@ -329,6 +345,59 @@ describe('cartStore — corte de catálogo', () => {
     const state = useCartStore.getState();
     expect(state.items).toHaveLength(0);
     expect(state.storeId).toBeNull();
+  });
+});
+
+describe('cartStore — carrito del servidor (v3)', () => {
+  it('conserva los carritos v2 y los marca pendientes para subirlos', async () => {
+    localStorage.setItem(
+      CART_STORAGE_KEY,
+      JSON.stringify({
+        state: {
+          storeId: 's1',
+          storeSlug: 't1',
+          storeName: 'T1',
+          items: [
+            {
+              productId: 'p1',
+              name: 'Batería',
+              price: 100,
+              image: null,
+              quantity: 2,
+              stockSnapshot: 5,
+              maxPerOrder: null,
+            },
+          ],
+          itemCount: 2,
+          subtotal: 200,
+          lastUpdatedAt: new Date().toISOString(),
+          version: 2,
+        },
+        version: 2,
+      })
+    );
+
+    await useCartStore.persist.rehydrate();
+    const state = useCartStore.getState();
+    expect(state.items).toHaveLength(1);
+    expect(state.pendingSync).toEqual(['p1']);
+  });
+
+  it('expirar por TTL programa vaciar el carrito del servidor de esa tienda', async () => {
+    localStorage.setItem(
+      CART_STORAGE_KEY,
+      JSON.stringify({
+        state: {
+          storeId: 's1',
+          items: [{ productId: 'p1', name: 'N', price: 100, image: null, quantity: 1 }],
+          lastUpdatedAt: new Date(Date.now() - CART_TTL_MS - 5000).toISOString(),
+        },
+        version: CART_STATE_VERSION,
+      })
+    );
+
+    await useCartStore.persist.rehydrate();
+    expect(useCartStore.getState().pendingClearStoreIds).toEqual(['s1']);
   });
 });
 

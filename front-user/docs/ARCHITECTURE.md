@@ -25,7 +25,7 @@ UI (componentes) ── lee con selectores ──► Stores Zustand
 | `locationStore` | Coordenadas, permisos y ciclo de vida del GPS | — |
 | `filterStore` | Categorías activas, sin lógica de filtrado | — |
 | `storesStore` | `masterStores` (zona cargada), `stores` (filtradas) y selección | — |
-| `cartStore` | Carrito | `cart-storage`, con TTL de 24 h |
+| `cartStore` | Caché optimista del carrito de `ms-orders` | `cart-storage` (v3, con cambios pendientes), TTL de 24 h |
 | `orderStore` | Pedidos mock, máximo 20 | `order-storage` |
 | `toastStore` | Notificaciones, máximo 4 visibles | — |
 
@@ -37,6 +37,8 @@ UI (componentes) ── lee con selectores ──► Stores Zustand
 | `authService.ts` | `ms-auth` + `ms-users` | Vigente |
 | `api.ts` | `ms-companies`, `ms-products`, `ms-categories` (lecturas públicas); adaptadores en [PLAN-CATALOGO.md](./PLAN-CATALOGO.md) §3 | Vigente |
 | `supabaseClient.ts` | Sin consumidores | Se retira en el paso 8 del plan |
+| `cartService.ts` | `ms-orders` (carrito); API de cantidad absoluta sobre la API actual ([PLAN-PEDIDOS.md](./PLAN-PEDIDOS.md) §2.2) | Vigente |
+| `addressService.ts` | `ms-users` (direcciones) | Vigente; lo consumirá el checkout |
 | `geolocationService.ts` | `navigator.geolocation` | Vigente |
 
 ## 4. Módulo de mapa
@@ -59,6 +61,8 @@ Reglas implementadas en `cartStore`:
 - **TTL:** con más de 24 h, o con items sin timestamp, el carrito se vacía y se expone `cartNotice` (`EXPIRED_CART`).
 - **Resultados:** las acciones devuelven `{ ok, code, message? }` y la UI decide el feedback.
 - **Lectura:** solo con hooks reactivos (`useCartSummary`, `useCartItem`, `useIsSameCartStore`, `useCartNotice`, `useCartHasHydrated`), nunca con getters.
+
+- **Servidor como fuente de verdad:** cada cambio se envía en segundo plano a `ms-orders` y la respuesta se reconcilia. La UI nunca espera a la red; `syncStatus` (`useCartSyncStatus`) indica si hay cambios sin confirmar. El flujo está en [DATAFLOW.md](./DATAFLOW.md) §2.
 
 `stockSnapshot` es referencial; nunca es fuente de verdad al pagar.
 

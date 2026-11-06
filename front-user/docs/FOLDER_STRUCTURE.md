@@ -124,7 +124,8 @@ src/
 │   ├── auth.ts                       # User, UserRole (comprador|distribuidor|domiciliario|analista|admin), AuthState, LoginCredentials
 │   ├── store.ts                      # Store, StoreCategory, StoreSchedule, StoreDeliveryInfo
 │   ├── product.ts                    # Product, ProductSpecs, ProductCompatibility
-│   ├── cart.ts                       # CartItem, CartSummary, CartNotice, CartActionResult
+│   ├── cart.ts                       # CartItem, CartSummary, CartNotice, CartActionResult, CartSyncStatus, CartSyncResult
+│   ├── address.ts                    # SavedAddress, NewAddressInput (direcciones de ms-users)
 │   ├── order.ts                      # PaymentMethod, OrderStatus, DeliveryAddress, OrderBreakdown (Order/DriverInfo/Rating contract for checkout/tracking/orderStore)
 │   ├── toast.ts                      # Toast, ToastVariant, ToastPayload
 │   ├── declarations.d.ts             # CSS & window global ambient declarations
@@ -132,21 +133,23 @@ src/
 │
 ├── store/                            # Zustand stores for global state management
 │   ├── authStore.ts                  # Auth session cache (user + isAuthenticated); uses ms-auth cookie, no token persisted
-│   ├── cartStore.ts                  # Persistent cart store (store context, items, immer, hooks)
+│   ├── cartStore.ts                  # Caché optimista del carrito de ms-orders (reglas locales, cola de sincronización, reconciliación, hooks)
 │   ├── filterStore.ts                # Store for active category filters
 │   ├── locationStore.ts              # Store for location, permissions, tracking
 │   ├── orderStore.ts                 # Persistent orders store (multi-order, Enfoque B puro)
 │   ├── storesStore.ts                # Nearby stores state and selection
 │   ├── toastStore.ts                 # Global toast notifications store
-│   └── __tests__/                    # Vitest suites (cartStore, orderStore, authStore, storesStore)
+│   └── __tests__/                    # Vitest suites (cartStore, cartStoreSync, orderStore, authStore, storesStore)
 │
 ├── services/                         # Business logic, interaction with external APIs
 │   ├── api.ts                        # Catálogo contra ms-companies/ms-products/ms-categories (adaptadores a Store/Product)
 │   ├── supabaseClient.ts             # Sin consumidores; se retira en el paso 8 de PLAN-CATALOGO
 │   ├── httpClient.ts                 # Transporte HTTP: fetch relativo, credentials include, X-Request-ID (UUID; fijable para idempotencia), HttpError con status/code, onUnauthorized
 │   ├── authService.ts                # Auth contra ms-auth (login/logout/register) + ms-users (profile); sin Supabase
+│   ├── cartService.ts                # Carrito de ms-orders con API de cantidad absoluta (shim sobre POST/DELETE actuales)
+│   ├── addressService.ts             # Direcciones de ms-users (listar, crear, dirección por defecto)
 │   ├── geolocationService.ts         # Browser geolocation abstraction
-│   └── __tests__/                    # Vitest suites (api, authService, httpClient)
+│   └── __tests__/                    # Vitest suites (api, authService, httpClient, cartService, addressService)
 │   # Nota: services/ es el único punto de contacto con los microservicios Spring (ADR-002)
 │
 ├── lib/                              # Pure utilities, helpers, constants
@@ -154,7 +157,8 @@ src/
 │   ├── constants.ts                  # Constants (defaults, permission states, common errors)
 │   ├── geoUtils.ts                   # Geospatial utility functions (haversine formula)
 │   ├── storageSync.ts                # Cross-tab sync via StorageEvent (enableCrossTabSync)
-│   └── __tests__/                    # Vitest suites (storageSync, analytics)
+│   ├── syncQueue.ts                  # Cola con coalescing por clave y ejecución en serie (sincronización del carrito)
+│   └── __tests__/                    # Vitest suites (storageSync, analytics, syncQueue)
 │
 ├── test/
 │   └── setup.ts                      # Vitest global setup (in-memory localStorage for node env)

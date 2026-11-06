@@ -26,8 +26,26 @@ export interface CartSummary extends CartStoreContext {
 
 export interface CartNotice {
   code: string;
+  /** Título del toast; si falta, la UI usa uno genérico. */
+  title?: string;
   message: string;
   createdAt: string;
+}
+
+/**
+ * Estado de la sincronización con el carrito del servidor (`ms-orders`).
+ * - `idle`: todo confirmado por el servidor.
+ * - `syncing`: hay cambios en espera o en vuelo.
+ * - `error`: quedaron cambios sin confirmar (red, sesión); se reintentan
+ *   con el siguiente cambio, al recuperar la conexión o antes del checkout.
+ */
+export type CartSyncStatus = 'idle' | 'syncing' | 'error';
+
+export interface CartSyncResult {
+  /** `true` si el carrito del servidor coincide con el local. */
+  ok: boolean;
+  /** Productos cuyo cambio sigue sin confirmar. */
+  pendingCount: number;
 }
 
 export type CartActionCode =

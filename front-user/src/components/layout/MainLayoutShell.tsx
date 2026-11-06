@@ -21,6 +21,7 @@ export default function MainLayoutShell({
   const cartHasHydrated = useCartHasHydrated();
   const cartNotice = useCartNotice();
   const clearCartNotice = useCartStore((state) => state.clearCartNotice);
+  const syncCartWithServer = useCartStore((state) => state.syncWithServer);
   const pushToast = useToastStore((state) => state.pushToast);
   const [isChecking, setIsChecking] = useState(true);
 
@@ -45,13 +46,23 @@ export default function MainLayoutShell({
   }, [authHasHydrated, isAuthLoading, isAuthenticated, router, pathname]);
 
   useEffect(() => {
+    // El carrito del servidor (`ms-orders`) es la fuente de verdad: con la
+    // sesión confirmada y el caché local rehidratado, se reconcilian y se
+    // suben los cambios pendientes (docs/PLAN-PEDIDOS.md §2.2).
+    if (!cartHasHydrated || !authHasHydrated || isAuthLoading || !isAuthenticated) {
+      return;
+    }
+    void syncCartWithServer();
+  }, [cartHasHydrated, authHasHydrated, isAuthLoading, isAuthenticated, syncCartWithServer]);
+
+  useEffect(() => {
     if (!cartHasHydrated || !cartNotice) {
       return;
     }
 
     pushToast({
       variant: 'warning',
-      title: 'Carrito expirado',
+      title: cartNotice.title ?? 'Carrito actualizado',
       message: cartNotice.message,
       duration: 6000,
     });
