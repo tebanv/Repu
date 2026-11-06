@@ -38,7 +38,9 @@ UI (componentes) ── lee con selectores ──► Stores Zustand
 | `api.ts` | `ms-companies`, `ms-products`, `ms-categories` (lecturas públicas); adaptadores en [PLAN-CATALOGO.md](./PLAN-CATALOGO.md) §3 | Vigente |
 | `supabaseClient.ts` | Sin consumidores | Se retira en el paso 8 del plan |
 | `cartService.ts` | `ms-orders` (carrito); API de cantidad absoluta sobre la API actual ([PLAN-PEDIDOS.md](./PLAN-PEDIDOS.md) §2.2) | Vigente |
-| `addressService.ts` | `ms-users` (direcciones) | Vigente; lo consumirá el checkout |
+| `addressService.ts` | `ms-users` (direcciones), con precarga de 30 s en memoria | Vigente |
+| `orderService.ts` | `ms-orders` (checkout idempotente y cancelación) | Vigente |
+| `geocodingService.ts` | Mapbox Search v6, solo por acción explícita del usuario | Vigente |
 | `geolocationService.ts` | `navigator.geolocation` | Vigente |
 
 ## 4. Módulo de mapa
@@ -70,7 +72,8 @@ Reglas implementadas en `cartStore`:
 
 - No existe `activeOrderId`: los pedidos activos se derivan de `orders[]` con `useActiveOrders`, `useActiveOrdersCount` y `useCompletedOrders`.
 - La URL decide qué pedido se ve (`/order/[id]`).
-- Todo es local; `orderStore` no habla con el backend. Repartidor, teléfono y chat son simulados.
+- **Creación y cancelación son reales** (`orderService` → `ms-orders`). Estado, avance, repartidor, teléfono, chat, pago y calificación siguen simulados en `orderStore` hasta los cortes de tracking y pagos ([PLAN-PEDIDOS.md](./PLAN-PEDIDOS.md) §2.5).
+- El número visible es `#number` (`formatOrderNumber`); los pedidos mock previos al corte conservan su id `REP-…`.
 
 ## 7. Guardrails
 

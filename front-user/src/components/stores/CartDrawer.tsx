@@ -22,7 +22,9 @@ import {
   X,
 } from 'lucide-react';
 
+import { useRouter } from 'next/navigation';
 import useCartStore, { useCartHasHydrated, useCartSummary } from '@/store/cartStore';
+import { prefetchAddresses } from '@/services/addressService';
 import useToastStore from '@/store/toastStore';
 import ProductIcon from './ProductIcon';
 import type { CartItem } from '@/types';
@@ -326,6 +328,17 @@ export default function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerPr
     : {
       maxHeight: 'min(88vh, 880px)',
     };
+
+  // Precarga del checkout mientras el usuario revisa el carrito
+  // (docs/PLAN-PEDIDOS.md §2.1): la ruta y sus direcciones ya estarán listas
+  // al pulsar "Continuar a checkout".
+  const router = useRouter();
+  const hasItemsToCheckout = useCartStore((state) => state.itemCount > 0);
+  useEffect(() => {
+    if (!isOpen || !hasItemsToCheckout) return;
+    router.prefetch('/checkout');
+    prefetchAddresses();
+  }, [isOpen, hasItemsToCheckout, router]);
 
   useEffect(() => {
     if (!isOpen) {

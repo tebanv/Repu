@@ -12,6 +12,7 @@ import OrderTimeline from '@/components/tracking/OrderTimeline';
 import DriverCard from '@/components/tracking/DriverCard';
 import OrderDetailsAccordion from '@/components/tracking/OrderDetailsAccordion';
 import OrderRatingModal from '@/components/tracking/OrderRatingModal';
+import { formatOrderNumber } from '@/lib/orderFormat';
 import type { OrderStatus, OrderRating } from '@/types';
 
 export default function OrderTrackingPage() {
@@ -125,7 +126,7 @@ export default function OrderTrackingPage() {
     <div className="min-h-screen bg-gray-950 text-white flex flex-col">
       {/* Header Fijo */}
       <OrderTrackingHeader
-        orderId={order.id}
+        orderId={formatOrderNumber(order)}
         storeName={order.storeName}
         status={order.status}
         estimatedMinutes={order.estimatedDeliveryMinutes}

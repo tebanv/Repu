@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { formatOrderNumber } from '@/lib/orderFormat';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -296,7 +297,7 @@ export default function ActiveOrdersDrawer({ isOpen, onClose }: ActiveOrdersDraw
                             </h3>
                           </div>
                           <span className="px-2 py-0.5 rounded-md bg-white/10 text-gray-300 font-mono text-[10px] flex-shrink-0">
-                            {order.id}
+                            {formatOrderNumber(order)}
                           </span>
                         </div>
 

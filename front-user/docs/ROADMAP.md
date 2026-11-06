@@ -12,7 +12,7 @@
 | Auth | `ms-auth`, `ms-users` | `authService`, `httpClient` | Migrado y verificado en servidor por HTTP; falta TLS |
 | Catálogo | `ms-companies`, `ms-products`, `ms-categories` | `api.ts` sobre los microservicios | Front cortado (2026-11-04); falta el smoke en navegador y retirar Supabase. Backend: faltan filtro de activos, categorías de autopartes y datos ([§2.2](#22-catálogo)) |
 | Carrito | `ms-orders` | `cartService` + `cartStore` (caché optimista) | Sincronizado con el servidor en código y pruebas (2026-11-05); falta el smoke. Backend: C1–C5 mejoran el rendimiento ([PLAN-PEDIDOS.md](./PLAN-PEDIDOS.md)) |
-| Checkout y pedidos | `ms-orders` | `orderStore` mock | Mock |
+| Checkout y pedidos | `ms-orders` | `orderService` + `orderStore` | Pedido real con checkout idempotente y cancelación (2026-11-05); falta el smoke. Seguimiento simulado sobre el pedido real |
 | Pagos | `ms-manage-payment` | Wompi simulado | Mock |
 | Tracking | `ms-orders` (SSE) | Avance manual local | Mock |
 | Perfil y direcciones | `ms-users` | Sin UI | Pendiente |
@@ -37,10 +37,10 @@ El plan de ejecución está en [PLAN-CATALOGO.md](./PLAN-CATALOGO.md).
 
 ### 2.3 Pedidos y pagos
 
-Carrito y checkout: plan en [PLAN-PEDIDOS.md](./PLAN-PEDIDOS.md) (pasos 1–6 hechos, 2026-11-05). Pagos y tracking siguen simulados.
+Carrito y checkout: plan en [PLAN-PEDIDOS.md](./PLAN-PEDIDOS.md) (pasos 1–9 hechos, 2026-11-05; falta el smoke). Pagos y tracking siguen simulados.
 
 - [ ] Cerrar el mapeo de estados y dinero ([DATA_MODEL.md](./DATA_MODEL.md) §6).
-- [ ] Crear `orderService` contra `ms-orders` con idempotencia de checkout; `orderStore` deja de ser la fuente transaccional.
+- [x] `orderService` contra `ms-orders` con checkout idempotente y cancelación; `orderStore` ya no inventa pedidos (2026-11-05).
 - [x] Relación entre `cartStore` y el carrito del servidor: el servidor es la fuente y el store su caché optimista (2026-11-05).
 - [ ] Integrar `ms-manage-payment` después de resolver su autenticación ([BACKEND.md](./BACKEND.md) §7).
 

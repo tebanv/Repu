@@ -1,12 +1,27 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+// Checkout contra `ms-orders` (docs/PLAN-PEDIDOS.md §2.3–§2.6).
+//
+// Flujo de "Confirmar pedido":
+// 1. `flushSync()`: el carrito del servidor queda igual al local (el checkout
+//    convierte el carrito del servidor, no el local).
+// 2. Dirección: la guardada seleccionada o, si es nueva, se crea en `ms-users`
+//    (con coordenadas del GPS o geocodificadas) y se recuerda para reintentos.
+// 3. Clave de idempotencia por intento (`sessionStorage`): un reintento tras
+//    un fallo de red no duplica el pedido.
+// 4. `createOrder` → `ms-orders`; con `201` se limpia solo el carrito local.
+
+import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, CheckCircle2, MapPin, Clock, ArrowRight, Home } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 import CheckoutHeader from '@/components/checkout/CheckoutHeader';
-import DeliveryAddressCard from '@/components/checkout/DeliveryAddressCard';
+import DeliveryAddressCard, {
+  type AddressDraft,
+  type AddressLoadStatus,
+  type AddressMode,
+} from '@/components/checkout/DeliveryAddressCard';
 import PaymentMethodSelector from '@/components/checkout/PaymentMethodSelector';
 import OrderSummaryCard from '@/components/checkout/OrderSummaryCard';
 import useCartStore, { useCartHasHydrated, useCartSummary } from '@/store/cartStore';
@@ -14,20 +29,33 @@ import useLocationStore from '@/store/locationStore';
 import useOrderStore from '@/store/orderStore';
 import useToastStore from '@/store/toastStore';
 import { fetchStoreBySlug } from '@/services/api';
-import type {
-  DeliveryAddress,
-  PaymentMethod,
-  OrderBreakdown,
-  Order,
-  Store,
-} from '@/types';
+import {
+  createAddress,
+  invalidateAddresses,
+  loadAddresses,
+  pickDefaultAddress,
+} from '@/services/addressService';
+import { forwardGeocode, reverseGeocode } from '@/services/geocodingService';
+import { describeCheckoutError } from '@/services/orderService';
+import {
+  checkoutFingerprint,
+  clearCheckoutAttempt,
+  getCheckoutAttemptKey,
+} from '@/lib/checkoutAttempt';
+import { formatOrderNumber } from '@/lib/orderFormat';
+import type { OrderBreakdown, Order, PaymentMethod, SavedAddress, Store } from '@/types';
+
+const EMPTY_DRAFT: AddressDraft = { name: '', street: '', details: '', city: '', coordinates: null };
 
 export default function CheckoutPage() {
   const router = useRouter();
   const hasHydrated = useCartHasHydrated();
   const cartSummary = useCartSummary();
-  const clearCart = useCartStore((state) => state.clearCart);
+  const flushCartSync = useCartStore((state) => state.flushSync);
+  const syncCartWithServer = useCartStore((state) => state.syncWithServer);
+  const resetCartAfterCheckout = useCartStore((state) => state.resetAfterCheckout);
   const userCoordinates = useLocationStore((state) => state.userCoordinates);
+  const requestLocation = useLocationStore((state) => state.requestPermission);
   const createOrder = useOrderStore((state) => state.createOrder);
   const pushToast = useToastStore((state) => state.pushToast);
 
@@ -35,13 +63,14 @@ export default function CheckoutPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmedOrder, setConfirmedOrder] = useState<Order | null>(null);
 
-  const [address, setAddress] = useState<DeliveryAddress>({
-    street: userCoordinates ? 'Ubicación actual detectada por GPS' : 'Calle 10 # 43E-12, El Poblado',
-    details: '',
-    city: 'Medellín',
-    notes: '',
-    coordinates: userCoordinates || undefined,
-  });
+  // Direcciones de `ms-users`
+  const [addresses, setAddresses] = useState<SavedAddress[]>([]);
+  const [addressStatus, setAddressStatus] = useState<AddressLoadStatus>('loading');
+  const [addressMode, setAddressMode] = useState<AddressMode>('saved');
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<AddressDraft>(EMPTY_DRAFT);
+  const [notes, setNotes] = useState('');
+  const [isLocating, setIsLocating] = useState(false);
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('wompi');
 
@@ -52,8 +81,7 @@ export default function CheckoutPage() {
     }
   }, [hasHydrated, cartSummary.itemCount, confirmedOrder, router]);
 
-  // Cargar la tienda (por el slug que guarda el carrito) para conocer su
-  // ubicación, tiempo de preparación y, cuando exista, su costo de envío.
+  // Tienda (por el slug del carrito): ubicación y tiempo de preparación.
   useEffect(() => {
     async function loadStore() {
       if (!cartSummary.storeSlug) return;
@@ -70,65 +98,199 @@ export default function CheckoutPage() {
     loadStore();
   }, [cartSummary.storeSlug]);
 
-  // El costo de envío aún no está definido en el backend: sin dato real queda
-  // `null` ("por confirmar") y no se suma al total. Pendiente en ROADMAP.
-  const deliveryFee = store?.deliveryInfo?.fee ?? null;
-  const serviceFee = 0; // Sin costos ocultos de plataforma
-  const total = cartSummary.subtotal + (deliveryFee ?? 0) + serviceFee;
+  // Direcciones guardadas, en paralelo con la tienda. `loadAddresses`
+  // reutiliza la precarga hecha al abrir el carrito.
+  const refreshAddresses = useCallback(async (preferId?: string | null) => {
+    setAddressStatus('loading');
+    try {
+      const list = await loadAddresses();
+      setAddresses(list);
+      setAddressStatus('ready');
+      const preferred = list.find((address) => address.id === preferId) ?? pickDefaultAddress(list);
+      setSelectedAddressId(preferred?.id ?? null);
+      setAddressMode(list.length > 0 ? 'saved' : 'new');
+    } catch (err) {
+      console.error('Error al cargar direcciones:', err);
+      setAddressStatus('error');
+    }
+  }, []);
 
+  useEffect(() => {
+    void refreshAddresses();
+  }, [refreshAddresses]);
+
+  // Sin direcciones guardadas: el GPS ya concedido precarga las coordenadas.
+  useEffect(() => {
+    if (userCoordinates && addressMode === 'new' && !draft.coordinates) {
+      setDraft((current) => ({ ...current, coordinates: userCoordinates }));
+    }
+  }, [userCoordinates, addressMode, draft.coordinates]);
+
+  /** "Usar mi ubicación": GPS + una geocodificación inversa (solo por esta acción). */
+  const handleUseMyLocation = useCallback(async () => {
+    setIsLocating(true);
+    try {
+      let coordinates = useLocationStore.getState().userCoordinates;
+      if (!coordinates) {
+        await requestLocation();
+        coordinates = useLocationStore.getState().userCoordinates;
+      }
+      if (!coordinates) {
+        pushToast({
+          variant: 'warning',
+          title: 'Ubicación no disponible',
+          message: 'Activa el permiso de ubicación o escribe tu dirección.',
+        });
+        return;
+      }
+      const found = await reverseGeocode(coordinates).catch(() => null);
+      setDraft((current) => ({
+        ...current,
+        coordinates,
+        street: found?.street || current.street,
+        city: found?.city || current.city,
+      }));
+    } finally {
+      setIsLocating(false);
+    }
+  }, [pushToast, requestLocation]);
+
+  // El costo de envío lo calculará el backend (K2): hasta entonces queda
+  // "por confirmar" y no se suma, para que lo mostrado sea lo cobrado.
   const breakdown: OrderBreakdown = {
     subtotal: cartSummary.subtotal,
-    deliveryFee,
-    serviceFee,
-    total,
+    deliveryFee: null,
+    serviceFee: 0,
+    total: cartSummary.subtotal,
   };
 
-  const handleConfirmOrder = async () => {
-    if (!address.street || address.street.trim().length < 3) {
+  /** Devuelve el id de la dirección a usar, creándola si es nueva. */
+  const resolveAddressId = async (): Promise<string | null> => {
+    if (addressMode === 'saved' && selectedAddressId) return selectedAddressId;
+
+    const street = draft.street.trim();
+    const city = draft.city.trim();
+    if (street.length < 3 || !city) {
       pushToast({
         variant: 'warning',
         title: 'Dirección requerida',
-        message: 'Por favor ingresa una dirección válida para la entrega.',
+        message: 'Escribe la dirección y la ciudad de entrega.',
+      });
+      return null;
+    }
+
+    // `ms-users` exige coordenadas: GPS o, si no hay, la dirección escrita.
+    const coordinates =
+      draft.coordinates ??
+      (await forwardGeocode(`${street}, ${city}`, userCoordinates).catch(() => null))?.coordinates ??
+      null;
+    if (!coordinates) {
+      pushToast({
+        variant: 'warning',
+        title: 'No encontramos la dirección',
+        message: 'Revisa la dirección o usa tu ubicación actual.',
+      });
+      return null;
+    }
+
+    const created = await createAddress({
+      name: draft.name.trim() || draft.details.trim() || 'Mi dirección',
+      fullAddress: [street, draft.details.trim()].filter(Boolean).join(', '),
+      city,
+      coordinates,
+      isPrimary: addresses.length === 0,
+    });
+    // Se recuerda y se selecciona: un reintento no vuelve a crearla.
+    setAddresses((current) => [created, ...current]);
+    setSelectedAddressId(created.id);
+    setAddressMode('saved');
+    setDraft(EMPTY_DRAFT);
+    return created.id;
+  };
+
+  const handleConfirmOrder = async () => {
+    const storeId = cartSummary.storeId;
+    if (!storeId || isSubmitting) return;
+    if (addressStatus !== 'ready') {
+      pushToast({
+        variant: 'warning',
+        title: 'Dirección pendiente',
+        message:
+          addressStatus === 'loading'
+            ? 'Estamos cargando tus direcciones; inténtalo en un momento.'
+            : 'No pudimos cargar tus direcciones. Pulsa "Reintentar".',
       });
       return;
     }
 
     setIsSubmitting(true);
-
     try {
+      // 1. El servidor debe tener exactamente el carrito que ve el usuario.
+      const sync = await flushCartSync();
+      if (!sync.ok) {
+        pushToast({
+          variant: 'error',
+          title: 'Carrito sin sincronizar',
+          message: 'No pudimos guardar los últimos cambios de tu carrito. Revisa tu conexión e inténtalo de nuevo.',
+        });
+        return;
+      }
+      const cartAfterSync = useCartStore.getState();
+      if (cartAfterSync.itemCount === 0 || cartAfterSync.storeId !== storeId) return;
+
+      // 2. Dirección
+      const addressId = await resolveAddressId();
+      if (!addressId) return;
+
+      // 3. Clave del intento (reutilizada si nada cambió desde el último fallo)
+      const customerNotes = notes.trim() || null;
+      const idempotencyKey = getCheckoutAttemptKey(
+        checkoutFingerprint({ storeId, addressId, customerNotes })
+      );
+
       const storeCoords =
         store?.lat !== undefined && store?.lng !== undefined
           ? { lat: store.lat, lng: store.lng }
           : undefined;
 
+      // 4. Pedido real
       const newOrder = await createOrder({
-        storeId: cartSummary.storeId || 'store-generic',
+        storeId,
         storeName: cartSummary.storeName || 'Tienda de Repuestos',
-        storeSlug: cartSummary.storeSlug || 'tienda',
+        storeSlug: cartSummary.storeSlug || '',
         storeCoordinates: storeCoords,
-        items: cartSummary.items,
-        deliveryAddress: address,
+        addressId,
+        customerNotes,
+        idempotencyKey,
         paymentMethod,
-        breakdown,
         estimatedDeliveryMinutes: store?.deliveryInfo?.avgPrepTime ? store.deliveryInfo.avgPrepTime + 15 : 25,
+        cartItems: cartAfterSync.items,
       });
 
-      // Vaciar carrito
-      clearCart();
+      clearCheckoutAttempt();
+      // Primero la confirmación: así vaciar el carrito no dispara el redirect.
       setConfirmedOrder(newOrder);
+      resetCartAfterCheckout();
 
       pushToast({
         variant: 'success',
         title: '¡Pedido Confirmado!',
-        message: `Tu pedido ${newOrder.id} ha sido enviado a la tienda.`,
+        message: `Tu pedido ${formatOrderNumber(newOrder)} ha sido enviado a la tienda.`,
       });
     } catch (err) {
-      console.error('Error al crear pedido:', err);
-      pushToast({
-        variant: 'error',
-        title: 'Error al procesar pedido',
-        message: 'No pudimos registrar tu orden. Intenta nuevamente.',
-      });
+      const info = describeCheckoutError(err);
+      if (info.recovery !== 'session') {
+        pushToast({ variant: 'error', title: info.title, message: info.message });
+      }
+      if (info.recovery === 'refresh_cart') {
+        void syncCartWithServer();
+      } else if (info.recovery === 'refresh_addresses') {
+        invalidateAddresses();
+        void refreshAddresses();
+      } else if (info.recovery === 'new_attempt') {
+        clearCheckoutAttempt();
+      }
+      // `retry`: se conserva la clave; el siguiente intento no duplica.
     } finally {
       setIsSubmitting(false);
     }
@@ -161,7 +323,7 @@ export default function CheckoutPage() {
             </div>
 
             <span className="px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 font-mono text-xs font-bold">
-              {confirmedOrder.id}
+              {formatOrderNumber(confirmedOrder)}
             </span>
 
             <h2 className="text-2xl font-bold text-white mt-3 mb-1">
@@ -228,8 +390,23 @@ export default function CheckoutPage() {
           {/* Columna Izquierda: Formulario de Entrega y Pago (7 cols) */}
           <div className="lg:col-span-7 space-y-6">
             <DeliveryAddressCard
-              address={address}
-              onChange={setAddress}
+              addresses={addresses}
+              status={addressStatus}
+              onRetry={() => {
+                invalidateAddresses();
+                void refreshAddresses(selectedAddressId);
+              }}
+              mode={addressMode}
+              onModeChange={setAddressMode}
+              selectedId={selectedAddressId}
+              onSelect={setSelectedAddressId}
+              draft={draft}
+              onDraftChange={setDraft}
+              onUseMyLocation={() => void handleUseMyLocation()}
+              isLocating={isLocating}
+              notes={notes}
+              onNotesChange={setNotes}
+              disabled={isSubmitting}
             />
 
             <PaymentMethodSelector

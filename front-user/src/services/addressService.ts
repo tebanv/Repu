@@ -62,6 +62,38 @@ export async function listAddresses(signal?: AbortSignal): Promise<SavedAddress[
   return Array.isArray(raw) ? raw.map(toSavedAddress) : [];
 }
 
+// --- Precarga (docs/PLAN-PEDIDOS.md §2.1) ---
+// Abrir el carrito precarga las direcciones; el checkout reutiliza esa misma
+// petición si es reciente. Así la lectura ocurre mientras el usuario decide,
+// no después de navegar. Caché corta y solo en memoria: son datos privados.
+
+const ADDRESSES_CACHE_MS = 30_000;
+let cachedAddresses: { at: number; promise: Promise<SavedAddress[]> } | null = null;
+
+/** Lista de direcciones reutilizando una lectura de hace menos de 30 s. */
+export function loadAddresses(): Promise<SavedAddress[]> {
+  if (cachedAddresses && Date.now() - cachedAddresses.at < ADDRESSES_CACHE_MS) {
+    return cachedAddresses.promise;
+  }
+  const promise = listAddresses();
+  cachedAddresses = { at: Date.now(), promise };
+  // Un fallo no se cachea: el siguiente intento vuelve a pedir.
+  promise.catch(() => {
+    if (cachedAddresses?.promise === promise) cachedAddresses = null;
+  });
+  return promise;
+}
+
+/** Calienta la caché sin esperar ni propagar errores. */
+export function prefetchAddresses(): void {
+  void loadAddresses().catch(() => undefined);
+}
+
+/** Descarta la caché (tras crear una dirección o un `ADDRESS_NOT_FOUND`). */
+export function invalidateAddresses(): void {
+  cachedAddresses = null;
+}
+
 /** Crea una dirección y la devuelve con su `id` (necesario para el checkout). */
 export async function createAddress(input: NewAddressInput): Promise<SavedAddress> {
   const raw = await httpClient.post<AddressResponse>(ADDRESSES_PATH, {
@@ -73,5 +105,6 @@ export async function createAddress(input: NewAddressInput): Promise<SavedAddres
     isPrimary: input.isPrimary ?? false,
     location: { latitude: input.coordinates.lat, longitude: input.coordinates.lng },
   });
+  invalidateAddresses();
   return toSavedAddress(raw);
 }

@@ -2,7 +2,7 @@
 
 Cómo se prueba el front y qué falta cubrir.
 
-**Última ejecución (2026-11-05):** `pnpm test` 140/140 en 14 archivos, `pnpm type-check` sin errores, `pnpm build` correcto. `pnpm lint` falla ([§4](#4-deuda)).
+**Última ejecución (2026-11-05):** `pnpm test` 165/165 en 17 archivos, `pnpm type-check` sin errores, `pnpm build` correcto. `pnpm lint` falla ([§4](#4-deuda)).
 
 ## 1. Comandos y configuración
 
@@ -30,17 +30,20 @@ pnpm build           # build de producción
 | Archivo | Tests | Cubre |
 |---|---|---|
 | `store/__tests__/cartStore.test.ts` | 26 | Altas y merge, una tienda por carrito, límites, redondeo, TTL (y vaciado pendiente en el servidor), rehidratación, descarte de v1, migración v2 → v3 (pendientes) y selectores puros. `cartService` simulado |
-| `store/__tests__/orderStore.test.ts` | 9 | Creación, tope de 20, historial, cancelación, calificación y coordenadas |
+| `store/__tests__/orderStore.test.ts` | 14 | Creación sobre el pedido del servidor (`orderService` simulado), reintento sin duplicar, imágenes del carrito, fallo sin efecto local, tope de 20, historial, cancelación local y en `ms-orders` (y su rechazo), calificación y coordenadas |
 | `store/__tests__/cartStoreSync.test.ts` | 11 | Sincronización con `ms-orders`: una ráfaga = una petición con la cantidad final, precio del servidor, vaciar al quitar el último, cambio de tienda en orden, `resetAfterCheckout` sin vaciar el servidor, red caída (pendiente y reintento), producto/tienda no disponible, arranque (gana el servidor salvo lo pendiente) y lectura compartida |
 | `store/__tests__/authStore.test.ts` | 7 | Login, logout e `initialize` con y sin sesión |
 | `store/__tests__/storesStore.test.ts` | 5 | Filtrado híbrido, error de red y selección |
 | `services/__tests__/api.test.ts` | 13 | Adaptadores de tienda y producto, radio, categorías por palabra clave y su caché, inactivos, agotado, oferta, envío sin definir, slug 404/400 y 401 sin cierre de sesión |
 | `services/__tests__/cartService.test.ts` | 15 | Adaptador y redondeo, `CART_NOT_FOUND`, cantidad absoluta sobre la API actual (subir con diferencia, bajar con `DELETE` + `POST`, `0`, sin cambios), relectura tras error de red (no duplica), `CART_ITEM_NOT_FOUND` con reintento, vaciar y clasificación de errores |
 | `services/__tests__/addressService.test.ts` | 5 | Adaptador de `ms-users`, coordenadas incompletas, dirección por defecto, listar y crear |
+| `services/__tests__/orderService.test.ts` | 12 | Adaptador `OrderResponse` (dinero, snapshot, envío 0 → por confirmar), checkout con la clave como `X-Request-ID`, cancelación y errores → recuperación |
+| `services/__tests__/geocodingService.test.ts` | 3 | Reverse (conserva el GPS, sin cookies), forward (Colombia y proximidad), sin resultados o sin token |
 | `services/__tests__/authService.test.ts` | 11 | Login + perfil, roles, registro, recuperación, logout y `401` global |
 | `services/__tests__/httpClient.test.ts` | 13 | Estados HTTP, errores y `code`, `X-Request-ID` (UUID v4, fijado por el llamador, respaldo sin `randomUUID`), `PUT`, credenciales y evento `unauthorized` |
 | `__tests__/proxy.test.ts` | 12 | Redirect sin cookie, ambas cookies de sesión, cookie vacía y `matcher` (rutas protegidas sí; `/login`, `/ms-*` y estáticos no) |
 | `lib/__tests__/syncQueue.test.ts` | 8 | Coalescing por clave, ejecución en serie, `flush`, cambio durante la ejecución, `cancel`, tarea que falla y notificación de actividad |
+| `lib/__tests__/checkoutAttempt.test.ts` | 5 | Clave reutilizada con la misma huella, nueva si cambian los datos o tras limpiar, y `formatOrderNumber` |
 | `lib/__tests__/storageSync.test.ts` | 3 | Sincronización entre pestañas de `cart-storage` |
 | `lib/__tests__/analytics.test.ts` | 2 | Telemetría |
 

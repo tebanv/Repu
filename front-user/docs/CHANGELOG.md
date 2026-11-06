@@ -21,6 +21,43 @@
 ### Código
 - Se eliminó `src/data/products.ts` (sin consumidores). `pnpm type-check` sin errores.
 
+## 2026-11-05 — Checkout real contra `ms-orders` (`PLAN-PEDIDOS` pasos 7–9)
+
+### Cambios implementados
+1. **`src/services/orderService.ts`:**
+   - `checkoutOrder`, con la clave de idempotencia como `X-Request-ID`, y `cancelServerOrder`.
+   - Adaptador `OrderResponse` → dominio (UUID, `number`, ítems, dirección, totales en COP).
+   - `describeCheckoutError`, que traduce cada código a una recuperación.
+2. **`src/lib/checkoutAttempt.ts`:** clave por intento en `sessionStorage`, con la huella `(tienda, dirección, notas)`.
+3. **`src/services/geocodingService.ts`:** Mapbox Search v6, inversa y directa, solo por acción del usuario y sin cookies.
+4. **`src/services/addressService.ts`:** precarga con caché de 30 s (`loadAddresses`, `prefetchAddresses`, `invalidateAddresses`).
+5. **`orderStore`:**
+   - `createOrder` crea el pedido en el servidor y le agrega la capa de seguimiento simulada.
+   - Un reintento no duplica el pedido.
+   - `cancelOrder` es asíncrona y cancela primero en `ms-orders`.
+   - `CreateOrderPayload` ahora lleva `addressId`, `customerNotes` e `idempotencyKey`.
+   - `Order.number` es nuevo.
+6. **Checkout (`/checkout`):**
+   - `flushSync` antes de confirmar.
+   - Dirección de `ms-users`: la seleccionada o una nueva, que se crea una sola vez.
+   - Errores por código.
+   - Al confirmar, `resetAfterCheckout` en lugar de `clearCart`.
+   - El envío queda "por confirmar" hasta K2.
+7. **UI (cambio visual aprobado por el usuario):**
+   - `DeliveryAddressCard` se rediseñó: lista seleccionable de direcciones guardadas, formulario "nueva dirección" con "Usar mi ubicación" e instrucciones para el repartidor.
+   - Mantiene el estilo actual y está verificado en 390 px y 1280 px.
+   - El número del pedido se muestra como `#123` en la confirmación, el drawer de pedidos y el seguimiento.
+8. **`CartDrawer`:** al abrirse con productos precarga `/checkout` y las direcciones.
+9. **Pruebas:**
+   - Nuevas: `orderService` (12), `geocodingService` (3) y `checkoutAttempt` (5).
+   - `orderStore`: 9 → 14.
+   - Suite: 165/165 en 17 archivos.
+
+### Verificación
+- `pnpm test` 165/165, `pnpm type-check` sin errores y `pnpm build` correcto.
+- Captura visual de `DeliveryAddressCard` (lista, nueva dirección y carga) en 390 px y 1280 px, con una página temporal de preview que no se versiona.
+- **No verificado contra el servidor:** queda para el smoke (paso 10).
+
 ## 2026-11-05 — Carrito sincronizado con `ms-orders` (`PLAN-PEDIDOS` pasos 4–6)
 
 ### Cambios implementados
@@ -51,7 +88,7 @@
 - **No verificado contra el servidor ni en el navegador:** queda para el smoke (paso 10).
 
 ### Pendiente
-- Hasta el paso 9, el checkout simulado sigue llamando a `clearCart()`, que también vacía el carrito del servidor. Pasará a `resetAfterCheckout()`.
+- Hasta el paso 9, el checkout simulado sigue llamando a `clearCart()`, que también vacía el carrito del servidor. Resuelto en los pasos 7–9.
 
 ## 2026-11-05 — Transporte para `ms-orders` y guard optimista (`PLAN-PEDIDOS` pasos 1–3)
 

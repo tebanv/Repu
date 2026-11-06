@@ -27,11 +27,14 @@ Repu conecta a conductores con tiendas de autopartes cercanas para pedir baterí
 5. Agrega productos al carrito. Si ya tiene productos de otra tienda, un diálogo le pide vaciar el carrito o cancelar.
 6. Revisa el carrito en un drawer, disponible también desde el header.
 
-**Checkout (`/checkout`), simulado.**
+**Checkout (`/checkout`): pedido real, pago simulado.**
 7. Con el carrito vacío, se le redirige a `/`.
-8. Confirma la dirección (sugerida por GPS y editable) y agrega notas.
-9. Revisa el total. Si la tienda define su tarifa de envío se muestra y se suma; si no, aparece "por confirmar" y no entra en el total ([PLAN-CATALOGO.md](./PLAN-CATALOGO.md) §2, decisión 4). La tarifa de servicio es 0.
-10. Paga con Wompi, la única opción en la UI. El pago no es real: el pedido se crea en local tras unos 600 ms y el carrito se vacía.
+8. Elige una de sus direcciones guardadas (precargada la principal) o agrega una nueva: con "Usar mi ubicación" o escribiéndola. La nueva se guarda en su cuenta. Agrega instrucciones para el repartidor.
+9. Revisa el total. El envío aparece "por confirmar" y no entra en el total hasta que el backend lo calcule ([ROADMAP.md](./ROADMAP.md) §4). La tarifa de servicio es 0.
+10. Elige Wompi, la única opción en la UI, y confirma.
+    - El pedido se crea en `ms-orders` con su número (`#123`) y el carrito se vacía.
+    - El pago no es real.
+    - Si la red falla, puede reintentar sin duplicar el pedido.
 
 **Seguimiento (`/order/[id]`), simulado.**
 11. Ve la línea de tiempo, el mapa, el repartidor mock y el detalle del pedido.

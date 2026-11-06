@@ -1,6 +1,6 @@
 # Plan: carrito y checkout contra `ms-orders`
 
-- **Estado:** pasos 1 a 6 hechos (2026-11-05). Siguen los pasos 7 a 9 (checkout); el 9 necesita la aprobación visual de §2.3.
+- **Estado:** pasos 1 a 9 hechos (2026-11-05); el selector de direcciones se aprobó el mismo día. Faltan el smoke en servidor (paso 10) y archivar el plan (paso 11).
 - **Alcance:** del carrito hasta crear el pedido real en `ms-orders`. **Fuera de alcance:** pagos reales (`ms-manage-payment`) y tracking real. El seguimiento simulado (repartidor, mapa, "Simular avance", calificación) se conserva tal como está, ahora sobre el pedido real.
 - **Contrato:** código de `../Backend/ms-orders` (verificado el 2026-11-05, `d93e012` = `origin/main`) y direcciones de `ms-users`. Lo que el backend debe ajustar está en [BACKEND.md](./BACKEND.md) §7, bloque *Pedidos*, con el argumento de cada pedido.
 - **Next.js:** 16.3 / React 19.2. Las decisiones de §2.1 se tomaron sobre las guías incluidas en `node_modules/next/dist/docs/` (`server-actions.md`, `16-proxy.md`, `authentication.md`, `interactive-apps.md`).

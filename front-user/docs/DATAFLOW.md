@@ -58,7 +58,32 @@ addItem / updateQuantity / removeItem ─► cartStore (al instante) ─► cart
 5. **Arranque:** con la sesión confirmada, `MainLayoutShell` llama a `syncWithServer`: lee el carrito de la tienda local, reconcilia y sube lo pendiente. Sin tienda local no puede descubrir el carrito del servidor hasta C2 ([BACKEND.md](./BACKEND.md) §7).
 6. **Checkout:** `flushSync()` envía todo de inmediato y devuelve `ok` cuando el servidor coincide. Tras crear el pedido, `resetAfterCheckout()` limpia solo el local, porque el servidor ya convirtió el carrito.
 
-## 3. Pedidos (simulación local)
+## 3. Checkout y pedidos
+
+**Checkout real** ([PLAN-PEDIDOS.md](./PLAN-PEDIDOS.md) §2.3–§2.5)
+
+```text
+CartDrawer abierto ─► prefetch('/checkout') + prefetchAddresses()
+/checkout ─► loadAddresses() ∥ fetchStoreBySlug()
+Confirmar ─► cartStore.flushSync() ─► dirección (seleccionada | createAddress) ─► clave del intento
+          ─► orderStore.createOrder ─► orderService.checkoutOrder (POST /ms-orders/api/orders/checkout, X-Request-ID = clave)
+          ─► 201: clearCheckoutAttempt + cartStore.resetAfterCheckout
+```
+
+1. **Precarga:** al abrir el carrito con productos se precargan la ruta y las direcciones (caché de 30 s en memoria).
+2. **Carrito:** `flushSync` deja el carrito del servidor igual al local; si queda algo sin confirmar, no se envía el pedido.
+3. **Dirección:**
+   - Se usa la guardada que esté seleccionada.
+   - Si es nueva, se crea en `ms-users` con las coordenadas del GPS ("Usar mi ubicación", con una geocodificación inversa de Mapbox) o, sin GPS, con la geocodificación de la dirección escrita.
+   - La dirección creada queda seleccionada, así que un reintento no la duplica.
+4. **Idempotencia:** la clave del intento vive en `sessionStorage` con la huella `(tienda, dirección, notas)`. Un reintento con los mismos datos devuelve el mismo pedido.
+5. **Errores:** `describeCheckoutError` decide la recuperación:
+   - Releer el carrito (stock o producto).
+   - Releer las direcciones.
+   - Generar una clave nueva (`IDEMPOTENCY_CONFLICT`).
+   - Reintentar con la misma clave (red o `5xx`).
+
+**Seguimiento (simulación sobre el pedido real)**
 
 ```text
 /checkout ─ createOrder ─► orderStore.orders[]
@@ -66,12 +91,15 @@ addItem / updateQuantity / removeItem ─► cartStore (al instante) ─► cart
                                └─ useActiveOrders ─► ActiveOrdersDrawer ─► /order/[id]
 ```
 
-1. `createOrder` genera un id `REP-YYYY-XXXX` y antepone el pedido a `orders`, con un máximo de 20. Luego se ejecuta `clearCart()`.
-2. Con `wompi`, el pedido nace `PAGADO`/`PAID`; con otro método, `CREADO`/`PENDING`.
-3. `/order/[id]` resuelve el pedido con `orders.find` sobre la URL.
-4. `OrderTimeline` avanza con `updateOrderStatus`, que agrega una entrada a `stateHistory`.
-5. `OrderTrackingMap` ubica al repartidor por interpolación estática según `status` y `driverCoordinates`. No hay stream, polling ni animación continua.
-6. Al llegar a `ENTREGADO`, `OrderRatingModal` se abre a los 1200 ms si no hay calificación.
+1. `createOrder` antepone el pedido a `orders` (máximo 20, sin duplicar un reintento):
+   - Del servidor: id (UUID), `number`, ítems, dirección y totales.
+   - Del carrito local: las imágenes.
+2. **Capa simulada:** con `wompi` el pedido nace `PAGADO`/`PAID` y con otro método `CREADO`/`PENDING`. En el servidor todo pedido nace `PENDIENTE`, porque aún no hay pagos.
+3. `cancelOrder` de un pedido real cancela primero en `ms-orders`, que libera la reserva de inventario. Si el servidor lo rechaza, no cambia nada local.
+4. `/order/[id]` resuelve el pedido con `orders.find` sobre la URL.
+5. `OrderTimeline` avanza con `updateOrderStatus`, que agrega una entrada a `stateHistory`.
+6. `OrderTrackingMap` ubica al repartidor por interpolación estática según `status` y `driverCoordinates`. No hay stream, polling ni animación continua.
+7. Al llegar a `ENTREGADO`, `OrderRatingModal` se abre a los 1200 ms si no hay calificación.
 
 Los pedidos persisten en `order-storage` y se sincronizan entre pestañas.
 

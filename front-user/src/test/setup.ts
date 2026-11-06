@@ -36,3 +36,12 @@ if (typeof globalThis.localStorage === 'undefined') {
     configurable: true,
   });
 }
+
+// `sessionStorage` para la clave de idempotencia del checkout (src/lib/checkoutAttempt.ts).
+if (typeof globalThis.sessionStorage === 'undefined') {
+  Object.defineProperty(globalThis, 'sessionStorage', {
+    value: new InMemoryStorage(),
+    writable: true,
+    configurable: true,
+  });
+}

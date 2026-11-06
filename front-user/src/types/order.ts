@@ -58,7 +58,10 @@ export interface OrderRating {
 }
 
 export interface Order {
+  /** UUID de `ms-orders` (pedidos reales) o `REP-YYYY-XXXX` (pedidos mock previos al corte). */
   id: string;
+  /** Número legible del servidor, se muestra como `#123`. `null` en pedidos mock. */
+  number?: number | null;
   storeId: string;
   storeName: string;
   storeSlug: string;
@@ -77,16 +80,23 @@ export interface Order {
   estimatedDeliveryMinutes: number;
 }
 
+/**
+ * Datos para crear un pedido real (docs/PLAN-PEDIDOS.md §2.4 y §2.5).
+ * Ítems, dirección y totales los define el servidor a partir de su carrito;
+ * aquí solo va lo que el checkout necesita y el contexto de presentación.
+ */
 export interface CreateOrderPayload {
   storeId: string;
   storeName: string;
   storeSlug: string;
   storeCoordinates?: Coordinates;
-  items: CartItem[];
-  deliveryAddress: DeliveryAddress;
+  /** Dirección guardada en `ms-users`. */
+  addressId: string;
+  customerNotes?: string | null;
+  /** UUID del intento de compra (`X-Request-ID`). */
+  idempotencyKey: string;
   paymentMethod: PaymentMethod;
-  breakdown: OrderBreakdown;
   estimatedDeliveryMinutes?: number;
-  driverCoordinates?: Coordinates;
+  /** Solo presentación: imágenes del carrito local, que el servidor no guarda. */
+  cartItems?: CartItem[];
 }
-

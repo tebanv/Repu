@@ -101,7 +101,7 @@ src/
 │   │
 │   ├── checkout/                     # Checkout flow components
 │   │   ├── CheckoutHeader.tsx        # Checkout header with back navigation + seal
-│   │   ├── DeliveryAddressCard.tsx   # Delivery address card (locationStore + DeliveryAddress type)
+│   │   ├── DeliveryAddressCard.tsx   # Presentational: saved addresses (radiogroup) or new-address form + delivery notes
 │   │   ├── PaymentMethodSelector.tsx # Payment method selector (PaymentMethod type)
 │   │   └── OrderSummaryCard.tsx      # Order summary with CartItem/OrderBreakdown
 │   │
@@ -148,8 +148,10 @@ src/
 │   ├── authService.ts                # Auth contra ms-auth (login/logout/register) + ms-users (profile); sin Supabase
 │   ├── cartService.ts                # Carrito de ms-orders con API de cantidad absoluta (shim sobre POST/DELETE actuales)
 │   ├── addressService.ts             # Direcciones de ms-users (listar, crear, dirección por defecto)
+│   ├── orderService.ts               # Checkout idempotente y cancelación en ms-orders; errores → recuperación
+│   ├── geocodingService.ts           # Mapbox Search v6 (reverse/forward), solo por acción del usuario
 │   ├── geolocationService.ts         # Browser geolocation abstraction
-│   └── __tests__/                    # Vitest suites (api, authService, httpClient, cartService, addressService)
+│   └── __tests__/                    # Vitest suites (api, authService, httpClient, cartService, addressService, orderService, geocodingService)
 │   # Nota: services/ es el único punto de contacto con los microservicios Spring (ADR-002)
 │
 ├── lib/                              # Pure utilities, helpers, constants
@@ -158,7 +160,9 @@ src/
 │   ├── geoUtils.ts                   # Geospatial utility functions (haversine formula)
 │   ├── storageSync.ts                # Cross-tab sync via StorageEvent (enableCrossTabSync)
 │   ├── syncQueue.ts                  # Cola con coalescing por clave y ejecución en serie (sincronización del carrito)
-│   └── __tests__/                    # Vitest suites (storageSync, analytics, syncQueue)
+│   ├── checkoutAttempt.ts            # Clave de idempotencia del intento de compra (sessionStorage + huella)
+│   ├── orderFormat.ts                # formatOrderNumber (#123 o id mock)
+│   └── __tests__/                    # Vitest suites (storageSync, analytics, syncQueue, checkoutAttempt)
 │
 ├── test/
 │   └── setup.ts                      # Vitest global setup (in-memory localStorage for node env)
