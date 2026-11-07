@@ -2,6 +2,8 @@ package co.repu.config;
 
 import co.repu.model.system.gateways.SystemParameterRepository;
 import co.repu.model.users.gateways.SecurityGateway;
+import co.repu.model.users.gateways.EmailMfaGateway;
+import co.repu.model.users.gateways.LoginProtectionGateway;
 import co.repu.model.users.gateways.SessionSecurityGateway;
 import co.repu.model.users.gateways.UserSessionRepository;
 import co.repu.model.users.gateways.UsersRepository;
@@ -24,8 +26,10 @@ public class UseCasesConfig {
                                        SecurityGateway securityGateway,
                                        UserSessionRepository userSessionRepository,
                                        SystemParameterRepository systemParameterRepository,
-                                       SessionSecurityGateway sessionSecurityGateway) {
+                                       SessionSecurityGateway sessionSecurityGateway,
+                                       LoginProtectionGateway loginProtectionGateway,
+                                       EmailMfaGateway emailMfaGateway) {
                 return new AuthUseCase(usersRepository, securityGateway, userSessionRepository, systemParameterRepository,
-                        sessionSecurityGateway);
+                        sessionSecurityGateway, loginProtectionGateway, emailMfaGateway);
         }
 }

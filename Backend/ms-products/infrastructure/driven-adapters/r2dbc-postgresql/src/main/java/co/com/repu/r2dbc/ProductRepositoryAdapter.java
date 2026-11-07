@@ -51,14 +51,86 @@ public class ProductRepositoryAdapter implements ProductRepository {
     }
 
     @Override
-    public Flux<Product> searchProducts(String companyId, String categoryId, String attributesJsonStr) {
+    public Mono<Product> findByIdOwnedBy(String id, String ownerUserId) {
+        return repository.findByIdOwnedBy(UUID.fromString(id), UUID.fromString(ownerUserId))
+                .map(mapper::toDomain);
+    }
+
+    @Override
+    public Mono<String> findActiveCompanyOwnedBy(String companyId, String ownerUserId) {
+        return repository.findActiveCompanyOwnedBy(UUID.fromString(companyId), UUID.fromString(ownerUserId))
+                .map(UUID::toString);
+    }
+
+    @Override
+    public Mono<String> findCompanyOwnedBy(String companyId, String ownerUserId) {
+        return repository.findCompanyOwnedBy(UUID.fromString(companyId), UUID.fromString(ownerUserId))
+                .map(UUID::toString);
+    }
+
+    @Override
+    public Mono<Product> updateStatus(String id, boolean active) {
+        UUID productId = UUID.fromString(id);
+        return databaseClient.sql("""
+                        UPDATE productos
+                        SET activo = :active,
+                            fecha_actualizacion = CURRENT_TIMESTAMP
+                        WHERE id_producto = :productId
+                        """)
+                .bind("productId", productId)
+                .bind("active", active)
+                .fetch()
+                .rowsUpdated()
+                .flatMap(rowsUpdated -> rowsUpdated == 0
+                        ? Mono.empty()
+                        : findById(id))
+                .onErrorMap(this::translatePersistenceError);
+    }
+
+    @Override
+    public Mono<Product> updateStatusOwnedBy(String id, boolean active, String ownerUserId) {
+        UUID productId = UUID.fromString(id);
+        UUID ownerId = UUID.fromString(ownerUserId);
+        return databaseClient.sql("""
+                        UPDATE productos p
+                        SET activo = :active,
+                            fecha_actualizacion = CURRENT_TIMESTAMP
+                        WHERE p.id_producto = :productId
+                          AND EXISTS (
+                              SELECT 1
+                              FROM empresas e
+                              WHERE e.id_empresa = p.id_empresa
+                                AND e.id_usuario_propietario = :ownerUserId
+                          )
+                        """)
+                .bind("productId", productId)
+                .bind("active", active)
+                .bind("ownerUserId", ownerId)
+                .fetch()
+                .rowsUpdated()
+                .flatMap(rowsUpdated -> rowsUpdated == 0
+                        ? Mono.empty()
+                        : findByIdOwnedBy(id, ownerUserId))
+                .onErrorMap(this::translatePersistenceError);
+    }
+
+    @Override
+    public Flux<Product> searchProducts(String companyId, String categoryId, String attributesJsonStr,
+                                        boolean includeInactive) {
 
         // CONSTRUCCIÓN DINÁMICA DE SQL
         StringBuilder sql = new StringBuilder("SELECT * FROM productos " +
-                                                "WHERE id_empresa = :companyId");
+                                                "WHERE id_empresa = :companyId " +
+                                                "AND EXISTS (" +
+                                                "SELECT 1 FROM repu.empresas e " +
+                                                "WHERE e.id_empresa = productos.id_empresa " +
+                                                "AND (e.activo = TRUE OR :includeInactive = TRUE))");
 
         if (categoryId != null) {
             sql.append(" AND id_categoria = :categoryId");
+        }
+        if (!includeInactive) {
+            sql.append(" AND activo = TRUE");
         }
 
         // Magia JSONB de Postgres: El operador @> verifica si el JSON de la BD contiene al JSON del filtro
@@ -67,7 +139,8 @@ public class ProductRepositoryAdapter implements ProductRepository {
         }
 // Ejecución
         DatabaseClient.GenericExecuteSpec spec = databaseClient.sql(sql.toString())
-                .bind("companyId", UUID.fromString(companyId));
+                .bind("companyId", UUID.fromString(companyId))
+                .bind("includeInactive", includeInactive);
 
         if (categoryId != null) {
             spec = spec.bind("categoryId", UUID.fromString(categoryId));

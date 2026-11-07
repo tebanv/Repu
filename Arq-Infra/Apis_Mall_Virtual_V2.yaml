@@ -98,8 +98,57 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthSessionResponse'
+        '202':
+          description: Se requiere verificar un código enviado por correo para completar el inicio de sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaChallengeResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          description: Se excedió el límite de intentos por IP o cuenta.
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/mfa/verify:
+    post:
+      tags: [Auth & Sessions]
+      summary: Verificar MFA de acceso administrativo
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaVerifyRequest'
+      responses:
+        '200':
+          description: Código válido; crea la sesión y entrega cookie y token.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSessionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          description: Se agotaron los intentos permitidos para este desafío.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /auth/logout:
     post:
@@ -310,7 +359,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Company'
+                  $ref: '#/components/schemas/PublicCompany'
     post:
       tags: [Companies (Tenants)]
       summary: Registrar nuevo comercio / tenant
@@ -361,7 +410,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Company'
+                $ref: '#/components/schemas/PublicCompany'
 
     patch:
       tags: [Companies (Tenants)]
@@ -386,6 +435,14 @@ paths:
                 $ref: '#/components/schemas/Company'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: El actor no es administrador ni propietario de la empresa.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: El slug o el NIT ya está en uso.
           content:
@@ -1410,6 +1467,32 @@ components:
           type: integer
           example: 604800
 
+    MfaChallengeResponse:
+      type: object
+      required: [mfaRequired, challengeId, expiresInSeconds]
+      properties:
+        mfaRequired:
+          type: boolean
+          example: true
+        challengeId:
+          type: string
+          format: uuid
+        expiresInSeconds:
+          type: integer
+          example: 300
+
+    MfaVerifyRequest:
+      type: object
+      required: [challengeId, code]
+      properties:
+        challengeId:
+          type: string
+          format: uuid
+        code:
+          type: string
+          pattern: '^[0-9]{6}$'
+          example: '012345'
+
     UserSession:
       type: object
       properties:
@@ -1635,6 +1718,25 @@ components:
               nullable: true
               example: "https://cdn.repu.com/companies/valle-banner.jpg"
 
+    PublicCompany:
+      type: object
+      description: Datos del comercio visibles en los endpoints públicos; omite taxId y ownerUserId.
+      properties:
+        id: { type: string, format: uuid }
+        businessName: { type: string }
+        description: { type: string }
+        logoUrl: { type: string }
+        phone: { type: string, nullable: true }
+        bannerUrl: { type: string, nullable: true }
+        physicalAddress: { type: string }
+        location: { $ref: '#/components/schemas/PointCoordinates' }
+        operationalConfig: { type: object }
+        rating: { type: number }
+        reviewCount: { type: integer }
+        active: { type: boolean }
+        slug: { type: string }
+        categoryId: { type: string, format: uuid }
+
     CompanyUpdate:
       type: object
       properties:
@@ -1663,7 +1765,7 @@ components:
         content:
           type: array
           items:
-            $ref: '#/components/schemas/Company'
+            $ref: '#/components/schemas/PublicCompany'
         page:
           $ref: '#/components/schemas/PageMetadata'
 
@@ -1781,6 +1883,9 @@ components:
         shortDescription: { type: string }
         technicalSpecs: { type: object }
         imageUrls: { type: array, items: { type: string } }
+        active:
+          type: boolean
+          description: Activa o desactiva el producto.
         brand:
           type: string
           nullable: true

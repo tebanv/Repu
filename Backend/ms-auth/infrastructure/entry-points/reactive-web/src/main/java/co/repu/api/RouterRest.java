@@ -17,6 +17,7 @@ public class RouterRest {
     @Bean
     public RouterFunction<ServerResponse> routerFunction(Handler handler) {
         return route(POST("/api/auth/login"), handler::listenLoginUseCase)
+                .andRoute(POST("/api/auth/mfa/verify"), handler::listenVerifyMfaUseCase)
                 .andRoute(POST("/api/auth/register"), handler::listenRegisterUseCase)
                 .andRoute(POST("/api/auth/logout"), handler::listenLogoutUseCase)
                 .andRoute(POST("/api/auth/logout-all"), handler::listenLogoutAllUseCase)

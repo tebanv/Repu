@@ -2,6 +2,7 @@ package co.com.repu.api.config;
 
 import co.com.repu.api.Handler;
 import co.com.repu.api.RouterRest;
+import co.com.repu.api.security.SecurityHeadersConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webflux.test.autoconfigure.WebFluxTest;

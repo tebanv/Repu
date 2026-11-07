@@ -41,6 +41,9 @@ public class SecurityConfig {
                         .pathMatchers(HttpMethod.PATCH, "/api/companies/*/status")
                         .hasAnyRole("ADMIN", "DISTRIBUIDOR")
 
+                        .pathMatchers(HttpMethod.PATCH, "/api/companies/*")
+                        .hasAnyRole("ADMIN", "DISTRIBUIDOR")
+
                         // 5. Todo lo demás requiere estar autenticado (al menos token válido)
                         .anyExchange().authenticated()
                 )

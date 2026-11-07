@@ -3,6 +3,7 @@ package co.com.repu.api.security;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
@@ -11,6 +12,7 @@ import java.net.URI;
 import java.util.UUID;
 
 @Service
+@Slf4j
 public class SessionAuthenticationService {
 
     private final WebClient webClient;
@@ -46,10 +48,19 @@ public class SessionAuthenticationService {
         }
 
         return request.retrieve()
-                .onStatus(HttpStatusCode::isError, response -> Mono.empty())
+                .onStatus(status -> status.value() == 401,
+                        response -> response.releaseBody()
+                                .then(Mono.error(new InvalidSessionException())))
+                .onStatus(HttpStatusCode::isError, response -> response.createException())
                 .bodyToMono(AuthSessionResponse.class)
-                .map(response -> new SessionPrincipal(response.userId(), response.role()))
-                .onErrorResume(error -> Mono.empty());
+                .flatMap(response -> {
+                    if (response.userId() == null || response.role() == null || response.role().isBlank()) {
+                        log.warn("El servicio de autenticación devolvió una sesión incompleta");
+                        return Mono.empty();
+                    }
+                    return Mono.just(new SessionPrincipal(response.userId(), response.role()));
+                })
+                .onErrorResume(InvalidSessionException.class, error -> Mono.empty());
     }
 
     public String getSessionCookieName() {
@@ -65,5 +76,8 @@ public class SessionAuthenticationService {
     }
 
     public record AuthSessionResponse(UUID userId, String role) {
+    }
+
+    private static final class InvalidSessionException extends RuntimeException {
     }
 }

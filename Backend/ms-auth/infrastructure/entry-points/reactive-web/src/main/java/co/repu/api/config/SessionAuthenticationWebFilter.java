@@ -6,6 +6,7 @@ import co.repu.usecase.auth.AuthUseCase;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
@@ -18,6 +19,8 @@ import reactor.core.publisher.Mono;
 import org.springframework.beans.factory.annotation.Value;
 
 import java.util.List;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.security.MessageDigest;
 import java.nio.charset.StandardCharsets;
 
@@ -81,9 +84,39 @@ public class SessionAuthenticationWebFilter implements WebFilter {
                     }
                 })
                 .build();
+        refreshBrowserCookie(exchange, context);
         return chain.filter(authenticatedExchange)
                 .contextWrite(ReactiveSecurityContextHolder.withSecurityContext(
                         Mono.just(new SecurityContextImpl(authentication))));
+    }
+
+    private void refreshBrowserCookie(ServerWebExchange exchange, AuthSession context) {
+        String path = exchange.getRequest().getPath().value();
+        var cookie = exchange.getRequest().getCookies().getFirst(sessionCookieSettings.name());
+        if (cookie == null || path.endsWith("/api/auth/logout")
+                || path.endsWith("/api/auth/logout-all")) {
+            return;
+        }
+        LocalDateTime cookieExpiry = context.getSession().getExpiresAt();
+        if (context.getSession().getAbsoluteExpiresAt() != null
+                && context.getSession().getAbsoluteExpiresAt().isBefore(cookieExpiry)) {
+            cookieExpiry = context.getSession().getAbsoluteExpiresAt();
+        }
+        long remainingSeconds = Duration.between(LocalDateTime.now(), cookieExpiry).getSeconds();
+        if (remainingSeconds <= 0) {
+            return;
+        }
+        ResponseCookie refreshedCookie = ResponseCookie.from(sessionCookieSettings.name(), cookie.getValue())
+                .httpOnly(true)
+                .secure(sessionCookieSettings.secure())
+                .sameSite("Lax")
+                .path("/")
+                .maxAge(remainingSeconds)
+                .build();
+        exchange.getResponse().beforeCommit(() -> {
+            exchange.getResponse().getHeaders().add(HttpHeaders.SET_COOKIE, refreshedCookie.toString());
+            return Mono.empty();
+        });
     }
 
     private String extractToken(ServerWebExchange exchange) {
@@ -97,7 +130,8 @@ public class SessionAuthenticationWebFilter implements WebFilter {
 
     private boolean isPublic(String path) {
         return path.endsWith("/api/auth/login")
-                || path.endsWith("/api/auth/register");
+                || path.endsWith("/api/auth/register")
+                || path.endsWith("/api/auth/mfa/verify");
     }
 
     private boolean isSessionIntrospection(String path) {

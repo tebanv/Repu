@@ -8,9 +8,11 @@ import lombok.extern.slf4j.Slf4j; // 1. Logging
 import org.springframework.http.MediaType;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
 import java.util.UUID;
@@ -79,13 +81,19 @@ public class Handler {
                     .bodyValue(Map.of("error", "Coordinates and radiusKm must be numeric values."));
         }
 
+        Double searchLatitude = lat;
+        Double searchLongitude = lng;
+        Integer searchRadiusKm = radiusKm;
 
         log.info("Se recibe peticion para listar empresas. Busqueda GeoEspacial: {}, messageId: {}", lat != null, messageId);
 
-        return ServerResponse.ok()
+        return visibilityFromRequest(request)
+                .flatMap(visibility -> ServerResponse.ok()
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(manageCompanyUseCase.getAllCompanies(lat, lng, radiusKm, messageId)
-                        .map(Handler::toResponse), CompanyResponse.class)
+                .body(manageCompanyUseCase.getAllCompanies(
+                        searchLatitude, searchLongitude, searchRadiusKm,
+                        visibility.ownerId(), visibility.administrator(), messageId)
+                        .map(Handler::toPublicResponse), PublicCompanyResponse.class))
                 .doOnError(e -> log.error("Error fetching companies: {}, messageId: {}", e, messageId));
     }
 
@@ -104,11 +112,14 @@ public class Handler {
                     .bodyValue(Map.of("error", "Invalid company slug."));
         }
 
-        return manageCompanyUseCase.getCompanyBySlug(slug)
+        return visibilityFromRequest(request)
+                .flatMap(visibility -> manageCompanyUseCase.getCompanyBySlug(
+                                slug, visibility.ownerId(), visibility.administrator())
                 .flatMap(company -> ServerResponse.ok()
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(toResponse(company)))
+                .bodyValue(toPublicResponse(company)))
                 .switchIfEmpty(ServerResponse.notFound().build())
+                )
                 .doOnError(e -> log.error("Error fetching company by slug: {}, messageId: {}", slug, messageId));
     }
 
@@ -218,30 +229,45 @@ public class Handler {
                     .bodyValue(Map.of("error", "Invalid UUID format for Company ID"));
         }
 
-        return request.bodyToMono(CompanyUpdateRequest.class)
-                .flatMap(updates -> {
-                    String validationError = validateUpdate(updates);
-                    if (validationError != null) {
-                        return ServerResponse.badRequest().bodyValue(Map.of("error", validationError));
+        return request.principal()
+                .ofType(Authentication.class)
+                .flatMap(authentication -> {
+                    UUID actorId;
+                    try {
+                        actorId = UUID.fromString(authentication.getName());
+                    } catch (IllegalArgumentException | NullPointerException e) {
+                        return ServerResponse.status(HttpStatus.UNAUTHORIZED)
+                                .bodyValue(Map.of("error", "Authenticated user identity is invalid."));
                     }
-                    log.info("Peticion para actualizar detalle a la empresa ID: {}, messageId: {}",
-                            companyId, messageId);
+                    boolean administrator = authentication.getAuthorities().stream()
+                            .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
 
-                    return manageCompanyUseCase.updateCompanyDetails(companyId, toUpdateDomain(updates), messageId)
-                            .flatMap(updatedCompany -> {
-                                log.info("Empresa ID: {} actualizada satisfactoriamente, messageId: {}",
-                                        companyId, messageId);
-                                return ServerResponse.ok()
-                                        .contentType(MediaType.APPLICATION_JSON)
-                                        .bodyValue(toResponse(updatedCompany));
-                            })
-                            // 4. Manejo de 404 Not Found
-                            .switchIfEmpty(Mono.defer(() -> {
-                                log.warn("Fallo la actualizacion: Empresa ID {} no encontrada, messageId: {}",
-                                        companyId, messageId);
-                                return ServerResponse.notFound().build();
-                            }));
+                    return request.bodyToMono(CompanyUpdateRequest.class)
+                            .flatMap(updates -> {
+                                String validationError = validateUpdate(updates);
+                                if (validationError != null) {
+                                    return ServerResponse.badRequest().bodyValue(Map.of("error", validationError));
+                                }
+                                log.info("Peticion para actualizar detalle a la empresa ID: {}, actor: {}, messageId: {}",
+                                        companyId, actorId, messageId);
+
+                                return manageCompanyUseCase.updateCompanyDetails(
+                                                companyId, toUpdateDomain(updates), actorId, administrator, messageId)
+                                        .flatMap(updatedCompany -> {
+                                            log.info("Empresa ID: {} actualizada satisfactoriamente, messageId: {}",
+                                                    companyId, messageId);
+                                            return ServerResponse.ok()
+                                                    .contentType(MediaType.APPLICATION_JSON)
+                                                    .bodyValue(toResponse(updatedCompany));
+                                        })
+                                        .switchIfEmpty(Mono.defer(() -> {
+                                            log.warn("Fallo la actualizacion: Empresa ID {} no encontrada, messageId: {}",
+                                                    companyId, messageId);
+                                            return ServerResponse.notFound().build();
+                                        }));
+                            });
                 })
+                .switchIfEmpty(Mono.defer(() -> ServerResponse.status(HttpStatus.UNAUTHORIZED).build()))
                 .onErrorResume(e -> ApiErrorHandler.handle(e, messageId));
     }
 
@@ -253,6 +279,37 @@ public class Handler {
                         org.springframework.http.HttpStatus.BAD_REQUEST,
                         "Missing required header: " + HEADER_REQUEST_ID
                 ));
+    }
+
+    private Mono<CompanyVisibility> visibilityFromRequest(ServerRequest request) {
+        return request.principal()
+                .ofType(Authentication.class)
+                .filter(authentication -> authentication.isAuthenticated()
+                        && !(authentication instanceof AnonymousAuthenticationToken))
+                .map(authentication -> {
+                    boolean administrator = authentication.getAuthorities().stream()
+                            .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
+                    if (administrator) {
+                        return new CompanyVisibility(null, true);
+                    }
+
+                    boolean distributor = authentication.getAuthorities().stream()
+                            .anyMatch(authority -> "ROLE_DISTRIBUIDOR".equals(authority.getAuthority()));
+                    if (distributor) {
+                        try {
+                            return new CompanyVisibility(UUID.fromString(authentication.getName()), false);
+                        } catch (IllegalArgumentException | NullPointerException exception) {
+                            throw new ResponseStatusException(
+                                    HttpStatus.UNAUTHORIZED, "Authenticated user identity is invalid");
+                        }
+                    }
+                    return CompanyVisibility.PUBLIC;
+                })
+                .defaultIfEmpty(CompanyVisibility.PUBLIC);
+    }
+
+    private record CompanyVisibility(UUID ownerId, boolean administrator) {
+        private static final CompanyVisibility PUBLIC = new CompanyVisibility(null, false);
     }
 
     public record StatusDTO(Boolean active) {}
@@ -289,6 +346,22 @@ public class Handler {
             UUID ownerUserId,
             String businessName,
             String taxId,
+            String description,
+            String logoUrl,
+            String phone,
+            String bannerUrl,
+            String physicalAddress,
+            PointCoordinates location,
+            Object operationalConfig,
+            Double rating,
+            Integer reviewCount,
+            Boolean active,
+            String slug,
+            String categoryId) {}
+
+    public record PublicCompanyResponse(
+            String id,
+            String businessName,
             String description,
             String logoUrl,
             String phone,
@@ -394,5 +467,14 @@ public class Handler {
                 company.getBannerUrl(), company.getAddress(), location, company.getOperationalConfig(),
                 company.getRating(), company.getReviewCount(), company.getActive(), company.getSlug(),
                 company.getCategoryId());
+    }
+
+    private static PublicCompanyResponse toPublicResponse(Company company) {
+        PointCoordinates location = company.getLatitude() == null || company.getLongitude() == null
+                ? null : new PointCoordinates(company.getLatitude(), company.getLongitude());
+        return new PublicCompanyResponse(company.getId(), company.getName(), company.getDescription(),
+                company.getLogoUrl(), company.getPhone(), company.getBannerUrl(), company.getAddress(),
+                location, company.getOperationalConfig(), company.getRating(), company.getReviewCount(),
+                company.getActive(), company.getSlug(), company.getCategoryId());
     }
 }
