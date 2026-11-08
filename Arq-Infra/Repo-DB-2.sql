@@ -685,7 +685,7 @@ CREATE INDEX idx_productos_caracteristicas ON productos USING GIN (caracteristic
 CREATE INDEX idx_productos_sku ON productos(id_empresa, sku_referencia);
 
 -- Carrito
-CREATE UNIQUE INDEX idx_carritos_usuario_empresa_activo ON carritos_compras(id_usuario, id_empresa) WHERE estado = 'ACTIVO';
+CREATE UNIQUE INDEX idx_carritos_usuario_activo ON carritos_compras(id_usuario) WHERE estado = 'ACTIVO';
 CREATE INDEX idx_items_carrito_carrito ON items_carrito(id_carrito);
 CREATE UNIQUE INDEX idx_items_carrito_unicidad ON items_carrito(id_carrito, id_producto);
 

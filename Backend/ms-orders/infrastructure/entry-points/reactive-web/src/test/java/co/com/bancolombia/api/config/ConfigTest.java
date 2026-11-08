@@ -7,6 +7,7 @@ import co.com.bancolombia.usecase.acceptorder.AcceptOrderUseCase;
 import co.com.bancolombia.usecase.additemtocart.AddItemToCartUseCase;
 import co.com.bancolombia.usecase.cancelorder.CancelOrderUseCase;
 import co.com.bancolombia.usecase.checkoutorder.CheckoutOrderUseCase;
+import co.com.bancolombia.usecase.clearactivecart.ClearActiveCartUseCase;
 import co.com.bancolombia.usecase.getactivecart.GetActiveCartUseCase;
 import co.com.bancolombia.usecase.getactiveorders.GetActiveOrdersUseCase;
 import co.com.bancolombia.usecase.getcurrentlocation.GetCurrentLocationUseCase;
@@ -16,6 +17,7 @@ import co.com.bancolombia.usecase.markorderready.MarkOrderReadyUseCase;
 import co.com.bancolombia.usecase.rejectorder.RejectOrderUseCase;
 import co.com.bancolombia.usecase.removeitemfromcart.RemoveItemFromCartUseCase;
 import co.com.bancolombia.usecase.subscribetoorderlivestream.SubscribeToOrderLiveStreamUseCase;
+import co.com.bancolombia.usecase.setcartitemquantity.SetCartItemQuantityUseCase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webflux.test.autoconfigure.WebFluxTest;
@@ -31,6 +33,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 @TestPropertySource(properties = "cors.allowed-origins=http://localhost")
 @MockitoBean(types = {
         GetActiveCartUseCase.class, AddItemToCartUseCase.class, RemoveItemFromCartUseCase.class,
+        SetCartItemQuantityUseCase.class, ClearActiveCartUseCase.class,
         CheckoutOrderUseCase.class, ListOrdersUseCase.class, GetActiveOrdersUseCase.class,
         GetOrderDetailsUseCase.class, CancelOrderUseCase.class, AcceptOrderUseCase.class,
         RejectOrderUseCase.class, MarkOrderReadyUseCase.class, SubscribeToOrderLiveStreamUseCase.class,

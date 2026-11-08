@@ -29,11 +29,17 @@ public class OriginValidationWebFilter implements WebFilter {
         boolean sessionCookiePresent = exchange.getRequest().getCookies().containsKey(sessionCookieName);
         String authorization = exchange.getRequest().getHeaders().getFirst("Authorization");
         boolean bearerAuthentication = authorization != null && authorization.startsWith("Bearer ");
+        boolean cookieOnlyCartEndpoint = isCartPath(exchange.getRequest().getPath().value());
         if (stateChanging && ((origin != null && !allowedOrigins.contains(origin))
-                || (sessionCookiePresent && !bearerAuthentication && origin == null))) {
+                || (sessionCookiePresent && (!bearerAuthentication || cookieOnlyCartEndpoint) && origin == null))) {
             exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
             return exchange.getResponse().setComplete();
         }
         return chain.filter(exchange);
+    }
+
+    private boolean isCartPath(String path) {
+        return path.equals("/cart") || path.endsWith("/cart")
+                || path.contains("/cart/") || path.contains("/api/cart/");
     }
 }

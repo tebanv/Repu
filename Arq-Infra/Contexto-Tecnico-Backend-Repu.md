@@ -178,9 +178,12 @@ Las rutas actualmente registradas contienen una mezcla de prefijos:
 
 | Método y ruta de router | Comportamiento |
 |---|---|
-| `GET /cart?companyId=…` | Lee el carrito en contexto de empresa. |
-| `POST /cart/items` | Agrega producto al carrito. |
-| `DELETE /cart/items/{itemId}` | Elimina un ítem del carrito. |
+| `GET /api/cart` | Devuelve el único carrito activo del comprador; no requiere `companyId`. |
+| `POST /api/cart/items` | Agrega una cantidad al carrito (operación incremental). |
+| `PUT /api/cart/items/{productId}` | Fija exactamente la cantidad; `0` quita el producto. Valida empresa/producto y stock en transacción; responde con `available`/`maxQuantity`. |
+| `DELETE /api/cart` | Idempotente: elimina los ítems y marca el carrito activo como `ABANDONADO`, en una transacción. |
+| `DELETE /cart/items/{itemId}` | Ruta legado de borrado por ID de ítem. Se conserva temporalmente. |
+| `GET /cart?companyId=…`, `POST /cart/items` | Rutas legado mantenidas temporalmente; un cambio de empresa frente al carrito activo produce `STORE_CONFLICT`. |
 | `GET /orders/active` | Lista órdenes activas del principal. |
 | `GET /api/orders?status=&page=&size=` | Lista órdenes accesibles con paginación. |
 | `POST /api/orders/checkout` | Checkout idempotente, transaccional y con reserva de inventario. Requiere `X-Request-ID`. |
@@ -192,11 +195,13 @@ Las rutas actualmente registradas contienen una mezcla de prefijos:
 | `POST /companies/{companyId}/orders/{orderId}/ready` | Marca pedido listo. |
 | `GET /tracking/order/{orderId}` | Consulta tracking de orden con autorización correspondiente. |
 
-Las mutaciones requieren identidad autenticada. El adapter de órdenes limita acceso por comprador/propietario de empresa y checkout coordina stock, reserva, snapshots y clave de idempotencia. Los eventos SSE se conservan en un `Sinks` local con replay acotado: no es una cola durable ni comparte eventos entre réplicas.
+Todas las rutas de carrito exigen cookie de sesión válida y rol `COMPRADOR`; aunque se envíe también un bearer, la identidad de carrito se toma de la cookie. `companyId` y producto se validan en DB, y el usuario siempre proviene del principal de sesión. El DDL/migración impone un solo carrito activo por usuario; si hay datos legacy con más de uno, las lecturas/cambios responden `CART_STATE_CONFLICT` en lugar de escoger uno silenciosamente. La migración `Arq-Infra/migrations/20261108_single_active_cart_per_user.sql` aborta ante duplicados y conserva los datos para resolución manual.
+
+El adapter de órdenes limita acceso por comprador/propietario de empresa y checkout coordina stock, reserva, snapshots y clave de idempotencia. Los eventos SSE se conservan en un `Sinks` local con replay acotado: no es una cola durable ni comparte eventos entre réplicas.
 
 **Persistencia:** `carritos_compras`, `items_carrito`, `ordenes`, `detalles_orden`, `historial_estados_orden`, `reservas_inventario`, `idempotencias_checkout`; el esquema define además pagos, envíos y ubicación.
 
-**Estado real frente a evolución propuesta:** el código observado no tiene `PUT /api/cart/items/{productId}` para fijar cantidades ni `DELETE /api/cart` para vaciar todo el carrito. El `GET /cart` exige `companyId` en la ruta observada; no se debe anunciar “carrito único por usuario sin empresa” como existente. Hace falta alinear ruta, atomicidad, idempotencia y restricción de un carrito activo por usuario con el esquema antes de implementar el flujo nuevo.
+**Integración frontend:** el frontend inspeccionado administra el carrito en `front-user/src/store/cartStore.ts`; las acciones observadas son locales y no consumen aún estos endpoints de carrito. La publicación del backend/contrato no sincroniza por sí sola el carrito persistido del navegador; esa integración es una tarea separada.
 
 ### 4.7 `ms-manage-payment`
 
@@ -296,7 +301,7 @@ Los `application.yaml` de `applications/app-service/src/main/resources` están i
 
 Priorizar estos puntos antes de ampliar funcionalidades; “observado” describe el código revisado, no una severidad formal:
 
-1. **Contrato de carrito:** falta en router el `PUT` idempotente de cantidad y `DELETE /cart` descritos en el backlog/contrato; el endpoint actual exige contexto de empresa y las operaciones de ítem son distintas.
+1. **Despliegue de carrito:** ejecutar el preflight de duplicados y migración del índice en ventana coordinada; apagar/drain instancias antiguas antes de aplicar el índice y desplegar el nuevo binario. Resolver carritos activos duplicados seleccionando explícitamente la tienda; el script no elimina ni abandona datos automáticamente. La integración con el `cartStore` local del frontend sigue pendiente.
 2. **Rutas de órdenes:** el handler de checkout construye una URL `Location` que no coincide con la ruta de detalle; router mezcla rutas con `/api` y sin `/api`. Alinear también `APPLICATION_NAME`/Traefik y contrato.
 3. **Pagos:** rutas Wompi del router difieren de OpenAPI (`/wompi/checkout/prepare`, `/wompi/webhook` frente a rutas bajo `/payments/...`); modelo persistido `pago_transaccion` difiere del DDL `intentos_pago`. Verificar ownership/tenant y autenticación de pagos; evitar logs de secretos/datos crudos; webhook requiere idempotencia, frescura y política de reintentos.
 4. **Expiración de reservas:** existe caso de uso, pero en el código inspeccionado no se encontró scheduler que lo invoque. Una reserva vencida no se libera solo porque exista `expira_en`.
@@ -343,6 +348,7 @@ Priorizar estos puntos antes de ampliar funcionalidades; “observado” describ
 | 2026-11-07 | `ms-auth` | Protección de login Redis: 20 intentos/IP/min y 5 fallos/cuenta/15 min; bloqueo 15 min; MFA email para `ADMIN`/`ANALISTA`; códigos 5 min/5 intentos; sesión idle + límite absoluto. |
 | 2026-11-07 | `ms-users` | Recovery de contraseña consume código y debe invalidar sesiones en la misma operación atómica. |
 | 2026-11-07 | CORS/Origin | Allowlist parametrizable incluye orígenes locales y dominios `app.repu.com`/`repu.com`; las mutaciones con cookie deben validar Origin. |
+| 2026-11-08 | `ms-orders` carrito | Nuevas rutas `/api/cart`; cookie obligatoria y rol `COMPRADOR`, cantidad fijada idempotentemente, disponibilidad en respuesta, vaciado transaccional, protección de tienda/ownership y unicidad de carrito activo por usuario con migración no destructiva. |
 | 2026-11-07 | Estado de repositorio | Hay modificaciones locales pendientes en múltiples microservicios y archivos de infraestructura/contrato. Antes de asumir que una capacidad está liberada, revisar `git status`, diff y despliegue efectivo. |
 
 ### Decisiones aún por cerrar

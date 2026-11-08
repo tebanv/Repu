@@ -113,9 +113,16 @@ El front actual usa minúsculas y no tiene `analista`. El mapeo objetivo es `rol
 | `REDIS_URL`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_TIMEOUT` | Caché de sesiones (`ms-auth`) |
 | `AUTH_SERVICE_TOKEN` | Secreto compartido para `X-Auth-Service-Token` entre micros y `ms-auth` |
 | `SESSION_COOKIE_NAME`, `SESSION_COOKIE_SECURE`, `SESSION_COOKIE_ALLOW_INSECURE_HTTP` | Cookie de sesión |
-| `CORS_ALLOWED_ORIGINS_MS_*` | Orígenes exactos por servicio (sin espacios; el `split` no hace `trim`) |
+| `CORS_ALLOWED_ORIGINS_MS_*` | Orígenes locales exactos por servicio |
+| `CORS_PUBLIC_ORIGINS` | Orígenes web compartidos; Compose agrega por defecto `https://app.repu.com,https://repu.com` |
 | `JWT_SECRET_MS_*` | Secreto de los servicios que aún declaran JWT; la sesión real es opaca |
-| `MAIL_*` | Recuperación de contraseña (`ms-users`) |
+| `AUTH_LOGIN_IP_MAX_ATTEMPTS`, `AUTH_LOGIN_ACCOUNT_MAX_FAILURES` | Límites de login (20/IP/min; 5 fallos/cuenta/15 min) |
+| `AUTH_TRUST_PROXY_HEADERS` | Activar solo si `ms-auth` recibe tráfico exclusivamente desde el proxy confiable |
+| `MFA_HMAC_SECRET` | Secreto independiente recomendado para proteger desafíos MFA en Redis |
+| `MFA_CODE_TTL_SECONDS`, `MFA_MAX_ATTEMPTS` | Duración y máximo de intentos del código MFA (300 s y 5 por defecto) |
+| `MAIL_*` | SMTP para recuperación de contraseña (`ms-users`) y MFA por email (`ms-auth`) |
+
+`ms-auth` aplica MFA por email a `ADMIN`/`ANALISTA`. Las sesiones tienen expiración por inactividad de 8 h para esos roles y 7 días para los demás, con límites absolutos de 24 h y 30 días, respectivamente.
 
 ### Front (propuestas para el corte de auth)
 

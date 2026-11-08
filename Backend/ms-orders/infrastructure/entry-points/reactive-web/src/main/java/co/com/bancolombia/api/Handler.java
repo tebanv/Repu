@@ -5,6 +5,7 @@ import co.com.bancolombia.usecase.acceptorder.AcceptOrderUseCase;
 import co.com.bancolombia.usecase.additemtocart.AddItemToCartUseCase;
 import co.com.bancolombia.usecase.cancelorder.CancelOrderUseCase;
 import co.com.bancolombia.usecase.checkoutorder.CheckoutOrderUseCase;
+import co.com.bancolombia.usecase.clearactivecart.ClearActiveCartUseCase;
 import co.com.bancolombia.usecase.getactivecart.GetActiveCartUseCase;
 import co.com.bancolombia.usecase.getactiveorders.GetActiveOrdersUseCase;
 import co.com.bancolombia.usecase.getcurrentlocation.GetCurrentLocationUseCase;
@@ -14,6 +15,7 @@ import co.com.bancolombia.usecase.markorderready.MarkOrderReadyUseCase;
 import co.com.bancolombia.usecase.rejectorder.RejectOrderUseCase;
 import co.com.bancolombia.usecase.removeitemfromcart.RemoveItemFromCartUseCase;
 import co.com.bancolombia.usecase.subscribetoorderlivestream.SubscribeToOrderLiveStreamUseCase;
+import co.com.bancolombia.usecase.setcartitemquantity.SetCartItemQuantityUseCase;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
@@ -21,6 +23,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Mono;
+import tools.jackson.databind.JsonNode;
 
 import java.util.UUID;
 import java.net.URI;
@@ -30,6 +33,8 @@ import java.net.URI;
 public class Handler {
     private final GetActiveCartUseCase getCart;
     private final AddItemToCartUseCase addCartItem;
+    private final SetCartItemQuantityUseCase setCartItemQuantity;
+    private final ClearActiveCartUseCase clearCart;
     private final RemoveItemFromCartUseCase removeCartItem;
     private final CheckoutOrderUseCase checkoutOrder;
     private final ListOrdersUseCase listOrders;
@@ -43,9 +48,9 @@ public class Handler {
     private final GetCurrentLocationUseCase currentLocation;
 
     public Mono<ServerResponse> getCart(ServerRequest request) {
-        return authenticatedUser(request).flatMap(userId -> getCart.execute(userId,
-                        uuid(request.queryParam("companyId").orElseThrow(() ->
-                                OrderException.invalid("INVALID_REQUEST", "companyId es obligatorio."))))
+        return authenticatedUser(request).flatMap(userId -> request.queryParam("companyId")
+                        .map(companyId -> getCart.execute(userId, uuid(companyId)))
+                        .orElseGet(() -> getCart.execute(userId))
                 .map(OrderRestMapper::cart)
                 .flatMap(body -> ServerResponse.ok().bodyValue(body)));
     }
@@ -63,11 +68,43 @@ public class Handler {
                 });
     }
 
+    public Mono<ServerResponse> setCartItemQuantity(ServerRequest request) {
+        return authenticatedUser(request)
+                .zipWith(request.bodyToMono(JsonNode.class)
+                        .switchIfEmpty(Mono.error(OrderException.invalid(
+                                "INVALID_REQUEST", "El cuerpo de la solicitud es obligatorio."))))
+                .flatMap(tuple -> {
+                    JsonNode body = tuple.getT2();
+                    if (!body.isObject()) {
+                        return Mono.error(OrderException.invalid("INVALID_REQUEST",
+                                "El cuerpo debe ser un objeto JSON."));
+                    }
+                    JsonNode companyNode = body.get("companyId");
+                    JsonNode quantityNode = body.get("quantity");
+                    if (companyNode == null || !companyNode.isTextual()
+                            || quantityNode == null || !quantityNode.isIntegralNumber()
+                            || !quantityNode.canConvertToInt()) {
+                        return Mono.error(OrderException.invalid("INVALID_REQUEST",
+                                "companyId debe ser UUID y quantity un entero no negativo."));
+                    }
+                    return setCartItemQuantity.execute(tuple.getT1(), uuid(companyNode.asText()),
+                                    uuid(request.pathVariable("productId")), quantityNode.intValue())
+                            .map(OrderRestMapper::cart)
+                            .flatMap(bodyResponse -> ServerResponse.ok().bodyValue(bodyResponse));
+                });
+    }
+
     public Mono<ServerResponse> removeCartItem(ServerRequest request) {
         return authenticatedUser(request)
                 .flatMap(userId -> removeCartItem.execute(userId, uuid(request.pathVariable("itemId"))))
                 .map(OrderRestMapper::cart)
                 .flatMap(body -> ServerResponse.ok().bodyValue(body));
+    }
+
+    public Mono<ServerResponse> clearCart(ServerRequest request) {
+        return authenticatedUser(request)
+                .flatMap(clearCart::execute)
+                .then(ServerResponse.noContent().build());
     }
 
     public Mono<ServerResponse> checkout(ServerRequest request) {

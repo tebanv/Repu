@@ -30,7 +30,7 @@ tags:
   - name: Catalog
     description: Jerarquía de categorías y productos con atributos dinámicos (JSONB).
   - name: Cart
-    description: Carrito de compras aislado estrictamente por tenant/empresa.
+    description: Un carrito activo por comprador, asociado a una sola empresa.
   - name: Orders
     description: Máquina de estados de pedidos, concurrencia optimista y eventos en vivo (SSE).
   - name: Payments & Invoicing
@@ -713,15 +713,147 @@ paths:
   # ====================================================================================
   # CART (MULTI-TENANT ISOLATED)
   # ====================================================================================
-  /cart:
+  /api/cart:
     get:
       tags: [Cart]
-      summary: Obtener el carrito activo del comprador para un comercio específico
+      summary: Obtener el carrito activo del comprador
+      description: |
+        Requiere cookie de sesión y rol COMPRADOR. El carrito activo pertenece a una única empresa.
+        En el despliegue actual el prefijo del servicio es /ms-orders, por lo que la URL es
+        /ms-orders/api/cart.
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: No existe un carrito activo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: El estado legado contiene más de un carrito activo para el comprador.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags: [Cart]
+      summary: Vaciar el carrito activo
+      description: Idempotente. Marca el carrito como ABANDONADO y elimina sus ítems en una transacción.
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Carrito vaciado; también se devuelve si no existía uno activo.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: El estado legado contiene varios carritos activos para el comprador.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/cart/items:
+    post:
+      tags: [Cart]
+      summary: Añadir producto al carrito
+      description: Requiere cookie de sesión y rol COMPRADOR. Suma la cantidad solicitada.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CartItemInput'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Empresa o producto inexistente/inactivo o producto ajeno a la empresa.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflicto de tienda o inventario insuficiente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/cart/items/{productId}:
+    put:
+      tags: [Cart]
+      summary: Fijar exactamente la cantidad de un producto
+      description: |
+        Requiere cookie de sesión y rol COMPRADOR. Operación idempotente:
+        establece la cantidad exacta; quantity 0 elimina el producto.
+        Si no hay carrito activo, crea uno. Si ya hay uno para otra empresa,
+        responde STORE_CONFLICT. El stock se valida en la misma transacción.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CartSetQuantityInput'
+      responses:
+        '200':
+          description: Carrito actualizado; incluye disponibilidad por producto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Empresa inexistente/inactiva o producto no disponible en esa empresa.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Tienda distinta al carrito activo o inventario insuficiente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /cart:
+    get:
+      deprecated: true
+      tags: [Cart]
+      summary: Ruta legado para obtener carrito por empresa
+      description: Usar GET /api/cart. Conservada temporalmente para compatibilidad.
+      security:
+        - cookieAuth: []
       parameters:
         - name: companyId
           in: query
           required: true
-          description: UUID del comercio actual para garantizar aislamiento Multi-Tenant
+          description: Empresa del único carrito activo; distinto al carrito existente produce STORE_CONFLICT.
           schema: { type: string, format: uuid }
       responses:
         '200':
@@ -732,8 +864,12 @@ paths:
 
   /cart/items:
     post:
+      deprecated: true
       tags: [Cart]
-      summary: Añadir producto al carrito
+      summary: Ruta legado para añadir producto
+      description: Usar POST /api/cart/items. Conservada temporalmente para compatibilidad.
+      security:
+        - cookieAuth: []
       requestBody:
         required: true
         content:
@@ -749,8 +885,12 @@ paths:
 
   /cart/items/{itemId}:
     delete:
+      deprecated: true
       tags: [Cart]
-      summary: Remover producto del carrito
+      summary: Ruta legado para remover un producto
+      description: Conservada temporalmente. Usar PUT /api/cart/items/{productId} con quantity 0 o DELETE /api/cart para vaciar todo.
+      security:
+        - cookieAuth: []
       parameters:
         - name: itemId
           in: path
@@ -1324,8 +1464,8 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
-      bearerFormat: JWT
-      description: Alternativa para clientes móviles nativos.
+      bearerFormat: Opaque session token
+      description: Token de sesión opaco para clientes móviles nativos; no es un JWT.
 
   parameters:
     RequestIdHeader:
@@ -1944,6 +2084,26 @@ components:
         subtotal:
           type: number
           example: 420000.00
+        available:
+          type: integer
+          description: Inventario disponible actual del producto; cero si producto o empresa están inactivos.
+          example: 8
+        maxQuantity:
+          type: integer
+          description: Máximo que puede solicitarse con el inventario observado en esta respuesta.
+          example: 8
+
+    CartSetQuantityInput:
+      type: object
+      required: [companyId, quantity]
+      properties:
+        companyId:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+          minimum: 0
+          example: 2
 
     Cart:
       type: object

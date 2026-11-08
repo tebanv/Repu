@@ -50,7 +50,9 @@ public class ApiErrorWebExceptionHandler implements WebExceptionHandler {
             message = "Ocurrió un error inesperado al procesar la solicitud.";
         }
 
-        byte[] body = mapper.writeValueAsBytes(new ErrorResponse(code, message, Map.of()));
+        Map<String, Object> details = cause instanceof OrderException orderException
+                ? orderException.details() : Map.of();
+        byte[] body = mapper.writeValueAsBytes(new ErrorResponse(code, message, details));
         exchange.getResponse().setStatusCode(HttpStatusCode.valueOf(status));
         exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
         DataBuffer buffer = exchange.getResponse().bufferFactory().wrap(body);
