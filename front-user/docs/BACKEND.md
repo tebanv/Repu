@@ -162,7 +162,7 @@ Más comandos en `Arq-Infra/Comandos_Docker.md`. Con `pnpm dev`, el navegador us
 
 **Pedidos (`ms-orders`)**
 
-> Verificado contra el código el 2026-11-05 (`d93e012`, igual a `origin/main`). Plan del front: [PLAN-PEDIDOS.md](./PLAN-PEDIDOS.md). El front no se bloquea por estos puntos: mientras tanto usa la API actual, y cada ajuste solo cambia `src/services/`.
+> Verificado contra el código el 2026-11-05 (`d93e012`); C1–C4 y la parte de carrito de K3 se revisaron de nuevo el 2026-11-19 contra `d1a51fd` (2026-11-08), solo leyendo el código: no se compiló ni se ejecutaron las pruebas de Java, y no se comprobó qué hay desplegado en el servidor. Plan del front: [PLAN-PEDIDOS.md](./PLAN-PEDIDOS.md). El front no se bloquea por estos puntos: cada ajuste solo cambia `src/services/`.
 
 *Prioridad 1: antes del smoke del checkout*
 
@@ -170,17 +170,27 @@ Más comandos en `Arq-Infra/Comandos_Docker.md`. Con `pnpm dev`, el navegador us
 
 *Prioridad 2: carrito (rendimiento y robustez)*
 
-- **C1. Fijar cantidad absoluta e idempotente:** `PUT /api/cart/items/{productId}` con `{ companyId, quantity }`, donde `quantity: 0` elimina.
+> **Estado (2026-11-19): C1, C2, C3 y C4 están implementados en `ms-orders`; C5 no.** El front aún usa el *shim* de la API anterior y migra a C1–C3 cuando se cierren los defectos de C6 (los puntos 1 y 2 impiden un "quitar" y un "cambiar de tienda" fiables). La migración solo toca `src/services/cartService.ts`.
+
+- **C1. Fijar cantidad absoluta e idempotente (implementado):** `PUT /api/cart/items/{productId}` con `{ companyId, quantity }`, donde `quantity: 0` elimina.
   - Hoy `POST /cart/items` **suma** la cantidad (no es idempotente): un reintento tras un timeout duplica unidades.
   - Para cambiar una cantidad hay que hacer `DELETE` + `POST` (dos viajes, sin atomicidad), y el `DELETE` exige el `itemId` en lugar del `productId` que ya conoce el cliente.
   - Con valor absoluto, el front agrupa una ráfaga de clics en **una** petición y puede reintentar sin riesgo.
-- **C2. Carrito activo sin `companyId`:** `GET /api/cart` debe devolver el carrito activo del usuario. Hoy exige `companyId`, así que en un dispositivo nuevo el front no puede descubrir el carrito.
+- **C2. Carrito activo sin `companyId` (implementado):** `GET /api/cart` debe devolver el carrito activo del usuario. Hoy exige `companyId`, así que en un dispositivo nuevo el front no puede descubrir el carrito.
   - Propuesta: **un carrito activo por usuario** (índice único parcial en `id_usuario WHERE estado = 'ACTIVO'`), alineado con la regla de producto "una tienda por pedido". Deja la lectura en una sola fila indexada y evita carritos huérfanos en otras tiendas.
-- **C3. Vaciar:** `DELETE /api/cart`. Hoy cuesta un `DELETE` por ítem.
-- **C4. Disponibilidad en la respuesta del carrito:** por ítem, `available` y `maxQuantity` (stock disponible). Además, validar `quantity` contra el stock en C1 y responder `409 { code: INSUFFICIENT_STOCK, details: { available } }`.
+- **C3. Vaciar (implementado):** `DELETE /api/cart`. Hoy cuesta un `DELETE` por ítem.
+- **C4. Disponibilidad en la respuesta del carrito (implementado):** por ítem, `available` y `maxQuantity` (stock disponible). Además, validar `quantity` contra el stock en C1 y responder `409 { code: INSUFFICIENT_STOCK, details: { available } }`.
   - Hoy el carrito acepta cualquier cantidad y el error aparece recién en el checkout.
   - Con esto, el front ajusta la cantidad en el momento en que el usuario la elige.
-- **C5. Reemplazo en lote:** `PUT /api/cart` con `{ companyId, items: [{ productId, quantity }] }` en una sola transacción. Cubre dos casos con **un** viaje en lugar de `n`: subir un carrito local previo y cambiar de tienda.
+- **C5. Reemplazo en lote (pendiente: no existe `PUT /api/cart`):** `PUT /api/cart` con `{ companyId, items: [{ productId, quantity }] }` en una sola transacción. Cubre dos casos con **un** viaje en lugar de `n`: subir un carrito local previo y cambiar de tienda.
+- **C6. Defectos de la implementación de C1–C3** (revisión del 2026-11-19). Todos son del backend y deben corregirse allí; el front no los compensa.
+  1. **`PUT … quantity: 0` falla con un producto desactivado.** `setItemQuantity` llama siempre a `lockAvailableProduct`, que exige `producto.activo` y `empresa.activo`; si la tienda desactiva un producto que ya está en el carrito, responde `404 PRODUCT_NOT_AVAILABLE` y el usuario no puede quitarlo. Pedido: con `quantity == 0`, borrar la fila sin validar disponibilidad.
+  2. **Un carrito vacío queda atado a la tienda.** `ensureActiveCart` decide `STORE_CONFLICT` solo por empresa, sin mirar los ítems. Quitar el último producto (`PUT 0` o el `DELETE` legacy) deja el carrito `ACTIVO` en esa tienda y agregar algo de otra tienda responde `409`. Pedido: que un carrito sin ítems no cause conflicto, o que quitar el último ítem lo abandone.
+  3. **Bloqueos exclusivos en cada mutación.** `requireActiveCompany` y `lockAvailableProduct` usan `FOR UPDATE` sobre `empresas` y `productos`, lo que serializa a todos los compradores de una tienda. Agregar al carrito no reserva stock, así que basta `FOR SHARE` o `FOR KEY SHARE`; el bloqueo exclusivo solo hace falta en el checkout. Revisar también el orden de bloqueos frente al checkout (riesgo de *deadlock*).
+  4. **`GET /api/cart` escribe.** `findActive` ejecuta `UPDATE … fecha_ultimo_acceso` en cada lectura. Pedido: actualizarlo solo en mutaciones, o con un umbral de tiempo.
+  5. **`GET /api/cart` responde `404 CART_NOT_FOUND` sin carrito.** Es un estado normal, no un error. Pedido: `200` con `items: []`, o `204`. Mientras tanto, `cartService.ts` puede leer ese `404` como "vacío".
+  6. **Pruebas:** hay pruebas del caso de uso con mocks, pero no del adaptador SQL; los casos 1 y 2 y la concurrencia necesitan pruebas de integración.
+  - Menores: `PUT` se parsea a mano con `JsonNode` (el `POST` usa un DTO), los filtros detectan rutas de carrito con `contains("/cart/")` y `DELETE /api/cart` borra los ítems aunque la migración de carrito único habla de conservarlos.
 
 *Prioridad 2: checkout*
 
@@ -189,9 +199,11 @@ Más comandos en `Arq-Infra/Comandos_Docker.md`. Con `pnpm dev`, el navegador us
   - Hoy el checkout fija `costo_envio`, `costo_servicio`, `impuestos` y `descuentos` en `0`, y no verifica que la dirección esté dentro del radio de la tienda.
   - Con PostGIS ya disponible, distancia y tarifa se calculan en una consulta. Lo que se muestra y lo que se cobra salen del mismo cálculo.
 - **K3. Rol en checkout y carrito:** `SecurityConfig` es `permitAll` y el filtro solo exige sesión. Cualquier rol, incluido `DOMICILIARIO`, puede crear carritos y pedidos. Pedido: exigir `COMPRADOR`.
+  - **Carrito: resuelto (2026-11-19).** `SessionAuthenticationWebFilter` exige `COMPRADOR` en las rutas de carrito, y `OriginValidationWebFilter` valida `Origin` cuando solo hay cookie.
+  - **Checkout: sin verificar;** el filtro solo cubre rutas de carrito.
 - **K4. Contrato:**
   - El `Location` del `201` es `/orders/{id}`, pero la ruta real es `/api/orders/{id}`.
-  - Unificar los prefijos bajo `/api` (`/cart`, `/orders/active`, `/tracking/...` y `reject`/`ready`).
+  - Unificar los prefijos bajo `/api` (`/cart`, `/orders/active`, `/tracking/...` y `reject`/`ready`). A 2026-11-19, `/api/cart` ya existe y las rutas sin `/api` de carrito se conservan como *legacy*; `/orders/active`, `/tracking/...`, `reject` y `ready` siguen sin prefijo.
   - Devolver `customerNotes`, que se guarda pero no se devuelve.
 
 *Después (pagos y tracking, fuera del alcance actual)*

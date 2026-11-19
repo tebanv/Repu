@@ -5,6 +5,25 @@
 - **Verificado en local (2026-11-01):** el commit `dad7e6e` ya no existe, `git log --all -- front-user/.env.local` no devuelve nada y `.env.local` está ignorado. No se verificó el remoto ni sus forks o cachés.
 - **Falta:** rotar `NEXT_PUBLIC_MAPBOX_TOKEN`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` y la contraseña de base de datos que circuló por chat. Reescribir el historial no invalida una clave ya expuesta, y desde el repositorio no se puede comprobar si ya se rotaron.
 
+## 2026-11-19 — Revisión de C1–C3 de `ms-orders` contra el código
+
+### Contexto
+- Se verificó contra `../Backend/ms-orders` (`d1a51fd`, 2026-11-08), `Arq-Infra/Repo-DB-2.sql`, `Arq-Infra/migrations/` y la colección Postman v2.
+- **Solo lectura de código:** no se compiló, no se ejecutaron las pruebas de Java y no se comprobó el servidor desplegado.
+
+### Hallazgos
+1. C1 (`PUT /api/cart/items/{productId}`), C2 (`GET /api/cart` sin `companyId`, con índice único parcial por usuario) y C3 (`DELETE /api/cart`) están implementados. C4 también (`available`, `maxQuantity` y `409 INSUFFICIENT_STOCK` con `details.available`). C5 no.
+2. K3 está resuelto para el carrito (`COMPRADOR`); el checkout no se verificó. Los prefijos de K4 siguen sin unificar.
+3. Nuevo C6 con seis defectos del backend (el más grave: no se puede quitar un producto desactivado y un carrito vacío sigue atado a la tienda).
+
+### Cambios documentales
+- `BACKEND.md` §7: estado de C1–C5, nuevo C6 y notas en K3 y K4.
+- `PLAN-PEDIDOS.md`, `ROADMAP.md` y `DATAFLOW.md`: alineados con ese estado.
+- **Decisión:** los defectos se corrigen en el backend; el front no los compensa. La migración de `cartService.ts` a C1–C3 espera a C6.
+
+### Sin cambios de código
+- No se tocó `src/` ni `Backend/`.
+
 ## 2026-11-05 — Documentación alineada con el corte de catálogo
 
 ### Contexto

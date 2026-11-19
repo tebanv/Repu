@@ -11,7 +11,7 @@
 | Mapa, geolocalización y filtros | — | `MapContainer`, `locationStore`, `storesStore`, `filterStore` | Funcional |
 | Auth | `ms-auth`, `ms-users` | `authService`, `httpClient` | Migrado y verificado en servidor por HTTP; falta TLS |
 | Catálogo | `ms-companies`, `ms-products`, `ms-categories` | `api.ts` sobre los microservicios | Front cortado (2026-11-04); falta el smoke en navegador y retirar Supabase. Backend: faltan filtro de activos, categorías de autopartes y datos ([§2.2](#22-catálogo)) |
-| Carrito | `ms-orders` | `cartService` + `cartStore` (caché optimista) | Sincronizado con el servidor en código y pruebas (2026-11-05); falta el smoke. Backend: C1–C5 mejoran el rendimiento ([PLAN-PEDIDOS.md](./PLAN-PEDIDOS.md)) |
+| Carrito | `ms-orders` | `cartService` + `cartStore` (caché optimista) | Sincronizado con el servidor en código y pruebas (2026-11-05); falta el smoke. Backend: C1–C4 implementados, C5 pendiente y C6 con defectos por corregir antes de migrar `cartService` ([BACKEND.md](./BACKEND.md) §7) |
 | Checkout y pedidos | `ms-orders` | `orderService` + `orderStore` | Pedido real con checkout idempotente y cancelación (2026-11-05); falta el smoke. Seguimiento simulado sobre el pedido real |
 | Pagos | `ms-manage-payment` | Wompi simulado | Mock |
 | Tracking | `ms-orders` (SSE) | Avance manual local | Mock |

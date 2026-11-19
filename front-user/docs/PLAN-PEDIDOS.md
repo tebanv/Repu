@@ -50,7 +50,7 @@ Diseño:
    - `401` → manejo global de sesión.
 5. **Arranque:** se pinta desde `cart-storage` (instantáneo) y luego `GET` del carrito: gana el servidor, salvo cambios pendientes. Si el servidor está vacío y el local tiene productos (carritos previos al corte), se suben en una sola petición.
 6. **Antes del checkout:** se espera a que la cola termine; el botón muestra el estado de sincronización.
-7. **Sin bloquear al front:** con la API actual, "fijar cantidad" se implementa como `DELETE` + `POST` en serie, y "vaciar" como un `DELETE` por ítem. Cuando backend publique las rutas C1–C3 ([BACKEND.md](./BACKEND.md) §7) solo cambia `cartService.ts`.
+7. **Sin bloquear al front:** con la API actual, "fijar cantidad" se implementa como `DELETE` + `POST` en serie, y "vaciar" como un `DELETE` por ítem. C1–C3 ya existen en el backend (2026-11-19), pero la migración espera a que se corrijan los defectos de C6 ([BACKEND.md](./BACKEND.md) §7); cuando eso ocurra solo cambia `cartService.ts`, sin lógica de compensación en el front.
 
 ### 2.3 Dirección de entrega desde `ms-users`
 
@@ -134,5 +134,5 @@ Orden de commits: 1–3 (transporte y guard), 4–6 (carrito), 7–9 (checkout),
 Están priorizados y argumentados en [BACKEND.md](./BACKEND.md) §7, bloque *Pedidos*. Resumen:
 
 - **Antes del smoke:** P2 (expiración de reservas). Sin ella, cada prueba de checkout bloquea stock para siempre.
-- **Rendimiento y robustez del carrito:** C1 (cantidad absoluta e idempotente), C2 (carrito activo sin `companyId`), C3 (vaciar), C4 (disponibilidad por ítem), C5 (reemplazo en lote).
+- **Rendimiento y robustez del carrito:** C1 (cantidad absoluta e idempotente), C2 (carrito activo sin `companyId`), C3 (vaciar) y C4 (disponibilidad por ítem) están implementados (2026-11-19); C5 (reemplazo en lote) sigue pendiente y C6 reúne los defectos hallados en la revisión.
 - **Checkout:** K1 (tienda en la respuesta), K2 (cotización con envío calculado en el servidor), K3 (rol `COMPRADOR`), K4 (`Location` y prefijos `/api`).

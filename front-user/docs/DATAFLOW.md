@@ -55,7 +55,7 @@ addItem / updateQuantity / removeItem ─► cartStore (al instante) ─► cart
    - Producto no disponible → se quita y se avisa.
    - Tienda no disponible → se vacía y se avisa.
    - Red o sesión → queda en `pendingSync` (`syncStatus: 'error'`) y se reintenta con el siguiente cambio, con el evento `online` o en `flushSync`.
-5. **Arranque:** con la sesión confirmada, `MainLayoutShell` llama a `syncWithServer`: lee el carrito de la tienda local, reconcilia y sube lo pendiente. Sin tienda local no puede descubrir el carrito del servidor hasta C2 ([BACKEND.md](./BACKEND.md) §7).
+5. **Arranque:** con la sesión confirmada, `MainLayoutShell` llama a `syncWithServer`: lee el carrito de la tienda local, reconcilia y sube lo pendiente. Sin tienda local no puede descubrir el carrito del servidor hasta migrar a C2, que el backend ya implementa ([BACKEND.md](./BACKEND.md) §7).
 6. **Checkout:** `flushSync()` envía todo de inmediato y devuelve `ok` cuando el servidor coincide. Tras crear el pedido, `resetAfterCheckout()` limpia solo el local, porque el servidor ya convirtió el carrito.
 
 ## 3. Checkout y pedidos
