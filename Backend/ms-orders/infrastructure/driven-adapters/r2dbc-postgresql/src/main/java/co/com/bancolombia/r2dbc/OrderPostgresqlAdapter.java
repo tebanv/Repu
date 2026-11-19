@@ -53,74 +53,121 @@ public class OrderPostgresqlAdapter implements CartRepository, OrderRepository {
     private final OrderPersistenceMapper mapper;
 
     @Override
+    public Mono<Cart> findActive(UUID userId) {
+        return activeCarts(userId, false)
+                .flatMap(rows -> {
+                    if (rows.isEmpty()) {
+                        return Mono.empty();
+                    }
+                    if (rows.size() > 1) {
+                        return Mono.error(cartStateConflict());
+                    }
+                    UUID cartId = uuid(rows.getFirst().get("id_carrito"));
+                    return touchCart(cartId).then(loadCart(cartId));
+                });
+    }
+
+    @Override
     public Mono<Cart> findActive(UUID userId, UUID companyId) {
-        return touchCart(userId, companyId)
-                .flatMap(rows -> rows == 1 ? loadCart(userId, companyId)
-                        : Mono.empty());
+        return activeCarts(userId, false)
+                .flatMap(rows -> {
+                    if (rows.isEmpty()) {
+                        return Mono.empty();
+                    }
+                    if (rows.size() > 1) {
+                        return Mono.error(cartStateConflict());
+                    }
+                    Map<String, Object> row = rows.getFirst();
+                    if (!companyId.equals(uuid(row.get("id_empresa")))) {
+                        return Mono.error(storeConflict());
+                    }
+                    UUID cartId = uuid(row.get("id_carrito"));
+                    return touchCart(cartId).then(loadCart(cartId));
+                });
     }
 
     @Override
     public Mono<Cart> lockActive(UUID userId, UUID companyId) {
-        return database.sql("""
-                        SELECT id_carrito FROM repu.carritos_compras
-                        WHERE id_usuario = :userId AND id_empresa = :companyId AND estado = 'ACTIVO'
-                        FOR UPDATE
-                        """)
-                .bind("userId", userId)
-                .bind("companyId", companyId)
-                .fetch().one()
-                .switchIfEmpty(Mono.error(OrderException.notFound("CART_NOT_FOUND", "No existe un carrito activo para esta empresa.")))
-                .then(touchCart(userId, companyId))
-                .then(loadCart(userId, companyId));
+        return activeCarts(userId, true)
+                .flatMap(rows -> {
+                    if (rows.isEmpty()) {
+                        return Mono.error(OrderException.notFound(
+                                "CART_NOT_FOUND", "No existe un carrito activo."));
+                    }
+                    if (rows.size() > 1) {
+                        return Mono.error(cartStateConflict());
+                    }
+                    Map<String, Object> row = rows.getFirst();
+                    if (!companyId.equals(uuid(row.get("id_empresa")))) {
+                        return Mono.error(storeConflict());
+                    }
+                    UUID cartId = uuid(row.get("id_carrito"));
+                    return touchCart(cartId).then(loadCart(cartId));
+                });
     }
 
     @Override
     public Mono<Cart> addItem(UUID userId, UUID companyId, UUID productId, int quantity,
                               Map<String, Object> selectedOptions) {
-        String createCart = """
-                INSERT INTO repu.carritos_compras (id_usuario, id_empresa, estado)
-                SELECT :userId, e.id_empresa, 'ACTIVO'
-                FROM repu.empresas e
-                WHERE e.id_empresa = :companyId AND e.activo = TRUE
-                ON CONFLICT (id_usuario, id_empresa) WHERE estado = 'ACTIVO'
-                DO UPDATE SET fecha_ultimo_acceso = CURRENT_TIMESTAMP
-                RETURNING id_carrito
-                """;
-        return database.sql(createCart)
-                .bind("userId", userId)
-                .bind("companyId", companyId)
-                .fetch().one()
-                .switchIfEmpty(Mono.error(OrderException.notFound("COMPANY_NOT_FOUND", "La empresa no existe o está inactiva.")))
-                .flatMap(cartRow -> {
-                    UUID cartId = uuid(cartRow.get("id_carrito"));
-                    return database.sql("""
-                                    SELECT id_producto FROM repu.productos
-                                    WHERE id_producto = :productId AND id_empresa = :companyId
-                                      AND activo = TRUE AND inventario_disponible > 0
-                                    """)
-                            .bind("productId", productId)
-                            .bind("companyId", companyId)
-                            .fetch().one()
-                            .switchIfEmpty(Mono.error(OrderException.notFound("PRODUCT_NOT_AVAILABLE",
-                                    "El producto no está disponible para esta empresa.")))
-                            .then(database.sql("""
-                                    INSERT INTO repu.items_carrito
-                                        (id_carrito, id_producto, cantidad, datos_seleccionados)
-                                    VALUES (:cartId, :productId, :quantity, :selectedOptions)
-                                    ON CONFLICT (id_carrito, id_producto)
-                                    DO UPDATE SET cantidad = repu.items_carrito.cantidad + EXCLUDED.cantidad,
-                                                  datos_seleccionados = EXCLUDED.datos_seleccionados,
-                                                  fecha_agregado = CURRENT_TIMESTAMP
-                                    """)
-                                    .bind("cartId", cartId)
-                                    .bind("productId", productId)
-                                    .bind("quantity", quantity)
-                                    .bind("selectedOptions", mapper.json(selectedOptions))
-                                    .fetch().rowsUpdated()
-                                    .flatMap(rows -> rows == 1
-                                            ? loadCart(userId, companyId)
-                                            : Mono.error(new IllegalStateException("Cart item upsert affected no rows."))));
-                });
+        return ensureActiveCart(userId, companyId)
+                .flatMap(cartId -> lockAvailableProduct(companyId, productId)
+                        .flatMap(available -> currentQuantity(cartId, productId)
+                                .flatMap(current -> {
+                                    int remaining = Math.max(0, available - current);
+                                    if (quantity > remaining) {
+                                        return Mono.error(insufficientStock(remaining));
+                                    }
+                                    return database.sql("""
+                                                    INSERT INTO repu.items_carrito
+                                                        (id_carrito, id_producto, cantidad, datos_seleccionados)
+                                                    VALUES (:cartId, :productId, :quantity, :selectedOptions)
+                                                    ON CONFLICT (id_carrito, id_producto)
+                                                    DO UPDATE SET cantidad = repu.items_carrito.cantidad + EXCLUDED.cantidad,
+                                                                  datos_seleccionados = EXCLUDED.datos_seleccionados,
+                                                                  fecha_agregado = CURRENT_TIMESTAMP
+                                                    """)
+                                            .bind("cartId", cartId)
+                                            .bind("productId", productId)
+                                            .bind("quantity", quantity)
+                                            .bind("selectedOptions", mapper.json(selectedOptions))
+                                            .fetch().rowsUpdated()
+                                            .flatMap(rows -> rows == 1
+                                                    ? touchCart(cartId).then(loadCart(cartId))
+                                                    : Mono.error(new IllegalStateException(
+                                                            "Cart item upsert affected no rows.")));
+                                })));
+    }
+
+    @Override
+    public Mono<Cart> setItemQuantity(UUID userId, UUID companyId, UUID productId, int quantity) {
+        return ensureActiveCart(userId, companyId)
+                .flatMap(cartId -> lockAvailableProduct(companyId, productId)
+                        .flatMap(available -> {
+                            if (quantity > available) {
+                                return Mono.error(insufficientStock(available));
+                            }
+                            Mono<?> update = quantity == 0
+                                    ? database.sql("""
+                                            DELETE FROM repu.items_carrito
+                                            WHERE id_carrito = :cartId AND id_producto = :productId
+                                            """)
+                                            .bind("cartId", cartId)
+                                            .bind("productId", productId)
+                                            .fetch().rowsUpdated()
+                                    : database.sql("""
+                                            INSERT INTO repu.items_carrito
+                                                (id_carrito, id_producto, cantidad, datos_seleccionados)
+                                            VALUES (:cartId, :productId, :quantity, '{}'::jsonb)
+                                            ON CONFLICT (id_carrito, id_producto)
+                                            DO UPDATE SET cantidad = EXCLUDED.cantidad,
+                                                          fecha_agregado = CURRENT_TIMESTAMP
+                                            """)
+                                            .bind("cartId", cartId)
+                                            .bind("productId", productId)
+                                            .bind("quantity", quantity)
+                                            .fetch().rowsUpdated();
+                            return update.then(touchCart(cartId)).then(loadCart(cartId));
+                        }));
     }
 
     @Override
@@ -145,10 +192,37 @@ public class OrderPostgresqlAdapter implements CartRepository, OrderRepository {
                         .bind("cartId", uuid(row.get("id_carrito")))
                         .fetch().rowsUpdated()
                         .flatMap(rows -> rows == 1
-                                ? touchCart(userId, uuid(row.get("id_empresa"))).then(
-                                        loadCart(userId, uuid(row.get("id_empresa"))))
+                                ? touchCart(uuid(row.get("id_carrito")))
+                                        .then(loadCart(uuid(row.get("id_carrito"))))
                                 : Mono.error(OrderException.notFound("CART_ITEM_NOT_FOUND",
                                         "El producto ya no pertenece al carrito activo."))));
+    }
+
+    @Override
+    public Mono<Void> clearActive(UUID userId) {
+        return lockUser(userId)
+                .then(database.sql("""
+                                WITH active_carts AS (
+                                    SELECT id_carrito
+                                    FROM repu.carritos_compras
+                                    WHERE id_usuario = :userId AND estado = 'ACTIVO'
+                                    FOR UPDATE
+                                ),
+                                abandoned_carts AS (
+                                    UPDATE repu.carritos_compras c
+                                    SET estado = 'ABANDONADO', fecha_ultimo_acceso = CURRENT_TIMESTAMP
+                                    FROM active_carts a
+                                    WHERE c.id_carrito = a.id_carrito
+                                      AND c.id_usuario = :userId AND c.estado = 'ACTIVO'
+                                    RETURNING c.id_carrito
+                                )
+                                DELETE FROM repu.items_carrito i
+                                USING abandoned_carts a
+                                WHERE i.id_carrito = a.id_carrito
+                                """)
+                        .bind("userId", userId)
+                        .fetch().rowsUpdated()
+                        .then());
     }
 
     @Override
@@ -164,30 +238,31 @@ public class OrderPostgresqlAdapter implements CartRepository, OrderRepository {
                 .then();
     }
 
-    private Mono<Long> touchCart(UUID userId, UUID companyId) {
+    private Mono<Long> touchCart(UUID cartId) {
         return database.sql("""
                         UPDATE repu.carritos_compras SET fecha_ultimo_acceso = CURRENT_TIMESTAMP
-                        WHERE id_usuario = :userId AND id_empresa = :companyId AND estado = 'ACTIVO'
+                        WHERE id_carrito = :cartId AND estado = 'ACTIVO'
                         """)
-                .bind("userId", userId)
-                .bind("companyId", companyId)
+                .bind("cartId", cartId)
                 .fetch().rowsUpdated();
     }
 
-    private Mono<Cart> loadCart(UUID userId, UUID companyId) {
+    private Mono<Cart> loadCart(UUID cartId) {
         String sql = """
                 SELECT c.id_carrito, c.id_empresa, c.fecha_ultimo_acceso,
                        i.id_item_carrito, i.id_producto, i.cantidad, i.datos_seleccionados,
-                       p.nombre, p.sku_referencia, COALESCE(p.precio_oferta, p.precio_base) AS precio_actual
+                       p.nombre, p.sku_referencia, COALESCE(p.precio_oferta, p.precio_base) AS precio_actual,
+                       CASE WHEN p.activo = TRUE AND e.activo = TRUE
+                            THEN p.inventario_disponible ELSE 0 END AS available
                 FROM repu.carritos_compras c
                 LEFT JOIN repu.items_carrito i ON i.id_carrito = c.id_carrito
                 LEFT JOIN repu.productos p ON p.id_producto = i.id_producto AND p.id_empresa = c.id_empresa
-                WHERE c.id_usuario = :userId AND c.id_empresa = :companyId AND c.estado = 'ACTIVO'
+                JOIN repu.empresas e ON e.id_empresa = c.id_empresa
+                WHERE c.id_carrito = :cartId AND c.estado = 'ACTIVO'
                 ORDER BY i.fecha_agregado ASC
                 """;
         return database.sql(sql)
-                .bind("userId", userId)
-                .bind("companyId", companyId)
+                .bind("cartId", cartId)
                 .fetch().all()
                 .collectList()
                 .flatMap(rows -> {
@@ -203,6 +278,127 @@ public class OrderPostgresqlAdapter implements CartRepository, OrderRepository {
                     return Mono.just(new Cart(uuid(first.get("id_carrito")), uuid(first.get("id_empresa")), items,
                             total, instant(first.get("fecha_ultimo_acceso"))));
                 });
+    }
+
+    private Mono<UUID> ensureActiveCart(UUID userId, UUID companyId) {
+        return lockUser(userId)
+                .then(requireActiveCompany(companyId))
+                .then(activeCarts(userId, true))
+                .flatMap(rows -> {
+                    if (rows.size() > 1) {
+                        return Mono.error(cartStateConflict());
+                    }
+                    if (rows.size() == 1) {
+                        Map<String, Object> cart = rows.getFirst();
+                        if (!companyId.equals(uuid(cart.get("id_empresa")))) {
+                            return Mono.error(storeConflict());
+                        }
+                        UUID cartId = uuid(cart.get("id_carrito"));
+                        return touchCart(cartId).thenReturn(cartId);
+                    }
+                    return database.sql("""
+                                    INSERT INTO repu.carritos_compras (id_usuario, id_empresa, estado)
+                                    SELECT :userId, e.id_empresa, 'ACTIVO'
+                                    FROM repu.empresas e
+                                    WHERE e.id_empresa = :companyId AND e.activo = TRUE
+                                    ON CONFLICT DO NOTHING
+                                    RETURNING id_carrito
+                                    """)
+                            .bind("userId", userId)
+                            .bind("companyId", companyId)
+                            .fetch().one()
+                            .map(row -> uuid(row.get("id_carrito")))
+                            .switchIfEmpty(Mono.defer(() -> activeCarts(userId, true)
+                                    .flatMap(current -> {
+                                        if (current.size() > 1) {
+                                            return Mono.error(cartStateConflict());
+                                        }
+                                        if (current.isEmpty()
+                                                || !companyId.equals(uuid(current.getFirst().get("id_empresa")))) {
+                                            return Mono.error(storeConflict());
+                                        }
+                                        UUID cartId = uuid(current.getFirst().get("id_carrito"));
+                                        return touchCart(cartId).thenReturn(cartId);
+                                    })));
+                });
+    }
+
+    private Mono<Void> lockUser(UUID userId) {
+        return database.sql("SELECT id_usuario FROM repu.usuarios WHERE id_usuario = :userId FOR UPDATE")
+                .bind("userId", userId)
+                .fetch().one()
+                .switchIfEmpty(Mono.error(OrderException.notFound("USER_NOT_FOUND",
+                        "El comprador autenticado ya no existe.")))
+                .then();
+    }
+
+    private Mono<Void> requireActiveCompany(UUID companyId) {
+        return database.sql("""
+                        SELECT id_empresa FROM repu.empresas
+                        WHERE id_empresa = :companyId AND activo = TRUE
+                        FOR UPDATE
+                        """)
+                .bind("companyId", companyId)
+                .fetch().one()
+                .switchIfEmpty(Mono.error(OrderException.notFound("COMPANY_NOT_FOUND",
+                        "La empresa no existe o está inactiva.")))
+                .then();
+    }
+
+    private Mono<List<Map<String, Object>>> activeCarts(UUID userId, boolean lockRows) {
+        String sql = """
+                SELECT id_carrito, id_empresa
+                FROM repu.carritos_compras
+                WHERE id_usuario = :userId AND estado = 'ACTIVO'
+                ORDER BY fecha_creacion DESC
+                """ + (lockRows ? " FOR UPDATE" : "");
+        return database.sql(sql)
+                .bind("userId", userId)
+                .fetch().all()
+                .collectList();
+    }
+
+    private Mono<Integer> lockAvailableProduct(UUID companyId, UUID productId) {
+        return database.sql("""
+                        SELECT p.inventario_disponible AS available
+                        FROM repu.productos p
+                        JOIN repu.empresas e ON e.id_empresa = p.id_empresa AND e.activo = TRUE
+                        WHERE p.id_producto = :productId AND p.id_empresa = :companyId AND p.activo = TRUE
+                        FOR UPDATE OF p, e
+                        """)
+                .bind("productId", productId)
+                .bind("companyId", companyId)
+                .fetch().one()
+                .switchIfEmpty(Mono.error(OrderException.notFound("PRODUCT_NOT_AVAILABLE",
+                        "El producto no está disponible para esta empresa.")))
+                .map(row -> integer(row.get("available")));
+    }
+
+    private Mono<Integer> currentQuantity(UUID cartId, UUID productId) {
+        return database.sql("""
+                        SELECT cantidad FROM repu.items_carrito
+                        WHERE id_carrito = :cartId AND id_producto = :productId
+                        """)
+                .bind("cartId", cartId)
+                .bind("productId", productId)
+                .fetch().one()
+                .map(row -> integer(row.get("cantidad")))
+                .defaultIfEmpty(0);
+    }
+
+    private OrderException insufficientStock(int available) {
+        return OrderException.conflict("INSUFFICIENT_STOCK",
+                "La cantidad solicitada supera el inventario disponible.", Map.of("available", available));
+    }
+
+    private OrderException storeConflict() {
+        return OrderException.conflict("STORE_CONFLICT",
+                "El carrito activo pertenece a otra empresa. Vacíalo antes de cambiar de tienda.");
+    }
+
+    private OrderException cartStateConflict() {
+        return OrderException.conflict("CART_STATE_CONFLICT",
+                "El comprador tiene más de un carrito activo; se requiere corregir los datos antes de continuar.");
     }
 
     @Override

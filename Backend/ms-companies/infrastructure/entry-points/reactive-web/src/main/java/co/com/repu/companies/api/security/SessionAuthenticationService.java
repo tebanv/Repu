@@ -49,6 +49,9 @@ public class SessionAuthenticationService {
                 .onStatus(HttpStatusCode::isError, response -> Mono.empty())
                 .bodyToMono(AuthSessionResponse.class)
                 .map(response -> new SessionPrincipal(response.userId(), response.role()))
+                .filter(principal -> principal.userId() != null
+                        && principal.role() != null
+                        && !principal.role().isBlank())
                 .onErrorResume(error -> Mono.empty());
     }
 

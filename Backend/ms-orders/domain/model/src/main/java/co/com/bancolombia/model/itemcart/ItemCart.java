@@ -14,6 +14,8 @@ public record ItemCart(
         BigDecimal unitPrice,
         int quantity,
         BigDecimal subtotal,
+        int available,
+        int maxQuantity,
         Map<String, Object> selectedOptions) {
     public ItemCart {
         if (quantity < 1) {

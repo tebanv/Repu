@@ -39,12 +39,12 @@ public class SecurityConfig {
                         // pero security bearerAuth en PATCH.
                         // Así que GET es PÚBLICO.
                         .pathMatchers(HttpMethod.GET, "/api/catalog/products").permitAll()
-                        // POST: Solo DISTRIBUTOR
-                        .pathMatchers(HttpMethod.POST, "/api/catalog/products").hasAnyRole("ADMIN", "DISTRIBUIDOR", "COMPRADOR")
-                        // PATCH Update: Solo DISTRIBUTOR
-                        .pathMatchers(HttpMethod.PATCH, "/api/catalog/products/*").hasAnyRole("ADMIN", "DISTRIBUIDOR", "COMPRADOR")
-                        // PATCH Status: DISTRIBUTOR o ADMIN
-                        .pathMatchers(HttpMethod.PATCH, "/api/catalog/products/*/status").hasAnyRole("DISTRIBUIDOR", "ADMIN", "COMPRADOR")
+                        .pathMatchers(HttpMethod.POST, "/api/catalog/products")
+                        .hasAnyRole("ADMIN", "DISTRIBUIDOR")
+                        .pathMatchers(HttpMethod.PATCH, "/api/catalog/products/*/status")
+                        .hasAnyRole("ADMIN", "DISTRIBUIDOR")
+                        .pathMatchers(HttpMethod.PATCH, "/api/catalog/products/*")
+                        .hasAnyRole("ADMIN", "DISTRIBUIDOR")
                         .anyExchange().authenticated()
                 )
                 .build();

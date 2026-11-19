@@ -3,6 +3,7 @@ dependencies {
     implementation 'org.springframework:spring-context'
     implementation 'org.springframework.boot:spring-boot-starter-data-r2dbc'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
     implementation 'org.postgresql:r2dbc-postgresql'
     implementation 'org.reactivecommons.utils:object-mapper-api:0.1.0'
     testImplementation 'org.reactivecommons.utils:object-mapper:0.1.0'

@@ -12,6 +12,11 @@ import java.util.UUID;
 public class GetActiveCartUseCase {
     private final CartRepository cartRepository;
 
+    public Mono<Cart> execute(UUID userId) {
+        return cartRepository.findActive(userId)
+                .switchIfEmpty(Mono.error(OrderException.notFound("CART_NOT_FOUND", "No existe un carrito activo.")));
+    }
+
     public Mono<Cart> execute(UUID userId, UUID companyId) {
         return cartRepository.findActive(userId, companyId)
                 .switchIfEmpty(Mono.error(OrderException.notFound("CART_NOT_FOUND", "No existe un carrito activo para esta empresa.")));

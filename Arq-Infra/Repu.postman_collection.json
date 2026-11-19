@@ -11,13 +11,23 @@
       "item": [
         {
           "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {\n    const body = pm.response.json();\n\n    if (body.accessToken) {\n        pm.collectionVariables.set(\"accessToken\", body.accessToken);\n        console.log(\"accessToken guardado en la colección\");\n    } else {\n        console.error(\"La respuesta de login no contiene accessToken\");\n    }\n     if (body.userId) {\n        pm.collectionVariables.set(\"userId\", body.userId);\n        console.log(\"userId guardado en la colección\");\n    } else {\n        console.error(\"La respuesta de login no contiene userId\");\n    }\n}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
               {
                 "key": "X-Request-ID",
-                "value": "{{$randomUUID}}",
-                "type": "text"
+                "value": "{{$randomUUID}}"
               }
             ],
             "body": {
@@ -30,9 +40,9 @@
               }
             },
             "url": {
-              "raw": "{{endpoint-local81}}/ms-auth/api/auth/login",
+              "raw": "{{endpoint-pdn}}/ms-auth/api/auth/login",
               "host": [
-                "{{endpoint-local81}}"
+                "{{endpoint-pdn}}"
               ],
               "path": [
                 "ms-auth",
@@ -51,13 +61,12 @@
             "header": [
               {
                 "key": "X-Request-ID",
-                "value": "{{$randomUUID}}",
-                "type": "text"
+                "value": "{{$randomUUID}}"
               }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\r\n  \"email\": \"user@example.com\",\r\n  \"password\": \"Pass1234*\",   \r\n  \"role\": \"BUYER\",\r\n  \"name\": \"Esteban\",\r\n  \"lastName\": \"Velez\",\r\n  \"numberMobile\": \"3100000000\"\r\n}",
+              "raw": "{\r\n  \"email\": \"baterias@example.com\",\r\n  \"password\": \"Pass1234*\",   \r\n  \"role\": \"DISTRIBUIDOR\",\r\n  \"name\": \"Esteban\",\r\n  \"lastName\": \"Velez\",\r\n  \"numberMobile\": \"3100000000\"\r\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -65,9 +74,9 @@
               }
             },
             "url": {
-              "raw": "{{endpoint-local81}}/ms-auth/api/auth/register",
+              "raw": "{{endpoint-pdn}}/ms-auth/api/auth/register",
               "host": [
-                "{{endpoint-local81}}"
+                "{{endpoint-pdn}}"
               ],
               "path": [
                 "ms-auth",
@@ -91,17 +100,26 @@
             "header": [
               {
                 "key": "X-Request-ID",
-                "value": "{{$randomUUID}}",
-                "type": "text"
+                "value": "{{$randomUUID}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "__Host-repu_session={{accessToken}}",
+                "disabled": true
               }
             ],
             "url": {
-              "raw": "{{endpoint-local83}}/ms-companies/companies?lat=6.2000&lng=-75.5812",
+              "raw": "{{endpoint-pdn}}/ms-companies/api/companies?lat=6.2000&lng=-75.5812",
               "host": [
-                "{{endpoint-local83}}"
+                "{{endpoint-pdn}}"
               ],
               "path": [
                 "ms-companies",
+                "api",
                 "companies"
               ],
               "query": [
@@ -119,24 +137,66 @@
           "response": []
         },
         {
+          "name": "Listar por Slug",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-ID",
+                "value": "{{$randomUUID}}"
+              }
+            ],
+            "url": {
+              "raw": "{{endpoint-pdn}}/ms-companies/api/companies/parrilla-la-42-01a1a7e0",
+              "host": [
+                "{{endpoint-pdn}}"
+              ],
+              "path": [
+                "ms-companies",
+                "api",
+                "companies",
+                "parrilla-la-42-01a1a7e0"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
           "name": "Crear Empresas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {\n    const body = pm.response.json();\n\n    if (body.id) {\n        pm.collectionVariables.set(\"companyId\", body.id);\n        console.log(\"companyId guardado en la colección\");\n    } else {\n        console.error(\"La respuesta de login no contiene companyId\");\n    }\n}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
               {
                 "key": "X-Request-ID",
-                "value": "{{$randomUUID}}",
-                "type": "text"
+                "value": "{{$randomUUID}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiQlVZRVIiLCJuYW1lIjoiRXN0ZWJhbiIsImxhc3RuYW1lIjoiVmVsZXoiLCJzdWIiOiJ1c2VyQGV4YW1wbGUuY29tIiwiaWF0IjoxNzY4MDE4OTM1LCJleHAiOjE3NjgwMjI1MzV9.taMWwqdg-Sq1ZI4zh580zR1J5U8oYBFGIUA570fqJdc",
-                "type": "text"
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "__Host-repu_session={{accessToken}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "repu_session_dev={{accessToken}}"
               }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\r\n    \"userIdOwner\": \"21faaf46-8c39-4b65-8463-06b97a38697b\",\r\n    \"name\": \"Hamburguesas VillaHermosa 2\",\r\n    \"taxId\": \"9000898981\",\r\n    \"description\": \"Las mejores hamburguesas a la parrilla desde 2025.\",\r\n    \"logoUrl\": \"https://repu-storage.s3.amazonaws.com/logos/villahermosa.png\",\r\n    \"address\": \"Cra 42 # 60 - 12, Medellín\",\r\n    \"latitude\": 6.2442,\r\n    \"longitude\": -75.5812,\r\n    \"operationalConfig\": {\r\n        \"schedule\": {\r\n            \"monday\": {\r\n                \"open\": \"11:00\",\r\n                \"close\": \"22:00\"\r\n            },\r\n            \"friday\": {\r\n                \"open\": \"11:00\",\r\n                \"close\": \"23:59\"\r\n            },\r\n            \"sunday\": {\r\n                \"open\": \"12:00\",\r\n                \"close\": \"21:00\"\r\n            }\r\n        },\r\n        \"preparationTime\": 25,\r\n        \"delivery\": {\r\n            \"provider\": \"INTERNAL\",\r\n            \"maxRadiusKm\": 5.0,\r\n            \"minOrderValue\": 15000\r\n        },\r\n        \"branding\": {\r\n            \"primaryColor\": \"#FF0000\",\r\n            \"bannerUrl\": \"https://repu-storage.s3.amazonaws.com/banners/villahermosa_banner.jpg\"\r\n        },\r\n        \"features\": {\r\n            \"allowsPreOrder\": true,\r\n            \"hasCurbsidePickup\": false\r\n        }\r\n    }\r\n}",
+              "raw": "{\r\n    \"businessName\": \"Baterias La 42\",\r\n    \"taxId\": \"9000898987\",\r\n    \"description\": \"Baterias la 42.\",\r\n    \"logoUrl\": \"https://repu-storage.s3.amazonaws.com/logos/baterias-la-42.png\",\r\n    \"physicalAddress\": \"Calle 444 # 45-20, Medellín\",\r\n    \"categoryId\": \"01a1a805-c1a6-74e2-860b-5ef38f7dc4d1\",\r\n    \"location\": {\r\n        \"latitude\": 6.4350,\r\n        \"longitude\": -75.5980\r\n    },\r\n    \"operationalConfig\": {\r\n        \"version\": 1,\r\n        \"storeType\": \"AUTOMOTIVE_BATTERIES\",\r\n        \"services\": {\r\n            \"batteryTesting\": true,\r\n            \"alternatorTesting\": true,\r\n            \"installation\": {\r\n                \"available\": true,\r\n                \"requiresAppointment\": false,\r\n                \"availableAtStore\": true,\r\n                \"availableAtCustomerLocation\": true\r\n            },\r\n            \"oldBatteryCollection\": true\r\n        },\r\n        \"compatibility\": {\r\n            \"confirmVehicleFitmentBeforePurchase\": true,\r\n            \"vehicleDetailsRequested\": [\r\n                \"make\",\r\n                \"model\",\r\n                \"year\",\r\n                \"engine\"\r\n            ]\r\n        },\r\n        \"delivery\": {\r\n            \"provider\": \"INTERNAL\",\r\n            \"maxRadiusKm\": 6,\r\n            \"minOrderValue\": 50000,\r\n            \"sameDayAvailable\": true,\r\n            \"installationCanBeScheduledWithDelivery\": true\r\n        },\r\n        \"policies\": {\r\n            \"warrantyTermsAreProductSpecific\": true,\r\n            \"oldBatteryReturnRequiredForDeposit\": false\r\n        },\r\n        \"features\": {\r\n            \"allowsPreOrder\": true,\r\n            \"offersVehicleAssistance\": false\r\n        }\r\n    }\r\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -144,9 +204,9 @@
               }
             },
             "url": {
-              "raw": "{{endpoint-local83}}/ms-companies/api/companies",
+              "raw": "{{endpoint-pdn}}/ms-companies/api/companies",
               "host": [
-                "{{endpoint-local83}}"
+                "{{endpoint-pdn}}"
               ],
               "path": [
                 "ms-companies",
@@ -164,8 +224,16 @@
             "header": [
               {
                 "key": "X-Request-ID",
-                "value": "{{$randomUUID}}",
-                "type": "text"
+                "value": "{{$randomUUID}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "__Host-repu_session={{accessToken}}",
+                "disabled": true
               }
             ],
             "body": {
@@ -178,15 +246,15 @@
               }
             },
             "url": {
-              "raw": "{{endpoint-local83}}/ms-companies/api/companies/019ba58d-40e8-7027-8cc1-1d41a403aa0f/status",
+              "raw": "{{endpoint-local84}}/ms-companies/api/companies/{{companyId}}/status",
               "host": [
-                "{{endpoint-local83}}"
+                "{{endpoint-local84}}"
               ],
               "path": [
                 "ms-companies",
                 "api",
                 "companies",
-                "019ba58d-40e8-7027-8cc1-1d41a403aa0f",
+                "{{companyId}}",
                 "status"
               ]
             }
@@ -200,13 +268,21 @@
             "header": [
               {
                 "key": "X-Request-ID",
-                "value": "{{$randomUUID}}",
-                "type": "text"
+                "value": "{{$randomUUID}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "disabled": true
+              },
+              {
+                "key": "Cookie",
+                "value": "__Host-repu_session={{accessToken}}"
               }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\r\n    \"logoUrl\": \"https://nuevo-logo.com/villahermosa.png\",\r\n    \"address\": \"Calle hermosa 123, Nueva Sede\",\r\n    \"latitude\": 6.2400,\r\n    \"longitude\": -75.5400\r\n}",
+              "raw": "{\r\n    \"businessName\": \"Arepas y Parrilla La 39\",\r\n    \"description\": \"Arepas rellenas y comida a la parrilla la 39.\",\r\n    \"phone\": 31640000,\r\n    \"logoUrl\": \"https://nuevo-logo.com/villahermosa.png\",\r\n    \"bannerUrl\": \"https://nuevo-banner.com/villahermosa.png\",\r\n    \"address\": \"Calle hermosa 123, Nueva Sede\",\r\n    \"physicalAddress\": \"Calle 39 # 45-20, Medellín\",\r\n    \"location\": {\r\n        \"latitude\": 6.23,\r\n        \"longitude\": -75.575\r\n    },\r\n    \"slug\": \"arepas-y-parrilla-la-39-01a1666a\"\r\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -214,15 +290,15 @@
               }
             },
             "url": {
-              "raw": "{{endpoint-local83}}/ms-companies/api/companies/019ba58d-40e8-7027-8cc1-1d41a403aa0f",
+              "raw": "{{endpoint-pdn}}/ms-companies/api/companies/{{companyId}}",
               "host": [
-                "{{endpoint-local83}}"
+                "{{endpoint-pdn}}"
               ],
               "path": [
                 "ms-companies",
                 "api",
                 "companies",
-                "019ba58d-40e8-7027-8cc1-1d41a403aa0f"
+                "{{companyId}}"
               ]
             }
           },
@@ -240,14 +316,17 @@
             "header": [
               {
                 "key": "X-Request-ID",
-                "value": "{{$randomUUID}}",
-                "type": "text"
+                "value": "{{$randomUUID}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
               }
             ],
             "url": {
-              "raw": "{{endpoint-local85}}/ms-categories/api/catalog/categories",
+              "raw": "{{endpoint-pdn}}/ms-categories/api/catalog/categories",
               "host": [
-                "{{endpoint-local85}}"
+                "{{endpoint-pdn}}"
               ],
               "path": [
                 "ms-categories",
@@ -261,23 +340,43 @@
         },
         {
           "name": "Crear Categoria",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {\n    const body = pm.response.json();\n\n    if (body.id) {\n        pm.collectionVariables.set(\"categorieId\", body.id);\n        console.log(\"categorieId guardado en la colección\");\n    } else {\n        console.error(\"La respuesta de categories no contiene categorieId\");\n    }\n}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
               {
                 "key": "X-Request-ID",
-                "value": "{{$randomUUID}}",
-                "type": "text"
+                "value": "{{$randomUUID}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiQlVZRVIiLCJuYW1lIjoiRXN0ZWIiLCJsYXN0bmFtZSI6IlZlbGUiLCJzdWIiOiJ1c2VyQGV4YW1wbGUuY29tIiwiaWF0IjoxNzY4MDY3ODAwLCJleHAiOjE3Njg3MDM4MDB9.3OTcydo8VqKtDwVckfwTu_hnjp_P0l-9cH7xUetxP8w",
-                "type": "text"
+                "value": "Bearer {{accessToken}}",
+                "disabled": true
+              },
+              {
+                "key": "Cookie",
+                "value": "__Host-repu_session={{accessToken}}",
+                "disabled": true
+              },
+              {
+                "key": "Cookie",
+                "value": "repu_session_dev={{accessToken}}",
+                "disabled": true
               }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\r\n  \"name\": \"Test\",\r\n  \"parentId\": \"e4a298c9-ee30-41a4-974f-3a72d334b3a5\",\r\n  \"description\": \"Categoria de prueba\",\r\n  \"iconUrl\": \"https://example.com\"\r\n}",
+              "raw": "{\r\n  \"name\": \"Hamburguesas\",\r\n  \"parentId\": \"01a16716-4f90-7f32-85e3-f4019a1b768d\",\r\n  \"description\": \"Hamburguesas y combos preparados al momento.\",\r\n  \"iconUrl\": \"https://img.magnific.com/foto-gratis/hamburguesas-vista-frontal-soporte_141793-15545.jpg?semt=ais_hybrid&w=740&q=80\"\r\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -285,12 +384,11 @@
               }
             },
             "url": {
-              "raw": "{{endpoint-local85}}/ms-categories/api/catalog/categories",
+              "raw": "{{endpoint-pdn}}ms-categories/api/catalog/categories",
               "host": [
-                "{{endpoint-local85}}"
+                "{{endpoint-pdn}}ms-categories"
               ],
               "path": [
-                "ms-categories",
                 "api",
                 "catalog",
                 "categories"
@@ -306,18 +404,20 @@
             "header": [
               {
                 "key": "X-Request-ID",
-                "value": "{{$randomUUID}}",
-                "type": "text"
+                "value": "{{$randomUUID}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiQlVZRVIiLCJuYW1lIjoiRXN0ZWIiLCJsYXN0bmFtZSI6IlZlbGUiLCJzdWIiOiJ1c2VyQGV4YW1wbGUuY29tIiwiaWF0IjoxNzY4MDY3ODAwLCJleHAiOjE3Njg3MDM4MDB9.3OTcydo8VqKtDwVckfwTu_hnjp_P0l-9cH7xUetxP8w",
-                "type": "text"
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "__Host-repu_session={{accessToken}}"
               }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\r\n  \"name\": \"Test 2\",\r\n  \"parentId\": \"e4a298c9-ee30-41a4-974f-3a72d334b3a5\",\r\n  \"description\": \"Categoria de prueba 2\",\r\n  \"iconUrl\": \"https://example.com/1\"\r\n}",
+              "raw": "{\r\n  \"name\": \"Test 2\",\r\n  \"description\": \"Categoria de prueba 2\",\r\n  \"iconUrl\": \"https://example.com/1\"\r\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -325,16 +425,16 @@
               }
             },
             "url": {
-              "raw": "{{endpoint-local85}}/ms-categories/api/catalog/categories/019baa0d-bc73-74a2-9b98-6c20dfb01e73",
+              "raw": "{{endpoint-pdn}}/ms-categories/api/catalog/categories/{{categorieId}}",
               "host": [
-                "{{endpoint-local85}}"
+                "{{endpoint-pdn}}"
               ],
               "path": [
                 "ms-categories",
                 "api",
                 "catalog",
                 "categories",
-                "019baa0d-bc73-74a2-9b98-6c20dfb01e73"
+                "{{categorieId}}"
               ],
               "query": [
                 {
@@ -408,19 +508,18 @@
             "header": [
               {
                 "key": "X-Request-ID",
-                "value": "{{$randomUUID}}",
-                "type": "text"
+                "value": "{{$randomUUID}}"
               },
               {
                 "key": "Authorization",
                 "value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiQlVZRVIiLCJuYW1lIjoiRXN0ZWJhbiIsImxhc3RuYW1lIjoiVmVsZXoiLCJzdWIiOiJ1c2VyQGV4YW1wbGUuY29tIiwiaWF0IjoxNzY4MDI3NDA4LCJleHAiOjE3NjgwMzEwMDh9.aiIsz9AQ68v3y0-BZNTfVQ5IKW7M9wrGRX4MIZZYBjw",
-                "type": "text"
+                "disabled": true
               }
             ],
             "url": {
-              "raw": "{{endpoint-local84}}/ms-products/api/catalog/products?companyId=019ba535-e091-7c5d-8197-0d15c0cf4e41",
+              "raw": "{{endpoint-local86}}/ms-products/api/catalog/products?companyId={{companyId}}",
               "host": [
-                "{{endpoint-local84}}"
+                "{{endpoint-local86}}"
               ],
               "path": [
                 "ms-products",
@@ -431,7 +530,7 @@
               "query": [
                 {
                   "key": "companyId",
-                  "value": "019ba535-e091-7c5d-8197-0d15c0cf4e41"
+                  "value": "{{companyId}}"
                 }
               ]
             }
@@ -440,23 +539,32 @@
         },
         {
           "name": "Crear Productos",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {\n    const body = pm.response.json();\n\n    if (body.id) {\n        pm.collectionVariables.set(\"productId\", body.id);\n        console.log(\"productId guardado en la colección\");\n    } else {\n        console.error(\"La respuesta de categories no contiene productId\");\n    }\n}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
               {
                 "key": "X-Request-ID",
-                "value": "{{$randomUUID}}",
-                "type": "text"
+                "value": "{{$randomUUID}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiQlVZRVIiLCJuYW1lIjoiRXN0ZWIiLCJsYXN0bmFtZSI6IlZlbGUiLCJzdWIiOiJ1c2VyQGV4YW1wbGUuY29tIiwiaWF0IjoxNzY4MDY3ODAwLCJleHAiOjE3Njg3MDM4MDB9.3OTcydo8VqKtDwVckfwTu_hnjp_P0l-9cH7xUetxP8w",
-                "type": "text"
+                "value": "Bearer {{accessToken}}"
               }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\r\n  \"companyId\": \"019ba535-e091-7c5d-8197-0d15c0cf4e41\",\r\n  \"categoryId\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\r\n  \"name\": \"Hamburguesa Gourmet\",\r\n  \"description\": \"Hamburguesa Basica con combo\",\r\n  \"sku\": \"123\",\r\n  \"price\": 20.000,\r\n  \"stock\": 0,\r\n  \"attributes\": {\r\n    \"queso\": \"Si\",\r\n    \"carne\": \"res 120gr\",\r\n    \"cebolla caramelizada\": \"si\",\r\n    \"papitas\": \"Si\",\r\n    \"gaseosa\": \"Si\"\r\n  },\r\n  \"images\": [\r\n    \"3\", \"4\"\r\n  ]\r\n}",
+              "raw": "{\r\n  \"companyId\": \"{{companyId}}\",\r\n  \"categoryId\": \"01a1a80c-dd9f-7505-a536-514622aaa4b6\",\r\n  \"name\": \"Batería Mac 12 V 60 Ah\",\r\n  \"description\": \"Batería automotriz Mac de 12 V y 60 Ah. Confirma la compatibilidad con el vehículo antes de la compra.\",\r\n  \"sku\": \"MAC-12V-60AH\",\r\n  \"price\": 450000,\r\n  \"priceOffer\": 400000,\r\n  \"stock\": 10,\r\n  \"attributes\": {\r\n    \"brand\": \"Mac\",\r\n    \"voltage\": \"12 V\",\r\n    \"capacity\": \"60 Ah\",\r\n    \"vehicleFitmentConfirmationRequired\": true\r\n  },\r\n  \"images\": [\r\n    \"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT-d4s6WKJ_6Bp39mv0YHeIvx5mgx76dyCurR59GIjA2g&s=10\",\r\n    \"https://autopla1.b-cdn.net/wp-content/uploads/2025/12/Bateria-AGM_02_empaque-scaled-4.jpeg\"\r\n  ],\r\n    \"brand\": \"Mac\"\r\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -464,9 +572,9 @@
               }
             },
             "url": {
-              "raw": "{{endpoint-local84}}/ms-products/api/catalog/products",
+              "raw": "{{endpoint-local86}}/ms-products/api/catalog/products",
               "host": [
-                "{{endpoint-local84}}"
+                "{{endpoint-local86}}"
               ],
               "path": [
                 "ms-products",
@@ -485,13 +593,11 @@
             "header": [
               {
                 "key": "X-Request-ID",
-                "value": "{{$randomUUID}}",
-                "type": "text"
+                "value": "{{$randomUUID}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiQlVZRVIiLCJuYW1lIjoiRXN0ZWIiLCJsYXN0bmFtZSI6IlZlbGUiLCJzdWIiOiJ1c2VyQGV4YW1wbGUuY29tIiwiaWF0IjoxNzY4MDY3ODAwLCJleHAiOjE3Njg3MDM4MDB9.3OTcydo8VqKtDwVckfwTu_hnjp_P0l-9cH7xUetxP8w",
-                "type": "text"
+                "value": "Bearer {{accessToken}}"
               }
             ],
             "body": {
@@ -504,17 +610,57 @@
               }
             },
             "url": {
-              "raw": "{{endpoint-local84}}/ms-products/api/catalog/products/019ba937-5dbd-76b8-aeb2-344482043998/status",
+              "raw": "{{endpoint-local86}}/ms-products/api/catalog/products/{{productId}}/status",
               "host": [
-                "{{endpoint-local84}}"
+                "{{endpoint-local86}}"
               ],
               "path": [
                 "ms-products",
                 "api",
                 "catalog",
                 "products",
-                "019ba937-5dbd-76b8-aeb2-344482043998",
+                "{{productId}}",
                 "status"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Actualizar Productos",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Request-ID",
+                "value": "{{$randomUUID}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"brand\": \"Mac\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{endpoint-pdn}}/ms-products/api/catalog/products/{{productId}}",
+              "host": [
+                "{{endpoint-pdn}}"
+              ],
+              "path": [
+                "ms-products",
+                "api",
+                "catalog",
+                "products",
+                "{{productId}}"
               ]
             }
           },
@@ -1044,12 +1190,20 @@
               {
                 "key": "X-Request-ID",
                 "value": "{{requestId}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "__Host-repu_session={{accessToken}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
               }
             ],
             "url": {
-              "raw": "{{host}}{{basePath}}/api/auth/sessions",
+              "raw": "{{endpoint-pdn}}{{authBasePath}}/api/auth/sessions",
               "host": [
-                "{{host}}{{basePath}}"
+                "{{endpoint-pdn}}{{authBasePath}}"
               ],
               "path": [
                 "api",
@@ -1068,12 +1222,16 @@
               {
                 "key": "X-Request-ID",
                 "value": "{{requestId}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "__Host-repu_session={{accessToken}}"
               }
             ],
             "url": {
-              "raw": "{{host}}{{basePath}}/api/auth/logout",
+              "raw": "{{endpoint-pdn}}{{authBasePath}}/api/auth/logout",
               "host": [
-                "{{host}}{{basePath}}"
+                "{{endpoint-pdn}}{{authBasePath}}"
               ],
               "path": [
                 "api",
@@ -1093,14 +1251,19 @@
               {
                 "key": "X-Request-ID",
                 "value": "{{requestId}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
               }
             ],
             "url": {
-              "raw": "{{host}}{{basePath}}/api/auth/logout-all",
+              "raw": "{{endpoint-local81}}/ms-auth/api/auth/logout-all",
               "host": [
-                "{{host}}{{basePath}}"
+                "{{endpoint-local81}}"
               ],
               "path": [
+                "ms-auth",
                 "api",
                 "auth",
                 "logout-all"
@@ -1358,13 +1521,21 @@
             "header": [
               {
                 "key": "X-Request-ID",
-                "value": "{{requestId}}"
+                "value": "{{$randomUUID}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "",
+                "value": ""
               }
             ],
             "url": {
-              "raw": "{{usersHost}}{{usersBasePath}}/api/users/profile",
+              "raw": "{{endpoint-pdn}}{{usersBasePath}}/api/users/profile",
               "host": [
-                "{{usersHost}}{{usersBasePath}}"
+                "{{endpoint-pdn}}{{usersBasePath}}"
               ],
               "path": [
                 "api",
@@ -1680,6 +1851,22 @@
     {
       "key": "usersBasePath",
       "value": "/ms-users"
+    },
+    {
+      "key": "endpoint-pdn",
+      "value": ""
+    },
+    {
+      "key": "companyId",
+      "value": ""
+    },
+    {
+      "key": "categorieId",
+      "value": ""
+    },
+    {
+      "key": "productId",
+      "value": ""
     }
   ]
 }

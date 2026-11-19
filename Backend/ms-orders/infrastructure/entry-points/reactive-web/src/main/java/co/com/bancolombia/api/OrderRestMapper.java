@@ -25,7 +25,7 @@ public final class OrderRestMapper {
 
     public static CartItemResponse cartItem(ItemCart item) {
         return new CartItemResponse(item.id(), item.productId(), item.productName(), item.unitPrice(),
-                item.quantity(), item.subtotal());
+                item.quantity(), item.subtotal(), item.available(), item.maxQuantity());
     }
 
     public static OrderResponse order(Order order) {
@@ -80,7 +80,7 @@ public final class OrderRestMapper {
     }
 
     public record CartItemResponse(UUID id, UUID productId, String productName, BigDecimal unitPrice,
-                                   int quantity, BigDecimal subtotal) {
+                                   int quantity, BigDecimal subtotal, int available, int maxQuantity) {
     }
 
     public record OrderItemResponse(UUID itemId, UUID productId, String nameSnapshot, String skuSnapshot,

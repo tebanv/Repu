@@ -9,6 +9,7 @@ import co.com.bancolombia.usecase.acceptorder.AcceptOrderUseCase;
 import co.com.bancolombia.usecase.additemtocart.AddItemToCartUseCase;
 import co.com.bancolombia.usecase.cancelorder.CancelOrderUseCase;
 import co.com.bancolombia.usecase.checkoutorder.CheckoutOrderUseCase;
+import co.com.bancolombia.usecase.clearactivecart.ClearActiveCartUseCase;
 import co.com.bancolombia.usecase.expireinventoryreservations.ExpireInventoryReservationsUseCase;
 import co.com.bancolombia.usecase.getactivecart.GetActiveCartUseCase;
 import co.com.bancolombia.usecase.getactiveorders.GetActiveOrdersUseCase;
@@ -19,6 +20,7 @@ import co.com.bancolombia.usecase.markorderready.MarkOrderReadyUseCase;
 import co.com.bancolombia.usecase.rejectorder.RejectOrderUseCase;
 import co.com.bancolombia.usecase.removeitemfromcart.RemoveItemFromCartUseCase;
 import co.com.bancolombia.usecase.subscribetoorderlivestream.SubscribeToOrderLiveStreamUseCase;
+import co.com.bancolombia.usecase.setcartitemquantity.SetCartItemQuantityUseCase;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -41,6 +43,16 @@ public class UseCasesConfig {
     @Bean
     public RemoveItemFromCartUseCase removeItemFromCartUseCase(CartRepository carts, TransactionRunner transactions) {
         return new RemoveItemFromCartUseCase(carts, transactions);
+    }
+
+    @Bean
+    public SetCartItemQuantityUseCase setCartItemQuantityUseCase(CartRepository carts, TransactionRunner transactions) {
+        return new SetCartItemQuantityUseCase(carts, transactions);
+    }
+
+    @Bean
+    public ClearActiveCartUseCase clearActiveCartUseCase(CartRepository carts, TransactionRunner transactions) {
+        return new ClearActiveCartUseCase(carts, transactions);
     }
 
     @Bean

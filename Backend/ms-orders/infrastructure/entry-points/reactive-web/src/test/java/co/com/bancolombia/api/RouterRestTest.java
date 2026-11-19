@@ -4,6 +4,7 @@ import co.com.bancolombia.usecase.acceptorder.AcceptOrderUseCase;
 import co.com.bancolombia.usecase.additemtocart.AddItemToCartUseCase;
 import co.com.bancolombia.usecase.cancelorder.CancelOrderUseCase;
 import co.com.bancolombia.usecase.checkoutorder.CheckoutOrderUseCase;
+import co.com.bancolombia.usecase.clearactivecart.ClearActiveCartUseCase;
 import co.com.bancolombia.usecase.getactivecart.GetActiveCartUseCase;
 import co.com.bancolombia.usecase.getactiveorders.GetActiveOrdersUseCase;
 import co.com.bancolombia.usecase.getcurrentlocation.GetCurrentLocationUseCase;
@@ -13,6 +14,7 @@ import co.com.bancolombia.usecase.markorderready.MarkOrderReadyUseCase;
 import co.com.bancolombia.usecase.rejectorder.RejectOrderUseCase;
 import co.com.bancolombia.usecase.removeitemfromcart.RemoveItemFromCartUseCase;
 import co.com.bancolombia.usecase.subscribetoorderlivestream.SubscribeToOrderLiveStreamUseCase;
+import co.com.bancolombia.usecase.setcartitemquantity.SetCartItemQuantityUseCase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webflux.test.autoconfigure.WebFluxTest;
@@ -26,6 +28,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 @Import(ApiErrorWebExceptionHandler.class)
 @MockitoBean(types = {
         GetActiveCartUseCase.class, AddItemToCartUseCase.class, RemoveItemFromCartUseCase.class,
+        SetCartItemQuantityUseCase.class, ClearActiveCartUseCase.class,
         CheckoutOrderUseCase.class, ListOrdersUseCase.class, GetActiveOrdersUseCase.class,
         GetOrderDetailsUseCase.class, CancelOrderUseCase.class, AcceptOrderUseCase.class,
         RejectOrderUseCase.class, MarkOrderReadyUseCase.class, SubscribeToOrderLiveStreamUseCase.class,
@@ -38,11 +41,19 @@ class RouterRestTest {
     @Test
     void cartRequiresAuthentication() {
         webTestClient.get()
-                .uri("/cart?companyId=8f5a3b21-6543-41c2-b987-123456789abc")
+                .uri("/api/cart")
                 .exchange()
                 .expectStatus().isUnauthorized()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo("UNAUTHENTICATED");
+    }
+
+    @Test
+    void cartCanBeClearedWithoutRequestBody() {
+        webTestClient.delete()
+                .uri("/api/cart")
+                .exchange()
+                .expectStatus().isUnauthorized();
     }
 
     @Test

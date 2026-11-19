@@ -42,6 +42,9 @@ public class SecurityContextRepository implements ServerSecurityContextRepositor
         }
 
         return sessionAuthenticationService.authenticate(token, bearer != null)
+                .filter(principal -> principal.userId() != null
+                        && principal.role() != null
+                        && !principal.role().isBlank())
                 .map(principal -> new UsernamePasswordAuthenticationToken(
                         principal.userId().toString(),
                         null,

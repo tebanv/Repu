@@ -118,24 +118,25 @@ public class PasswordResetRepositoryAdapter implements PasswordResetRepository {
                     WHERE id_token = $1 AND id_usuario = $2
                       AND usado = FALSE AND expira_en > CURRENT_TIMESTAMP
                     RETURNING id_usuario
+                ), usuario_actualizado AS (
+                    UPDATE repu.usuarios
+                    SET hash_contrasena = $3, fecha_actualizacion = CURRENT_TIMESTAMP
+                    WHERE id_usuario IN (SELECT id_usuario FROM token_consumido)
+                    RETURNING id_usuario
+                ), sesiones_revocadas AS (
+                    UPDATE repu.sesiones_usuario
+                    SET esta_activa = FALSE
+                    WHERE id_usuario IN (SELECT id_usuario FROM usuario_actualizado)
+                      AND esta_activa = TRUE
+                    RETURNING id_sesion
                 )
-                UPDATE repu.usuarios
-                SET hash_contrasena = $3, fecha_actualizacion = CURRENT_TIMESTAMP
-                WHERE id_usuario IN (SELECT id_usuario FROM token_consumido)
+                SELECT id_usuario FROM usuario_actualizado
                 """)
                 .bind(0, tokenId)
                 .bind(1, userId)
                 .bind(2, passwordHash)
-                .fetch().rowsUpdated()
-                .flatMap(rows -> rows == 0
-                        ? Mono.error(new IllegalArgumentException("Código inválido o expirado."))
-                        : databaseClient.sql("""
-                            UPDATE repu.sesiones_usuario
-                            SET esta_activa = FALSE
-                            WHERE id_usuario = $1 AND esta_activa = TRUE
-                            """)
-                        .bind(0, userId)
-                        .fetch().rowsUpdated())
+                .fetch().one()
+                .switchIfEmpty(Mono.error(new IllegalArgumentException("Código inválido o expirado.")))
                 .then();
     }
 }

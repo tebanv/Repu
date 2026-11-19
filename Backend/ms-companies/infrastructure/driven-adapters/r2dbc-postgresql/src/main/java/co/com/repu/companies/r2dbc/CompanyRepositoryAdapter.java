@@ -81,6 +81,39 @@ public class CompanyRepositoryAdapter implements CompanyRepository {
     }
 
     @Override
+    public Flux<Company> findNearestVisible(double lat, double lng, int radiusKm, UUID ownerId,
+                                            boolean administrator, String messageId) {
+        log.info("Buscando empresas visibles lat: {}, lng: {}, radioKm: {}, messageId: {}",
+                lat, lng, radiusKm, messageId);
+        DatabaseClient.GenericExecuteSpec statement = databaseClient.sql("""
+                        SELECT %s,
+                               public.ST_Distance(
+                                   ubicacion,
+                                   CAST(public.ST_SetSRID(public.ST_MakePoint($2, $1), 4326)
+                                        AS public.geography)
+                               ) AS distancia
+                        FROM repu.empresas
+                        WHERE public.ST_DWithin(
+                            ubicacion,
+                            CAST(public.ST_SetSRID(public.ST_MakePoint($2, $1), 4326)
+                                 AS public.geography),
+                            $3
+                        )
+                          AND (activo = TRUE OR $4 = TRUE
+                               OR ($5 IS NOT NULL AND id_usuario_propietario = $5))
+                        ORDER BY distancia ASC
+                        """.formatted(SELECT_COLUMNS))
+                .bind(0, lat)
+                .bind(1, lng)
+                .bind(2, radiusKm * 1000.0)
+                .bind(3, administrator);
+        statement = bindNullable(statement, 4, ownerId, UUID.class);
+        return statement.map((row, metadata) -> mapper.toDomain(toEntity(row)))
+                .all()
+                .onErrorMap(this::translatePersistenceError);
+    }
+
+    @Override
     public Mono<Company> findById(String id) {
         return databaseClient.sql("SELECT " + SELECT_COLUMNS
                         + " FROM repu.empresas WHERE id_empresa = $1")
@@ -101,6 +134,23 @@ public class CompanyRepositoryAdapter implements CompanyRepository {
     }
 
     @Override
+    public Mono<Company> findBySlugVisible(String slug, UUID ownerId, boolean administrator) {
+        DatabaseClient.GenericExecuteSpec statement = databaseClient.sql("""
+                        SELECT %s
+                        FROM repu.empresas
+                        WHERE slug = $1
+                          AND (activo = TRUE OR $2 = TRUE
+                               OR ($3 IS NOT NULL AND id_usuario_propietario = $3))
+                        """.formatted(SELECT_COLUMNS))
+                .bind(0, slug)
+                .bind(1, administrator);
+        statement = bindNullable(statement, 2, ownerId, UUID.class);
+        return statement.map((row, metadata) -> mapper.toDomain(toEntity(row)))
+                .one()
+                .onErrorMap(this::translatePersistenceError);
+    }
+
+    @Override
     public Mono<Boolean> existsBySlug(String slug) {
         return databaseClient.sql("SELECT EXISTS (SELECT 1 FROM repu.empresas WHERE slug = $1) AS slug_exists")
                 .bind(0, slug)
@@ -114,6 +164,22 @@ public class CompanyRepositoryAdapter implements CompanyRepository {
         return databaseClient.sql("SELECT " + SELECT_COLUMNS
                         + " FROM repu.empresas ORDER BY fecha_creacion DESC")
                 .map((row, metadata) -> mapper.toDomain(toEntity(row)))
+                .all()
+                .onErrorMap(this::translatePersistenceError);
+    }
+
+    @Override
+    public Flux<Company> findAllVisible(UUID ownerId, boolean administrator) {
+        DatabaseClient.GenericExecuteSpec statement = databaseClient.sql("""
+                        SELECT %s
+                        FROM repu.empresas
+                        WHERE activo = TRUE OR $1 = TRUE
+                           OR ($2 IS NOT NULL AND id_usuario_propietario = $2)
+                        ORDER BY fecha_creacion DESC
+                        """.formatted(SELECT_COLUMNS))
+                .bind(0, administrator);
+        statement = bindNullable(statement, 1, ownerId, UUID.class);
+        return statement.map((row, metadata) -> mapper.toDomain(toEntity(row)))
                 .all()
                 .onErrorMap(this::translatePersistenceError);
     }

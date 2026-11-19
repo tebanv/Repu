@@ -18,13 +18,13 @@ public class ManageCompanyUseCase {
     public static final int DEFAULT_RADIUS_KM = 10;
 
     // Debe aceptar los parámetros de ubicación (pueden llegar nulos)
-    public Flux<Company> getAllCompanies(Double lat, Double lng, Integer radiusKm, String messageId) {
+    public Flux<Company> getAllCompanies(Double lat, Double lng, Integer radiusKm, UUID ownerId,
+                                          boolean administrator, String messageId) {
         if (lat != null && lng != null) {
-            return companyRepository.findNearest(lat, lng,
-                    radiusKm == null ? DEFAULT_RADIUS_KM : radiusKm, messageId);
+            return companyRepository.findNearestVisible(lat, lng,
+                    radiusKm == null ? DEFAULT_RADIUS_KM : radiusKm, ownerId, administrator, messageId);
         } else {
-            // No hay ubicación: Mostrar todas (idealmente paginado en el futuro)
-            return companyRepository.findAll();
+            return companyRepository.findAllVisible(ownerId, administrator);
         }
     }
 
@@ -40,17 +40,24 @@ public class ManageCompanyUseCase {
                         : companyRepository.save(company, messageId));
     }
 
-    public Mono<Company> getCompanyBySlug(String slug) {
-        return companyRepository.findBySlug(CompanySlug.normalize(slug));
+    public Mono<Company> getCompanyBySlug(String slug, UUID ownerId, boolean administrator) {
+        return companyRepository.findBySlugVisible(CompanySlug.normalize(slug), ownerId, administrator);
     }
 
     /**
      * Actualiza parcialmente una empresa.
      * Solo los campos no nulos en 'updates' sobrescribirán a 'existing'.
      */
-    public Mono<Company> updateCompanyDetails(String id, Company updates, String messageId) {
+    public Mono<Company> updateCompanyDetails(String id, Company updates, UUID actorId,
+                                               boolean administrator, String messageId) {
+        if (actorId == null) {
+            return Mono.error(new CompanyAccessDeniedException());
+        }
         return companyRepository.findById(id)
                 .flatMap(existingCompany -> {
+                    if (!administrator && !actorId.equals(existingCompany.getUserIdOwner())) {
+                        return Mono.error(new CompanyAccessDeniedException());
+                    }
                     // LÓGICA DE MEZCLA (MERGE)
                     // Usamos el toBuilder() de Lombok para crear una copia actualizada
                     String requestedSlug = updates.getSlug() == null

@@ -4,8 +4,12 @@ import co.repu.model.system.SystemParameter;
 import co.repu.model.system.gateways.SystemParameterRepository;
 import co.repu.model.users.PasswordValidator;
 import co.repu.model.users.AuthSession;
+import co.repu.model.users.InvalidCredentialsException;
+import co.repu.model.users.LoginResult;
 import co.repu.model.users.Session;
 import co.repu.model.users.User;
+import co.repu.model.users.gateways.EmailMfaGateway;
+import co.repu.model.users.gateways.LoginProtectionGateway;
 import co.repu.model.users.gateways.SecurityGateway;
 import co.repu.model.users.gateways.SessionSecurityGateway;
 import co.repu.model.users.gateways.UserSessionRepository;
@@ -37,51 +41,86 @@ public class AuthUseCase {
     private final UserSessionRepository userSessionRepository;
     private final SystemParameterRepository systemParameterRepository;
     private final SessionSecurityGateway sessionSecurityGateway;
+    private final LoginProtectionGateway loginProtectionGateway;
+    private final EmailMfaGateway emailMfaGateway;
 
     public Mono<String> login(String email, String password, String messageId) {
         return loginSession(email, password, messageId, null, null, null)
-                .map(AuthSession::getRawToken);
+                .flatMap(result -> result.getAuthSession() == null
+                        ? Mono.error(new IllegalStateException("El usuario debe completar MFA"))
+                        : Mono.just(result.getAuthSession().getRawToken()));
     }
 
-    public Mono<AuthSession> loginSession(String email, String password, String messageId,
+    public Mono<LoginResult> loginSession(String email, String password, String messageId,
                                           String ipAddress, String userAgent, String deviceInfo) {
-        log.info("Iniciando autenticación para correo " + email + ". Solicitud " + messageId);
-        return usersRepository.findByEmail(email)
-                .switchIfEmpty(Mono.error(new RuntimeException("Credenciales inválidas")))
-                .flatMap(user -> {
-                    if (Boolean.FALSE.equals(user.getStatus())) {
-                        return Mono.error(new RuntimeException("Usuario inactivo"));
-                    }
-                    if (securityGateway.validatePassword(password, user.getPassword())) {
-                        String token = generateOpaqueToken();
-                        long expirationSeconds = expirationForRole(user.getRole());
-                        LocalDateTime now = LocalDateTime.now();
-                        Session session = Session.builder()
-                                .userId(user.getId())
-                                .tokenHash(hashToken(token))
-                                .activeCompanyId(null)
-                                .ipAddress(ipAddress)
-                                .userAgent(userAgent)
-                                .deviceInfo(deviceInfo)
-                                .active(true)
-                                .expiresAt(now.plusSeconds(expirationSeconds))
-                                .createdAt(now)
-                                .lastAccess(now)
-                                .build();
-                        return userSessionRepository.save(session)
-                                .flatMap(saved -> sessionSecurityGateway.cache(saved)
-                                        .doOnSuccess(ignored -> log.info("Sesión " + saved.getSessionId()
-                                                + " creada para usuario " + user.getId()
-                                                + " con expiración de " + expirationSeconds + " segundos"))
-                                        .thenReturn(AuthSession.builder()
-                                                .user(user)
-                                                .session(saved)
-                                                .rawToken(token)
-                                                .expiresInSeconds(expirationSeconds)
-                                                .build()));
-                    }
-                    return Mono.error(new RuntimeException("Credenciales inválidas"));
-                });
+        log.info("Iniciando autenticación. Solicitud " + messageId);
+        if (email == null || email.isBlank() || password == null || password.isBlank()) {
+            return Mono.error(new InvalidCredentialsException());
+        }
+
+        String normalizedEmail = email.strip();
+        return loginProtectionGateway.checkIpLimit(ipAddress)
+                .then(loginProtectionGateway.checkAccountLock(normalizedEmail))
+                .then(usersRepository.findByEmail(normalizedEmail)
+                        .filter(user -> Boolean.TRUE.equals(user.getStatus()))
+                        .filter(user -> securityGateway.validatePassword(password, user.getPassword()))
+                        .switchIfEmpty(Mono.defer(() -> loginProtectionGateway
+                                .recordFailedAttempt(normalizedEmail)
+                                .then(Mono.error(new InvalidCredentialsException())))))
+                .flatMap(user -> loginProtectionGateway.clearFailedAttempts(normalizedEmail)
+                        .then(Mono.defer(() -> {
+                            if (requiresMfa(user.getRole())) {
+                                return emailMfaGateway.createAndSendChallenge(
+                                                user.getId(), user.getEmail(), user.getName())
+                                        .map(LoginResult::challenge);
+                            }
+                            return createSession(user, ipAddress, userAgent, deviceInfo)
+                                    .map(LoginResult::authenticated);
+                        })));
+    }
+
+    public Mono<AuthSession> verifyMfaAndLogin(String challengeId, String code,
+                                               String ipAddress, String userAgent, String deviceInfo) {
+        return emailMfaGateway.verifyChallenge(challengeId, code)
+                .flatMap(usersRepository::findById)
+                .filter(user -> Boolean.TRUE.equals(user.getStatus()) && requiresMfa(user.getRole()))
+                .switchIfEmpty(Mono.error(new InvalidCredentialsException()))
+                .flatMap(user -> createSession(user, ipAddress, userAgent, deviceInfo));
+    }
+
+    private Mono<AuthSession> createSession(User user, String ipAddress,
+                                            String userAgent, String deviceInfo) {
+        String token = generateOpaqueToken();
+        long idleExpirationSeconds = expirationForRole(user.getRole());
+        LocalDateTime now = LocalDateTime.now();
+        Session session = Session.builder()
+                .userId(user.getId())
+                .userRole(user.getRole())
+                .absoluteExpiresAt(now.plusSeconds(absoluteExpirationForRole(user.getRole())))
+                .tokenHash(hashToken(token))
+                .activeCompanyId(null)
+                .ipAddress(ipAddress)
+                .userAgent(userAgent)
+                .deviceInfo(deviceInfo)
+                .active(true)
+                .expiresAt(now.plusSeconds(idleExpirationSeconds))
+                .createdAt(now)
+                .lastAccess(now)
+                .build();
+        return userSessionRepository.save(session)
+                .map(saved -> saved.toBuilder()
+                        .userRole(session.getUserRole())
+                        .absoluteExpiresAt(session.getAbsoluteExpiresAt())
+                        .build())
+                .flatMap(saved -> sessionSecurityGateway.cache(saved)
+                        .doOnSuccess(ignored -> log.info("Sesión " + saved.getSessionId()
+                                + " creada para usuario " + user.getId()))
+                        .thenReturn(AuthSession.builder()
+                                .user(user)
+                                .session(saved)
+                                .rawToken(token)
+                                .expiresInSeconds(idleExpirationSeconds)
+                                .build()));
     }
 
     public Mono<User> register(User user, String messageId) {
@@ -133,15 +172,23 @@ public class AuthUseCase {
 
     public Mono<Void> logout(UUID userId, String rawToken) {
         if (rawToken == null || rawToken.isBlank()) {
-            log.info("Cerrando todas las sesiones del usuario " + userId + " por solicitud de logout");
-            return userSessionRepository.findActiveByUserId(userId)
-                    .flatMap(sessionSecurityGateway::evict)
-                    .then(userSessionRepository.deactivateAllByUserId(userId));
+            return Mono.empty();
         }
         String sessionTokenHash = hashToken(rawToken);
         return userSessionRepository.findActiveByUserId(userId)
                 .filter(session -> session.getTokenHash() != null && session.getTokenHash().equals(sessionTokenHash))
                 .next()
+                .flatMap(session -> userSessionRepository.deactivateBySessionId(session.getSessionId())
+                        .then(sessionSecurityGateway.evict(session)))
+                .then();
+    }
+
+    public Mono<Void> logoutByToken(String rawToken) {
+        if (rawToken == null || rawToken.isBlank()) {
+            return Mono.empty();
+        }
+        return userSessionRepository.findByTokenHash(hashToken(rawToken))
+                .filter(session -> Boolean.TRUE.equals(session.getActive()))
                 .flatMap(session -> userSessionRepository.deactivateBySessionId(session.getSessionId())
                         .then(sessionSecurityGateway.evict(session)))
                 .then();
@@ -197,8 +244,22 @@ public class AuthUseCase {
     }
 
     private long expirationForRole(String role) {
-        return "ADMIN".equals(role) || "ANALISTA".equals(role)
+        return isPrivilegedRole(role)
                 ? 8 * 60 * 60L
                 : 7 * 24 * 60 * 60L;
+    }
+
+    private long absoluteExpirationForRole(String role) {
+        return isPrivilegedRole(role)
+                ? 24 * 60 * 60L
+                : 30 * 24 * 60 * 60L;
+    }
+
+    private boolean requiresMfa(String role) {
+        return isPrivilegedRole(role);
+    }
+
+    private boolean isPrivilegedRole(String role) {
+        return role != null && Set.of("ADMIN", "ANALISTA").contains(role.toUpperCase(Locale.ROOT));
     }
 }

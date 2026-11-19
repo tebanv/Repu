@@ -1,10 +1,13 @@
 package co.com.repu.api;
 
 import co.com.repu.model.product.PersistenceException;
+import co.com.repu.model.product.ProductAccessDeniedException;
+import co.com.repu.model.product.ProductNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.server.ServerWebInputException;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 import org.springframework.web.reactive.function.server.ServerResponse;
 
@@ -18,7 +21,20 @@ public final class ApiErrorHandler {
         String code;
         String message;
 
-        if (error instanceof PersistenceException persistenceException) {
+        if (error instanceof ProductAccessDeniedException) {
+            status = HttpStatus.FORBIDDEN;
+            code = "ACCESS_DENIED";
+            message = "No tienes permiso para administrar productos de esta empresa.";
+        } else if (error instanceof ProductNotFoundException) {
+            status = HttpStatus.NOT_FOUND;
+            code = "PRODUCT_NOT_FOUND";
+            message = "El producto no existe o no está disponible para esta empresa.";
+        } else if (error instanceof ResponseStatusException responseStatusException
+                && responseStatusException.getStatusCode().value() == HttpStatus.UNAUTHORIZED.value()) {
+            status = HttpStatus.UNAUTHORIZED;
+            code = "UNAUTHENTICATED";
+            message = "Se requiere una sesión válida.";
+        } else if (error instanceof PersistenceException persistenceException) {
             switch (persistenceException.getKind()) {
                 case DUPLICATE -> {
                     status = HttpStatus.CONFLICT;

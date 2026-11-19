@@ -35,7 +35,8 @@ public class OrderPersistenceMapper {
         int quantity = integer(row.get("cantidad"));
         return new ItemCart(uuid(row.get("id_item_carrito")), uuid(row.get("id_producto")),
                 text(row.get("nombre")), textOrNull(row.get("sku_referencia")), price, quantity,
-                price.multiply(BigDecimal.valueOf(quantity)), jsonObject(row.get("datos_seleccionados")));
+                price.multiply(BigDecimal.valueOf(quantity)), integer(row.get("available")),
+                integer(row.get("available")), jsonObject(row.get("datos_seleccionados")));
     }
 
     public Order order(Map<String, Object> row) {

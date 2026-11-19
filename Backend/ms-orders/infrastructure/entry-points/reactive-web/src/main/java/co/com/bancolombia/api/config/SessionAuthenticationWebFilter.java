@@ -48,6 +48,10 @@ public class SessionAuthenticationWebFilter implements WebFilter {
         return sessionAuthenticationGateway.authenticate(credential, requestId)
                 .switchIfEmpty(Mono.error(unauthenticated()))
                 .flatMap(user -> {
+                    if (isCartPath(exchange) && !"COMPRADOR".equalsIgnoreCase(user.role())) {
+                        return Mono.error(OrderException.forbidden(
+                                "FORBIDDEN", "Solo los compradores pueden operar el carrito."));
+                    }
                     var authentication = new UsernamePasswordAuthenticationToken(
                             user.userId().toString(),
                             null,
@@ -59,6 +63,10 @@ public class SessionAuthenticationWebFilter implements WebFilter {
     }
 
     private SessionCredential extractSessionCredential(ServerWebExchange exchange) {
+        if (isCartPath(exchange)) {
+            var cookie = exchange.getRequest().getCookies().getFirst(sessionCookieName);
+            return cookie == null ? null : new SessionCredential(cookie.getValue(), SessionCredential.Type.COOKIE);
+        }
         String authorization = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
         if (authorization != null) {
             if (authorization.regionMatches(true, 0, "Bearer ", 0, 7)) {
@@ -68,6 +76,12 @@ public class SessionAuthenticationWebFilter implements WebFilter {
         }
         var cookie = exchange.getRequest().getCookies().getFirst(sessionCookieName);
         return cookie == null ? null : new SessionCredential(cookie.getValue(), SessionCredential.Type.COOKIE);
+    }
+
+    private boolean isCartPath(ServerWebExchange exchange) {
+        String path = exchange.getRequest().getPath().value();
+        return path.equals("/cart") || path.endsWith("/cart")
+                || path.contains("/cart/") || path.contains("/api/cart/");
     }
 
     private boolean isOptionsRequest(ServerWebExchange exchange) {

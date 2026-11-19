@@ -24,4 +24,6 @@ public class Session {
     private LocalDateTime expiresAt;
     private LocalDateTime createdAt;
     private LocalDateTime lastAccess;
+    private LocalDateTime absoluteExpiresAt;
+    private String userRole;
 }

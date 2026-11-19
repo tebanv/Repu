@@ -8,13 +8,19 @@ import org.springframework.web.reactive.function.server.ServerResponse;
 import static org.springframework.web.reactive.function.server.RequestPredicates.DELETE;
 import static org.springframework.web.reactive.function.server.RequestPredicates.GET;
 import static org.springframework.web.reactive.function.server.RequestPredicates.POST;
+import static org.springframework.web.reactive.function.server.RequestPredicates.PUT;
 import static org.springframework.web.reactive.function.server.RouterFunctions.route;
 
 @Configuration
 public class RouterRest {
     @Bean
     public RouterFunction<ServerResponse> routerFunction(Handler handler) {
-        return route(GET("/cart"), handler::getCart)
+        return route(GET("/api/cart"), handler::getCart)
+                .andRoute(POST("/api/cart/items"), handler::addCartItem)
+                .andRoute(PUT("/api/cart/items/{productId}"), handler::setCartItemQuantity)
+                .andRoute(DELETE("/api/cart"), handler::clearCart)
+                // Legacy paths remain available for existing clients during migration.
+                .andRoute(GET("/cart"), handler::getCart)
                 .andRoute(POST("/cart/items"), handler::addCartItem)
                 .andRoute(DELETE("/cart/items/{itemId}"), handler::removeCartItem)
                 .andRoute(GET("/orders/active"), handler::activeOrders)
